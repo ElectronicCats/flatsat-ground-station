@@ -10,6 +10,7 @@ from webapp.db import get_db, init_db
 @pytest.fixture
 def app():
     from webapp.app import create_app
+
     db_fd, db_path = tempfile.mkstemp(suffix=".db")
     app = create_app(TestConfig, db_path=db_path)
 
@@ -23,6 +24,7 @@ def app():
 
 def test_seed_users(app):
     from webapp.seed import seed_db
+
     with app.app_context():
         seed_db()
         db = get_db()
@@ -37,6 +39,7 @@ def test_seed_users(app):
 
 def test_seed_telemetry(app):
     from webapp.seed import seed_db
+
     with app.app_context():
         seed_db()
         db = get_db()
@@ -46,6 +49,7 @@ def test_seed_telemetry(app):
 
 def test_seed_radio_config(app):
     from webapp.seed import seed_db
+
     with app.app_context():
         seed_db()
         db = get_db()
@@ -57,6 +61,7 @@ def test_seed_radio_config(app):
 
 def test_seed_logs(app):
     from webapp.seed import seed_db
+
     with app.app_context():
         seed_db()
         db = get_db()
@@ -66,6 +71,7 @@ def test_seed_logs(app):
 
 def test_seed_idempotent(app):
     from webapp.seed import seed_db
+
     with app.app_context():
         seed_db()
         seed_db()

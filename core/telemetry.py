@@ -8,17 +8,17 @@ import random
 import struct
 import time
 
-from core.ccsds import build_tm, parse_frame
+from core.ccsds import build_tm
 from core.constants import (
-    APID_TM_HEARTBEAT, APID_TM_BME280, APID_TM_LIS2DH,
+    APID_TM_BME280,
+    APID_TM_HEARTBEAT,
+    APID_TM_LIS2DH,
     CCSDS_SPACECRAFT_ID,
 )
 
 
 def decode_heartbeat(payload: bytes) -> dict:
-    sc_id, uptime, battery_mv, flight_mode, difficulty, tc_count, error_count = struct.unpack(
-        ">BIHBBHH", payload[:13]
-    )
+    sc_id, uptime, battery_mv, flight_mode, difficulty, tc_count, error_count = struct.unpack(">BIHBBHH", payload[:13])
     return {
         "sc_id": sc_id,
         "uptime": uptime,
@@ -71,7 +71,16 @@ def generate_mock_telemetry() -> dict:
     timestamp = int(time.time()) & 0xFFFFFFFF
 
     if apid == APID_TM_HEARTBEAT:
-        payload = struct.pack(">BIHBBHH", CCSDS_SPACECRAFT_ID, timestamp, random.randint(3300, 4200), random.randint(0, 2), 0, random.randint(0, 500), random.randint(0, 5))
+        payload = struct.pack(
+            ">BIHBBHH",
+            CCSDS_SPACECRAFT_ID,
+            timestamp,
+            random.randint(3300, 4200),
+            random.randint(0, 2),
+            0,
+            random.randint(0, 500),
+            random.randint(0, 5),
+        )
     elif apid == APID_TM_BME280:
         payload = struct.pack(">hIB", random.randint(2000, 3500), random.randint(10100, 10200), random.randint(40, 60))
     else:

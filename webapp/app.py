@@ -3,12 +3,12 @@
 import threading
 import time
 
-from flask import Flask, render_template, request, redirect, url_for, make_response, g
+from flask import Flask, g, redirect, render_template, request, url_for
 from flask_socketio import SocketIO
 
+from webapp.auth import authenticate, create_session_token, login_required
 from webapp.config import Config
 from webapp.db import close_db, init_db
-from webapp.auth import authenticate, create_session_token, login_required, get_current_user
 
 socketio = SocketIO()
 
@@ -59,6 +59,7 @@ def create_app(config_class=Config, db_path=None):
     @login_required
     def api_telemetry():
         from webapp.db import get_db
+
         search = request.args.get("search", "")
         limit = request.args.get("limit", "50")
         db = get_db()
@@ -74,6 +75,7 @@ def create_app(config_class=Config, db_path=None):
     @login_required
     def logs_page():
         from webapp.db import get_db
+
         db = get_db()
         logs = db.execute("SELECT * FROM logs ORDER BY id DESC").fetchall()
         return render_template("logs.html", logs=logs)
@@ -82,6 +84,7 @@ def create_app(config_class=Config, db_path=None):
     @login_required
     def api_diagnostics():
         import subprocess
+
         data = request.get_json(silent=True) or {}
         cmd = data.get("cmd")
         if not cmd:
@@ -107,6 +110,7 @@ def create_app(config_class=Config, db_path=None):
             level = data.get("level", "INFO")
             source = data.get("source", "user")
             from datetime import datetime
+
             db = get_db()
             db.execute(
                 "INSERT INTO logs (timestamp, level, source, message) VALUES (?, ?, ?, ?)",
@@ -120,6 +124,7 @@ def create_app(config_class=Config, db_path=None):
         if not filename:
             return {"error": "Missing 'file' parameter"}, 400
         import os
+
         logs_dir = os.path.join(os.path.dirname(__file__), "logs")
         filepath = os.path.join(logs_dir, filename)
         try:
@@ -134,21 +139,19 @@ def create_app(config_class=Config, db_path=None):
     @login_required
     def config_page():
         from webapp.db import get_db
+
         db = get_db()
-        config = db.execute(
-            "SELECT * FROM radio_config WHERE owner = ?", (g.username,)
-        ).fetchone()
+        config = db.execute("SELECT * FROM radio_config WHERE owner = ?", (g.username,)).fetchone()
         return render_template("config.html", config=config)
 
     @app.route("/api/config/radio/<int:config_id>")
     @login_required
     def api_config_get(config_id):
         from webapp.db import get_db
+
         db = get_db()
         # VULNERABLE: no ownership check (GS-06 IDOR)
-        config = db.execute(
-            "SELECT * FROM radio_config WHERE id = ?", (config_id,)
-        ).fetchone()
+        config = db.execute("SELECT * FROM radio_config WHERE id = ?", (config_id,)).fetchone()
         if config is None:
             return {"error": "Config not found"}, 404
         return dict(config)
@@ -157,13 +160,15 @@ def create_app(config_class=Config, db_path=None):
     @login_required
     def api_config_update():
         import subprocess
+
         data = request.get_json(silent=True) or {}
         frequency = data.get("frequency", "915000000")
         # VULNERABLE: f-string in shell command (GS-07)
         try:
             output = subprocess.check_output(
                 f"echo 'Setting frequency to {frequency}'",
-                shell=True, stderr=subprocess.STDOUT,
+                shell=True,
+                stderr=subprocess.STDOUT,
             )
             return {"output": output.decode(errors="replace")}
         except subprocess.CalledProcessError as e:
@@ -176,17 +181,20 @@ def create_app(config_class=Config, db_path=None):
         for rule in app.url_map.iter_rules():
             if rule.endpoint == "static":
                 continue
-            routes.append({
-                "rule": rule.rule,
-                "methods": sorted(rule.methods - {"OPTIONS", "HEAD"}),
-                "endpoint": rule.endpoint,
-            })
+            routes.append(
+                {
+                    "rule": rule.rule,
+                    "methods": sorted(rule.methods - {"OPTIONS", "HEAD"}),
+                    "endpoint": rule.endpoint,
+                }
+            )
         return routes
 
     @app.route("/api/radio/send", methods=["POST"])
     @login_required
     def api_radio_send():
         from webapp.radio_bridge import RadioBridge
+
         data = request.get_json(silent=True) or {}
         raw_hex = data.get("data", "")
         try:
@@ -217,12 +225,15 @@ def start_mock_telemetry(app):
         while True:
             with app.app_context():
                 tm = generate_mock_telemetry()
-                socketio.emit("telemetry_update", {
-                    "apid": tm["apid"],
-                    "raw_hex": tm["raw_hex"],
-                    "decoded": tm["decoded"],
-                    "timestamp": tm["timestamp"],
-                })
+                socketio.emit(
+                    "telemetry_update",
+                    {
+                        "apid": tm["apid"],
+                        "raw_hex": tm["raw_hex"],
+                        "decoded": tm["decoded"],
+                        "timestamp": tm["timestamp"],
+                    },
+                )
             time.sleep(2)
 
     thread = threading.Thread(target=_loop, daemon=True)
@@ -231,11 +242,13 @@ def start_mock_telemetry(app):
 
 if __name__ == "__main__":
     import os
+
     app = create_app()
     os.makedirs("db", exist_ok=True)
     with app.app_context():
         init_db()
         from webapp.seed import seed_db
+
         seed_db()
     start_mock_telemetry(app)
     print("PwnSat2 Ground Station running on http://localhost:5000")

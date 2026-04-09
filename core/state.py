@@ -1,6 +1,6 @@
 """FlatSat ground station state management."""
 
-from typing import Any, Optional
+from typing import Any
 
 from core.constants import ConnectionMode
 
@@ -8,7 +8,7 @@ from core.constants import ConnectionMode
 class GroundStationState:
     def __init__(self):
         self.connection_mode: ConnectionMode = ConnectionMode.SIMULATED
-        self.device: Optional[Any] = None
+        self.device: Any | None = None
         self.mock_running: bool = False
 
     @property

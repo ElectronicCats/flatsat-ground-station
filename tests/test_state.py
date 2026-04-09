@@ -1,5 +1,5 @@
-from core.state import GroundStationState
 from core.constants import ConnectionMode
+from core.state import GroundStationState
 
 
 def test_initial_state():

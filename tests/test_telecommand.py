@@ -1,14 +1,16 @@
+from core.ccsds import parse_frame
+from core.constants import (
+    APID_TC_COMMAND,
+    CCSDS_TYPE_TC,
+    TC_OP_PING,
+    TC_OP_PRIVILEGED,
+    TC_OP_READ_FLAG,
+)
 from core.telecommand import (
     build_command_tc,
     build_privileged_tc,
-    xor_encrypt,
     xor_decrypt,
-)
-from core.ccsds import parse_frame
-from core.constants import (
-    APID_TC_COMMAND, TC_OP_PING, TC_OP_PRIVILEGED,
-    TC_OP_READ_FLAG, AES_KEY_HARDCODED, XOR_KEY,
-    CCSDS_TYPE_TC,
+    xor_encrypt,
 )
 
 

@@ -1,0 +1,33 @@
+target-version = "py311"
+line-length = 120
+
+[lint]
+select = [
+    "E",    # pycodestyle errors
+    "W",    # pycodestyle warnings
+    "F",    # pyflakes
+    "I",    # isort
+    "B",    # flake8-bugbear
+    "UP",   # pyupgrade
+    "S",    # flake8-bandit (security)
+]
+ignore = [
+    "S101",   # assert in tests is fine
+    "S104",   # bind 0.0.0.0 — intentional for ground station
+    "S105",   # hardcoded passwords — deliberate CTF
+    "S106",   # hardcoded passwords in args — deliberate CTF
+    "S110",   # try-except-pass — used in token parsing
+    "S305",   # ECB mode — deliberate CTF vuln
+    "S311",   # pseudo-random — fine for seed/mock data
+]
+
+[lint.per-file-ignores]
+"core/__init__.py" = ["F401"]  # re-exports
+"webapp/app.py" = ["S602", "S603", "S605", "S607", "S608", "S324"]
+"webapp/auth.py" = ["S324"]
+"webapp/seed.py" = ["S324"]
+"webapp/config.py" = ["S105"]
+"tests/*" = ["S101", "S106"]
+
+[format]
+quote-style = "double"

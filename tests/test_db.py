@@ -4,13 +4,14 @@ import tempfile
 
 import pytest
 
-from webapp.config import Config, TestConfig
-from webapp.db import get_db, close_db, init_db
+from webapp.config import TestConfig
+from webapp.db import get_db, init_db
 
 
 @pytest.fixture
 def app():
     from webapp.app import create_app
+
     db_fd, db_path = tempfile.mkstemp(suffix=".db")
     app = create_app(TestConfig, db_path=db_path)
 
@@ -38,9 +39,7 @@ def test_get_db_same_connection(app):
 def test_init_db_creates_tables(app):
     with app.app_context():
         db = get_db()
-        tables = db.execute(
-            "SELECT name FROM sqlite_master WHERE type='table'"
-        ).fetchall()
+        tables = db.execute("SELECT name FROM sqlite_master WHERE type='table'").fetchall()
         table_names = {t["name"] for t in tables}
         assert "users" in table_names
         assert "telemetry" in table_names

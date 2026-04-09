@@ -6,8 +6,10 @@ AES-encrypted privileged commands (TC_OP_PRIVILEGED 0xD0).
 
 from core.ccsds import build_tc
 from core.constants import (
-    APID_TC_COMMAND, TC_OP_PRIVILEGED,
-    AES_KEY_HARDCODED, XOR_KEY,
+    AES_KEY_HARDCODED,
+    APID_TC_COMMAND,
+    TC_OP_PRIVILEGED,
+    XOR_KEY,
 )
 
 _tc_seq_count = 0
@@ -17,6 +19,7 @@ def _aes_ecb_encrypt(key: bytes, plaintext: bytes) -> bytes:
     """AES-128-ECB encrypt a single 16-byte block."""
     try:
         from Crypto.Cipher import AES
+
         cipher = AES.new(key, AES.MODE_ECB)
         return cipher.encrypt(plaintext)
     except ImportError:
@@ -24,16 +27,14 @@ def _aes_ecb_encrypt(key: bytes, plaintext: bytes) -> bytes:
 
     try:
         from cryptography.hazmat.primitives.ciphers import Cipher, algorithms, modes
+
         cipher = Cipher(algorithms.AES(key), modes.ECB())
         encryptor = cipher.encryptor()
         return encryptor.update(plaintext) + encryptor.finalize()
     except ImportError:
         pass
 
-    raise ImportError(
-        "No AES library available. Install pycryptodome or cryptography: "
-        "pip install pycryptodome"
-    )
+    raise ImportError("No AES library available. Install pycryptodome or cryptography: pip install pycryptodome")
 
 
 def xor_encrypt(data: bytes) -> bytes:
@@ -56,8 +57,7 @@ def build_command_tc(opcode: int, data: bytes = b"", seq_count: int | None = Non
     return build_tc(APID_TC_COMMAND, payload, seq_count=seq_count)
 
 
-def build_privileged_tc(inner_opcode: int, inner_data: bytes = b"",
-                        seq_count: int | None = None) -> bytes:
+def build_privileged_tc(inner_opcode: int, inner_data: bytes = b"", seq_count: int | None = None) -> bytes:
     """Build an AES-encrypted privileged telecommand.
 
     Encrypted payload format (16 bytes):

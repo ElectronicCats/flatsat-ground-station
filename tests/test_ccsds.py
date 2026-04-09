@@ -1,20 +1,24 @@
-import struct
 from core.ccsds import (
-    ccsds_crc16,
     build_packet_id,
-    parse_packet_id,
     build_seq_ctrl,
-    parse_seq_ctrl,
-    build_tm,
     build_tc,
+    build_tm,
+    ccsds_crc16,
     parse_frame,
-    CcsdsPacket,
+    parse_packet_id,
+    parse_seq_ctrl,
 )
 from core.constants import (
-    CCSDS_VERSION, CCSDS_TYPE_TM, CCSDS_TYPE_TC,
-    CCSDS_SEQ_STANDALONE, CCSDS_HDR_SIZE, CCSDS_SEC_HDR_SIZE,
-    CCSDS_CRC_SIZE, CCSDS_MAX_PAYLOAD, CCSDS_SPACECRAFT_ID,
-    APID_TM_HEARTBEAT, APID_TM_BME280, APID_TC_COMMAND,
+    APID_TC_COMMAND,
+    APID_TM_BME280,
+    APID_TM_HEARTBEAT,
+    CCSDS_CRC_SIZE,
+    CCSDS_HDR_SIZE,
+    CCSDS_MAX_PAYLOAD,
+    CCSDS_SEC_HDR_SIZE,
+    CCSDS_SEQ_STANDALONE,
+    CCSDS_TYPE_TC,
+    CCSDS_TYPE_TM,
 )
 
 
@@ -57,7 +61,7 @@ def test_parse_seq_ctrl():
 
 
 def test_build_tm_roundtrip():
-    payload = b"\x02\x00\x00\x00\x64\x03\xE8\x01\x32\x00\x0A\x00\x00"
+    payload = b"\x02\x00\x00\x00\x64\x03\xe8\x01\x32\x00\x0a\x00\x00"
     frame = build_tm(APID_TM_HEARTBEAT, payload, seq_count=1, timestamp=100)
     assert len(frame) == CCSDS_HDR_SIZE + CCSDS_SEC_HDR_SIZE + len(payload) + CCSDS_CRC_SIZE
     pkt = parse_frame(frame)
@@ -103,5 +107,6 @@ def test_max_payload():
 
 def test_payload_too_large():
     import pytest
+
     with pytest.raises(ValueError, match="payload"):
         build_tm(APID_TM_HEARTBEAT, bytes(CCSDS_MAX_PAYLOAD + 1), seq_count=0, timestamp=0)

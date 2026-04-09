@@ -2,11 +2,24 @@
 {% block title %}Config{% endblock %}
 {% block content %}
 <h1>Radio Configuration</h1>
-<form method="post" action="/api/config/radio">
-    <label>Frequency (Hz): <input name="frequency" type="number" value="{{ config.frequency if config else 915000000 }}"></label><br><br>
-    <label>Spreading Factor: <input name="spreading_factor" type="number" min="7" max="12" value="{{ config.spreading_factor if config else 7 }}"></label><br><br>
-    <label>Bandwidth (Hz): <input name="bandwidth" type="number" value="{{ config.bandwidth if config else 125000 }}"></label><br><br>
-    <label>TX Power (dBm): <input name="tx_power" type="number" value="{{ config.tx_power if config else 14 }}"></label><br><br>
+<form id="config-form">
+    <label>Frequency (Hz): <input name="frequency" id="frequency" type="number" value="{{ config.frequency if config else 915000000 }}"></label><br><br>
+    <label>Spreading Factor: <input name="spreading_factor" id="spreading_factor" type="number" min="7" max="12" value="{{ config.spreading_factor if config else 7 }}"></label><br><br>
+    <label>Bandwidth (Hz): <input name="bandwidth" id="bandwidth" type="number" value="{{ config.bandwidth if config else 125000 }}"></label><br><br>
+    <label>TX Power (dBm): <input name="tx_power" id="tx_power" type="number" value="{{ config.tx_power if config else 14 }}"></label><br><br>
     <button type="submit">Update Config</button>
 </form>
+<pre id="config-response"></pre>
+<script>
+document.getElementById("config-form").addEventListener("submit", async function(e) {
+    e.preventDefault();
+    const resp = await fetch("/api/config/radio", {
+        method: "POST",
+        headers: {"Content-Type": "application/json"},
+        body: JSON.stringify({frequency: document.getElementById("frequency").value})
+    });
+    const result = await resp.json();
+    document.getElementById("config-response").textContent = JSON.stringify(result, null, 2);
+});
+</script>
 {% endblock %}

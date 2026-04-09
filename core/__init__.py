@@ -7,17 +7,17 @@ Usage:
 
 from core.ccsds import (
     CcsdsPacket,
-    build_tm,
     build_tc,
-    parse_frame,
+    build_tm,
     ccsds_crc16,
+    parse_frame,
+)
+from core.state import GroundStationState
+from core.telecommand import (
+    build_command_tc,
+    build_privileged_tc,
 )
 from core.telemetry import (
     decode_tm_payload,
     generate_mock_telemetry,
 )
-from core.telecommand import (
-    build_command_tc,
-    build_privileged_tc,
-)
-from core.state import GroundStationState

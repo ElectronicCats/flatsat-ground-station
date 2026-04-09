@@ -50,20 +50,21 @@ def _seed_telemetry(db):
         az = round(random.uniform(950, 1050), 1)
         raw_hex = f"0801C0{i:04X}00{apid:04X}{random.randint(0, 0xFFFF):04X}"
         db.execute(
-            "INSERT INTO telemetry (timestamp, apid, spacecraft_id, temperature, pressure, humidity, accel_x, accel_y, accel_z, raw_hex) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+            "INSERT INTO telemetry "
+            "(timestamp, apid, spacecraft_id, temperature, pressure, humidity, "
+            "accel_x, accel_y, accel_z, raw_hex) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
             (ts.isoformat(), apid, 0x02, temp, pressure, humidity, ax, ay, az, raw_hex),
         )
 
 
 def _seed_radio_config(db):
-    db.execute(
-        "INSERT INTO radio_config (owner, frequency, spreading_factor, bandwidth, tx_power, description) VALUES (?, ?, ?, ?, ?, ?)",
-        ("admin", 436703000, 10, 125000, 22, "TinyGS Norbi downlink — CLASSIFIED"),
+    sql = (
+        "INSERT INTO radio_config "
+        "(owner, frequency, spreading_factor, bandwidth, tx_power, description) "
+        "VALUES (?, ?, ?, ?, ?, ?)"
     )
-    db.execute(
-        "INSERT INTO radio_config (owner, frequency, spreading_factor, bandwidth, tx_power, description) VALUES (?, ?, ?, ?, ?, ?)",
-        ("operator", 915000000, 7, 125000, 14, "Default ISM 915 MHz"),
-    )
+    db.execute(sql, ("admin", 436703000, 10, 125000, 22, "TinyGS Norbi downlink — CLASSIFIED"))
+    db.execute(sql, ("operator", 915000000, 7, 125000, 14, "Default ISM 915 MHz"))
 
 
 def _seed_logs(db):

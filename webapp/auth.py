@@ -5,7 +5,7 @@ import hashlib
 import time
 from functools import wraps
 
-from flask import request, redirect, url_for, g
+from flask import g, redirect, request, url_for
 
 from webapp.db import get_db
 
@@ -43,6 +43,7 @@ def get_current_user():
 
 def login_required(f):
     """Decorator: redirect to login if no valid session."""
+
     @wraps(f)
     def decorated(*args, **kwargs):
         username, role = get_current_user()
@@ -51,6 +52,7 @@ def login_required(f):
         g.username = username
         g.role = role
         return f(*args, **kwargs)
+
     return decorated
 
 

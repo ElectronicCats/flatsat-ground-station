@@ -14,6 +14,7 @@ from webapp.seed import seed_db
 @pytest.fixture
 def app():
     from webapp.app import create_app
+
     db_fd, db_path = tempfile.mkstemp(suffix=".db")
     app = create_app(TestConfig, db_path=db_path)
     with app.app_context():
@@ -60,9 +61,7 @@ class TestGS02_XSS:
 
 class TestGS03_RCE:
     def test_rce(self, operator):
-        resp = operator.post("/api/diagnostics",
-                             json={"cmd": "echo GS03_FLAG"},
-                             content_type="application/json")
+        resp = operator.post("/api/diagnostics", json={"cmd": "echo GS03_FLAG"}, content_type="application/json")
         assert "GS03_FLAG" in resp.get_json()["output"]
 
 
@@ -89,33 +88,27 @@ class TestGS06_IDOR:
 
 class TestGS07_CMDI:
     def test_command_injection(self, operator):
-        resp = operator.post("/api/config/radio",
-                             json={"frequency": "1; echo GS07"},
-                             content_type="application/json")
+        resp = operator.post("/api/config/radio", json={"frequency": "1; echo GS07"}, content_type="application/json")
         assert "GS07" in resp.get_json()["output"]
 
 
 class TestGS08_KillChain:
     def test_radio_send(self, operator):
-        resp = operator.post("/api/radio/send",
-                             json={"data": "080100"},
-                             content_type="application/json")
+        resp = operator.post("/api/radio/send", json={"data": "080100"}, content_type="application/json")
         assert resp.status_code == 200
 
 
 class TestGS09_DBTamper:
     def test_update_via_sqli(self, operator):
-        resp = operator.get(
-            "/api/telemetry?search='; UPDATE telemetry SET temperature=999 WHERE id=1;--&limit=1"
-        )
+        resp = operator.get("/api/telemetry?search='; UPDATE telemetry SET temperature=999 WHERE id=1;--&limit=1")
         assert resp.status_code in (200, 500)
 
 
 class TestGS11_LogInjection:
     def test_newline_injection(self, operator):
-        resp = operator.post("/api/logs",
-                             json={"message": "line1\nFAKE: admin authorized"},
-                             content_type="application/json")
+        resp = operator.post(
+            "/api/logs", json={"message": "line1\nFAKE: admin authorized"}, content_type="application/json"
+        )
         assert resp.status_code == 200
 
 

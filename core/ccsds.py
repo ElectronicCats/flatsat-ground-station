@@ -6,12 +6,16 @@ Big-endian headers per CCSDS 133.0-B-2.
 
 import struct
 from dataclasses import dataclass
-from typing import Optional
 
 from core.constants import (
-    CCSDS_VERSION, CCSDS_TYPE_TM, CCSDS_TYPE_TC,
-    CCSDS_SEQ_STANDALONE, CCSDS_HDR_SIZE, CCSDS_SEC_HDR_SIZE,
-    CCSDS_CRC_SIZE, CCSDS_MAX_PAYLOAD, CCSDS_MAX_FRAME_SIZE,
+    CCSDS_CRC_SIZE,
+    CCSDS_HDR_SIZE,
+    CCSDS_MAX_PAYLOAD,
+    CCSDS_SEC_HDR_SIZE,
+    CCSDS_SEQ_STANDALONE,
+    CCSDS_TYPE_TC,
+    CCSDS_TYPE_TM,
+    CCSDS_VERSION,
 )
 
 
@@ -67,8 +71,7 @@ def parse_seq_ctrl(seq_ctrl: int) -> tuple[int, int]:
     return flags, count
 
 
-def _build_frame(pkt_type: int, apid: int, payload: bytes,
-                 seq_count: int, timestamp: int) -> bytes:
+def _build_frame(pkt_type: int, apid: int, payload: bytes, seq_count: int, timestamp: int) -> bytes:
     """Build a complete CCSDS frame with primary header, secondary header, payload, and CRC."""
     if len(payload) > CCSDS_MAX_PAYLOAD:
         raise ValueError(f"payload too large: {len(payload)} > {CCSDS_MAX_PAYLOAD}")
@@ -95,8 +98,8 @@ def build_tc(apid: int, payload: bytes, seq_count: int = 0, timestamp: int = 0) 
     return _build_frame(CCSDS_TYPE_TC, apid, payload, seq_count, timestamp)
 
 
-def parse_frame(raw: bytes) -> Optional[CcsdsPacket]:
-    """Parse a raw CCSDS frame. Returns None if too short."""
+def parse_frame(raw: bytes) -> CcsdsPacket | None:
+    """Parse a raw CCSDS frame. Returns None if too short or truncated."""
     min_size = CCSDS_HDR_SIZE + CCSDS_SEC_HDR_SIZE + CCSDS_CRC_SIZE
     if len(raw) < min_size:
         return None
@@ -105,13 +108,18 @@ def parse_frame(raw: bytes) -> Optional[CcsdsPacket]:
     pkt_type, sec_hdr_flag, apid = parse_packet_id(packet_id)
     seq_flags, seq_count = parse_seq_ctrl(seq_ctrl)
 
+    # Use data_length to determine actual frame boundary
+    total_length = CCSDS_HDR_SIZE + data_length + 1
+    if len(raw) < total_length:
+        return None
+
     timestamp = struct.unpack(">I", raw[6:10])[0]
 
-    payload_end = len(raw) - CCSDS_CRC_SIZE
+    payload_end = total_length - CCSDS_CRC_SIZE
     payload = raw[10:payload_end]
 
     expected_crc = ccsds_crc16(raw[:payload_end])
-    actual_crc = struct.unpack(">H", raw[payload_end:])[0]
+    actual_crc = struct.unpack(">H", raw[payload_end:total_length])[0]
 
     return CcsdsPacket(
         pkt_type=pkt_type,
@@ -122,5 +130,5 @@ def parse_frame(raw: bytes) -> Optional[CcsdsPacket]:
         timestamp=timestamp,
         payload=payload,
         crc_valid=(expected_crc == actual_crc),
-        raw=raw,
+        raw=raw[:total_length],
     )
