@@ -1,26 +1,18 @@
-<!DOCTYPE html>
-<html>
-<head>
-    <title>PwnSat2 Ground Station</title>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.7.5/socket.io.min.js"></script>
-</head>
-<body>
+{% extends "base.html" %}
+{% block title %}Dashboard{% endblock %}
+{% block head %}
+<script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.7.5/socket.io.min.js"></script>
+{% endblock %}
+{% block content %}
 <h1>Mission Dashboard</h1>
-<nav>
-    <a href="/commands">Commands</a> |
-    <a href="/logs">Logs</a> |
-    <a href="/config">Config</a> |
-    <a href="/logout">Logout</a>
-</nav>
-<p>User: {{ g.username }} ({{ g.role }})</p>
+<p>Spacecraft ID: 0x02 | User: {{ g.username }} ({{ g.role }})</p>
 <h2>Live Telemetry</h2>
 <div id="telemetry-status">Connecting...</div>
-<table border="1" id="telemetry-table">
+<table id="telemetry-table">
     <thead>
         <tr><th>Timestamp</th><th>APID</th><th>Temperature</th><th>Pressure</th><th>Humidity</th><th>Accel X</th><th>Accel Y</th><th>Accel Z</th></tr>
     </thead>
     <tbody id="telemetry-body"></tbody>
 </table>
 <script src="/static/js/telemetry.js"></script>
-</body>
-</html>
+{% endblock %}

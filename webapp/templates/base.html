@@ -1,0 +1,32 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>PwnSat2 Ground Station — {% block title %}{% endblock %}</title>
+    <style>
+        body { font-family: monospace; background: #0a0a0a; color: #00ff41; margin: 20px; }
+        a { color: #00ccff; }
+        table { border-collapse: collapse; width: 100%; }
+        th, td { border: 1px solid #333; padding: 6px; text-align: left; }
+        th { background: #1a1a1a; }
+        input, select, button { background: #1a1a1a; color: #00ff41; border: 1px solid #333; padding: 5px; }
+        button { cursor: pointer; }
+        button:hover { background: #333; }
+        nav { margin-bottom: 20px; padding: 10px; background: #111; }
+        .error { color: #ff4444; }
+        pre { background: #111; padding: 10px; overflow-x: auto; }
+    </style>
+    {% block head %}{% endblock %}
+</head>
+<body>
+{% block nav %}
+<nav>
+    <a href="/dashboard">Dashboard</a> |
+    <a href="/commands">Commands</a> |
+    <a href="/logs">Logs</a> |
+    <a href="/config">Config</a> |
+    <a href="/logout">Logout ({{ g.username }})</a>
+</nav>
+{% endblock %}
+{% block content %}{% endblock %}
+</body>
+</html>

@@ -1,14 +1,12 @@
-<!DOCTYPE html>
-<html>
-<head><title>PwnSat2 — Radio Config</title></head>
-<body>
+{% extends "base.html" %}
+{% block title %}Config{% endblock %}
+{% block content %}
 <h1>Radio Configuration</h1>
 <form method="post" action="/api/config/radio">
-    <label>Frequency (Hz): <input name="frequency" type="number" value="{{ config.frequency if config else 915000000 }}"></label><br>
-    <label>Spreading Factor: <input name="spreading_factor" type="number" min="7" max="12" value="{{ config.spreading_factor if config else 7 }}"></label><br>
-    <label>Bandwidth (Hz): <input name="bandwidth" type="number" value="{{ config.bandwidth if config else 125000 }}"></label><br>
-    <label>TX Power (dBm): <input name="tx_power" type="number" value="{{ config.tx_power if config else 14 }}"></label><br>
+    <label>Frequency (Hz): <input name="frequency" type="number" value="{{ config.frequency if config else 915000000 }}"></label><br><br>
+    <label>Spreading Factor: <input name="spreading_factor" type="number" min="7" max="12" value="{{ config.spreading_factor if config else 7 }}"></label><br><br>
+    <label>Bandwidth (Hz): <input name="bandwidth" type="number" value="{{ config.bandwidth if config else 125000 }}"></label><br><br>
+    <label>TX Power (dBm): <input name="tx_power" type="number" value="{{ config.tx_power if config else 14 }}"></label><br><br>
     <button type="submit">Update Config</button>
 </form>
-</body>
-</html>
+{% endblock %}

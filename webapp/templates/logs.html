@@ -1,9 +1,8 @@
-<!DOCTYPE html>
-<html>
-<head><title>PwnSat2 — System Logs</title></head>
-<body>
+{% extends "base.html" %}
+{% block title %}Logs{% endblock %}
+{% block content %}
 <h1>System Logs</h1>
-<table border="1">
+<table>
     <tr><th>Timestamp</th><th>Level</th><th>Source</th><th>Message</th></tr>
     {% for log in logs %}
     <tr>
@@ -14,5 +13,4 @@
     </tr>
     {% endfor %}
 </table>
-</body>
-</html>
+{% endblock %}

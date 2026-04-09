@@ -227,3 +227,17 @@ def start_mock_telemetry(app):
 
     thread = threading.Thread(target=_loop, daemon=True)
     thread.start()
+
+
+if __name__ == "__main__":
+    import os
+    app = create_app()
+    os.makedirs("db", exist_ok=True)
+    with app.app_context():
+        init_db()
+        from webapp.seed import seed_db
+        seed_db()
+    start_mock_telemetry(app)
+    print("PwnSat2 Ground Station running on http://localhost:5000")
+    print("Mode: SIMULATED (no FlatSat detected)")
+    socketio.run(app, host="0.0.0.0", port=5000, debug=True, allow_unsafe_werkzeug=True)

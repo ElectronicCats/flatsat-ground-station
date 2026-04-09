@@ -1,7 +1,6 @@
-<!DOCTYPE html>
-<html>
-<head><title>PwnSat2 — Telecommands</title></head>
-<body>
+{% extends "base.html" %}
+{% block title %}Commands{% endblock %}
+{% block content %}
 <h1>Telecommand Panel</h1>
 <form id="tc-form">
     <label>Command:
@@ -12,8 +11,8 @@
             <option value="02">SET_NOMINAL (0x02)</option>
             <option value="42">READ_FLAG (0x42)</option>
         </select>
-    </label><br>
-    <label>Data (hex): <input name="data" id="data" placeholder="optional hex data"></label><br>
+    </label><br><br>
+    <label>Data (hex): <input name="data" id="data" placeholder="optional hex data"></label><br><br>
     <button type="submit">Send TC</button>
 </form>
 <h2>Response</h2>
@@ -33,5 +32,4 @@ document.getElementById("tc-form").addEventListener("submit", async function(e) 
     document.getElementById("response").textContent = JSON.stringify(result, null, 2);
 });
 </script>
-</body>
-</html>
+{% endblock %}
