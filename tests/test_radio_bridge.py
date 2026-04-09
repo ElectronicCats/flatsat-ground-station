@@ -3,26 +3,33 @@ import tempfile
 
 import pytest
 
+from core.state import GroundStationState
 from webapp.config import TestConfig
 from webapp.db import init_db
 from webapp.radio_bridge import RadioBridge
 from webapp.seed import seed_db
 
 
+def _simulated_bridge():
+    """Create a RadioBridge in simulated mode."""
+    gs_state = GroundStationState()
+    return RadioBridge(gs_state)
+
+
 def test_radio_bridge_mock_mode():
-    bridge = RadioBridge()
+    bridge = _simulated_bridge()
     assert bridge.is_connected is False
     assert bridge.mode == "simulated"
 
 
 def test_radio_bridge_send_raw_mock():
-    bridge = RadioBridge()
+    bridge = _simulated_bridge()
     result = bridge.send_raw(b"\x08\x01\xc0\x00")
     assert result["status"] == "sent_simulated"
 
 
 def test_radio_bridge_send_tc_mock():
-    bridge = RadioBridge()
+    bridge = _simulated_bridge()
     result = bridge.send_tc(0x020, b"\x10")
     assert result["status"] == "sent_simulated"
     assert "frame_hex" in result

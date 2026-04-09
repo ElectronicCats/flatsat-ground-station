@@ -6,6 +6,9 @@ import time
 from flask import Flask, g, redirect, render_template, request, url_for
 from flask_socketio import SocketIO
 
+from core.device import FlatSatDevice
+from core.serial_manager import discover_devices
+from core.state import GroundStationState
 from webapp.auth import authenticate, create_session_token, login_required
 from webapp.config import Config
 from webapp.db import close_db, init_db
@@ -23,6 +26,11 @@ def create_app(config_class=Config, db_path=None):
     app.teardown_appcontext(close_db)
 
     socketio.init_app(app, cors_allowed_origins="*")
+
+    # Shared ground station state
+    gs_state = GroundStationState()
+    app.config["GS_STATE"] = gs_state
+    app.config["SCANNED_DEVICES"] = {}
 
     @app.route("/login", methods=["GET", "POST"])
     def login():
@@ -201,14 +209,82 @@ def create_app(config_class=Config, db_path=None):
             raw_bytes = bytes.fromhex(raw_hex)
         except ValueError:
             return {"error": "Invalid hex data"}, 400
-        bridge = RadioBridge()
-        result = bridge.send_raw(raw_bytes)
-        return result
+        bridge = RadioBridge(app.config["GS_STATE"])
+        return bridge.send_raw(raw_bytes)
 
     @app.route("/commands")
     @login_required
     def commands_page():
         return render_template("commands.html")
+
+    @app.route("/api/hardware/status")
+    @login_required
+    def api_hardware_status():
+        gs = app.config["GS_STATE"]
+        if gs.is_simulated:
+            return {"mode": "simulated"}
+        return {
+            "mode": "hardware",
+            "serial_number": gs.device.serial_number if gs.device else None,
+        }
+
+    @app.route("/api/hardware/scan", methods=["POST"])
+    @login_required
+    def api_hardware_scan():
+        devices = discover_devices()
+        scanned = {}
+        result = []
+        for d in devices:
+            sn = d.identity.serial_number
+            scanned[sn] = d
+            result.append(
+                {
+                    "serial_number": sn,
+                    "is_complete": d.is_complete,
+                    "health": d.health.name,
+                    "radio0": d.radio0_port,
+                    "radio1": d.radio1_port,
+                    "shell": d.shell_port,
+                }
+            )
+        app.config["SCANNED_DEVICES"] = scanned
+        return {"devices": result}
+
+    @app.route("/api/hardware/connect", methods=["POST"])
+    @login_required
+    def api_hardware_connect():
+        data = request.get_json(silent=True) or {}
+        serial_number = data.get("serial_number", "")
+
+        scanned = app.config.get("SCANNED_DEVICES", {})
+        discovered = scanned.get(serial_number)
+        if not discovered:
+            return {"error": f"Device {serial_number} not found. Run scan first."}, 404
+
+        gs = app.config["GS_STATE"]
+        if gs.device:
+            gs.device.disconnect()
+
+        device = FlatSatDevice(discovered)
+        connect_result = device.connect()
+
+        if device.is_connected:
+            gs.set_hardware(device)
+            return {
+                "mode": "hardware",
+                "serial_number": serial_number,
+                "endpoints": connect_result,
+            }
+        return {"error": "Failed to connect", "endpoints": connect_result}, 500
+
+    @app.route("/api/hardware/disconnect", methods=["POST"])
+    @login_required
+    def api_hardware_disconnect():
+        gs = app.config["GS_STATE"]
+        if gs.device:
+            gs.device.disconnect()
+        gs.set_simulated()
+        return {"mode": "simulated"}
 
     @socketio.on("connect")
     def handle_connect():
@@ -218,23 +294,80 @@ def create_app(config_class=Config, db_path=None):
 
 
 def start_mock_telemetry(app):
-    """Background thread: emit mock telemetry every 2 seconds."""
-    from core.telemetry import generate_mock_telemetry
+    """Background thread: emit telemetry (mock or hardware)."""
+    from core.ccsds import parse_frame
+    from core.device import parse_lora_rx
+    from core.telemetry import decode_tm_payload, generate_mock_telemetry
 
     def _loop():
         while True:
-            with app.app_context():
-                tm = generate_mock_telemetry()
-                socketio.emit(
-                    "telemetry_update",
-                    {
-                        "apid": tm["apid"],
-                        "raw_hex": tm["raw_hex"],
-                        "decoded": tm["decoded"],
-                        "timestamp": tm["timestamp"],
-                    },
-                )
-            time.sleep(2)
+            gs = app.config.get("GS_STATE")
+
+            if gs and not gs.is_simulated and gs.device:
+                # HARDWARE MODE: read from Radio 0
+                try:
+                    line = gs.device.read_line(timeout=1.0)
+                    if line:
+                        parsed = parse_lora_rx(line)
+                        if parsed:
+                            raw_bytes = bytes.fromhex(parsed["data"])
+                            pkt = parse_frame(raw_bytes)
+                            if pkt:
+                                decoded = decode_tm_payload(pkt.apid, pkt.payload)
+                                from datetime import datetime
+
+                                with app.app_context():
+                                    from webapp.db import get_db
+
+                                    db = get_db()
+                                    db.execute(
+                                        "INSERT INTO telemetry "
+                                        "(timestamp, apid, spacecraft_id, temperature, "
+                                        "pressure, humidity, accel_x, accel_y, accel_z, "
+                                        "raw_hex) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                                        (
+                                            datetime.now().isoformat(),
+                                            pkt.apid,
+                                            2,
+                                            decoded.get("temperature"),
+                                            decoded.get("pressure"),
+                                            decoded.get("humidity"),
+                                            decoded.get("accel_x"),
+                                            decoded.get("accel_y"),
+                                            decoded.get("accel_z"),
+                                            parsed["data"],
+                                        ),
+                                    )
+                                    db.commit()
+                                socketio.emit(
+                                    "telemetry_update",
+                                    {
+                                        "apid": pkt.apid,
+                                        "raw_hex": parsed["data"],
+                                        "decoded": decoded,
+                                        "timestamp": pkt.timestamp,
+                                        "rssi": parsed.get("rssi"),
+                                        "snr": parsed.get("snr"),
+                                    },
+                                )
+                            continue
+                except Exception:
+                    pass
+                time.sleep(0.1)
+            else:
+                # SIMULATED MODE: generate mock
+                with app.app_context():
+                    tm = generate_mock_telemetry()
+                    socketio.emit(
+                        "telemetry_update",
+                        {
+                            "apid": tm["apid"],
+                            "raw_hex": tm["raw_hex"],
+                            "decoded": tm["decoded"],
+                            "timestamp": tm["timestamp"],
+                        },
+                    )
+                time.sleep(2)
 
     thread = threading.Thread(target=_loop, daemon=True)
     thread.start()

@@ -5,14 +5,84 @@
 {% endblock %}
 {% block content %}
 <h1>Mission Dashboard</h1>
+
+<div id="hw-status" style="padding:10px; margin-bottom:15px; border:1px solid #333; background:#111;">
+    <span id="hw-mode" style="font-weight:bold;">SIMULATED</span>
+    <span id="hw-serial"></span>
+    <span id="hw-rssi"></span>
+    <button onclick="hwScan()" style="margin-left:15px;">Scan</button>
+    <button onclick="hwConnect()" style="margin-left:5px;" id="btn-connect" disabled>Connect</button>
+    <button onclick="hwDisconnect()" style="margin-left:5px;">Disconnect</button>
+    <select id="hw-devices" style="margin-left:10px; display:none;"></select>
+</div>
+
 <p>Spacecraft ID: 0x02 | User: {{ g.username }} ({{ g.role }})</p>
+
 <h2>Live Telemetry</h2>
 <div id="telemetry-status">Connecting...</div>
 <table id="telemetry-table">
     <thead>
-        <tr><th>Timestamp</th><th>APID</th><th>Temperature</th><th>Pressure</th><th>Humidity</th><th>Accel X</th><th>Accel Y</th><th>Accel Z</th></tr>
+        <tr>
+            <th>Timestamp</th><th>APID</th><th>Temperature</th>
+            <th>Pressure</th><th>Humidity</th>
+            <th>Accel X</th><th>Accel Y</th><th>Accel Z</th>
+            <th>RSSI</th><th>SNR</th>
+        </tr>
     </thead>
     <tbody id="telemetry-body"></tbody>
 </table>
+
+<script>
+async function hwStatus() {
+    const resp = await fetch("/api/hardware/status");
+    const data = await resp.json();
+    const el = document.getElementById("hw-mode");
+    if (data.mode === "hardware") {
+        el.textContent = "HARDWARE";
+        el.style.color = "#00ff41";
+        document.getElementById("hw-serial").textContent = " | SN: " + data.serial_number;
+    } else {
+        el.textContent = "SIMULATED";
+        el.style.color = "#ffaa00";
+        document.getElementById("hw-serial").textContent = "";
+    }
+}
+
+async function hwScan() {
+    const resp = await fetch("/api/hardware/scan", {method: "POST"});
+    const data = await resp.json();
+    const sel = document.getElementById("hw-devices");
+    sel.innerHTML = "";
+    sel.style.display = data.devices.length > 0 ? "inline" : "none";
+    document.getElementById("btn-connect").disabled = data.devices.length === 0;
+    data.devices.forEach(d => {
+        const opt = document.createElement("option");
+        opt.value = d.serial_number;
+        opt.textContent = d.serial_number.substring(0, 8) + " (" + d.health + ")";
+        sel.appendChild(opt);
+    });
+}
+
+async function hwConnect() {
+    const sn = document.getElementById("hw-devices").value;
+    if (!sn) return;
+    await fetch("/api/hardware/connect", {
+        method: "POST",
+        headers: {"Content-Type": "application/json"},
+        body: JSON.stringify({serial_number: sn})
+    });
+    hwStatus();
+}
+
+async function hwDisconnect() {
+    await fetch("/api/hardware/disconnect", {method: "POST"});
+    hwStatus();
+    document.getElementById("hw-devices").style.display = "none";
+    document.getElementById("btn-connect").disabled = true;
+}
+
+hwStatus();
+</script>
+
 <script src="/static/js/telemetry.js"></script>
 {% endblock %}
