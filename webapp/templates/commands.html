@@ -1,0 +1,37 @@
+<!DOCTYPE html>
+<html>
+<head><title>PwnSat2 — Telecommands</title></head>
+<body>
+<h1>Telecommand Panel</h1>
+<form id="tc-form">
+    <label>Command:
+        <select name="opcode" id="opcode">
+            <option value="10">PING (0x10)</option>
+            <option value="20">READ_SENSOR (0x20)</option>
+            <option value="01">SET_SAFE_MODE (0x01)</option>
+            <option value="02">SET_NOMINAL (0x02)</option>
+            <option value="42">READ_FLAG (0x42)</option>
+        </select>
+    </label><br>
+    <label>Data (hex): <input name="data" id="data" placeholder="optional hex data"></label><br>
+    <button type="submit">Send TC</button>
+</form>
+<h2>Response</h2>
+<pre id="response">Waiting...</pre>
+<script>
+document.getElementById("tc-form").addEventListener("submit", async function(e) {
+    e.preventDefault();
+    const opcode = document.getElementById("opcode").value;
+    const data = document.getElementById("data").value || "";
+    const payload = opcode + data;
+    const resp = await fetch("/api/radio/send", {
+        method: "POST",
+        headers: {"Content-Type": "application/json"},
+        body: JSON.stringify({data: payload})
+    });
+    const result = await resp.json();
+    document.getElementById("response").textContent = JSON.stringify(result, null, 2);
+});
+</script>
+</body>
+</html>

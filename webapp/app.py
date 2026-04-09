@@ -1,10 +1,16 @@
-"""Flask application factory."""
+"""Flask application factory with WebSocket support."""
+
+import threading
+import time
 
 from flask import Flask, render_template, request, redirect, url_for, make_response, g
+from flask_socketio import SocketIO
 
 from webapp.config import Config
 from webapp.db import close_db, init_db
 from webapp.auth import authenticate, create_session_token, login_required, get_current_user
+
+socketio = SocketIO()
 
 
 def create_app(config_class=Config, db_path=None):
@@ -15,6 +21,8 @@ def create_app(config_class=Config, db_path=None):
         app.config["DATABASE"] = db_path
 
     app.teardown_appcontext(close_db)
+
+    socketio.init_app(app, cors_allowed_origins="*")
 
     @app.route("/login", methods=["GET", "POST"])
     def login():
@@ -175,4 +183,47 @@ def create_app(config_class=Config, db_path=None):
             })
         return routes
 
+    @app.route("/api/radio/send", methods=["POST"])
+    @login_required
+    def api_radio_send():
+        from webapp.radio_bridge import RadioBridge
+        data = request.get_json(silent=True) or {}
+        raw_hex = data.get("data", "")
+        try:
+            raw_bytes = bytes.fromhex(raw_hex)
+        except ValueError:
+            return {"error": "Invalid hex data"}, 400
+        bridge = RadioBridge()
+        result = bridge.send_raw(raw_bytes)
+        return result
+
+    @app.route("/commands")
+    @login_required
+    def commands_page():
+        return render_template("commands.html")
+
+    @socketio.on("connect")
+    def handle_connect():
+        pass
+
     return app
+
+
+def start_mock_telemetry(app):
+    """Background thread: emit mock telemetry every 2 seconds."""
+    from core.telemetry import generate_mock_telemetry
+
+    def _loop():
+        while True:
+            with app.app_context():
+                tm = generate_mock_telemetry()
+                socketio.emit("telemetry_update", {
+                    "apid": tm["apid"],
+                    "raw_hex": tm["raw_hex"],
+                    "decoded": tm["decoded"],
+                    "timestamp": tm["timestamp"],
+                })
+            time.sleep(2)
+
+    thread = threading.Thread(target=_loop, daemon=True)
+    thread.start()
