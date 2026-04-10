@@ -283,7 +283,11 @@ async function pollStatus() {
 // --- Actions ---
 async function setMode(m) { await api("mode", "POST", {mode: m}); pollStatus(); }
 async function setFlight(f) { await api("flight", "POST", {flight: f}); pollStatus(); }
-async function setDifficulty(l) { await api("difficulty", "POST", {level: parseInt(l)}); }
+async function setDifficulty(l) {
+    const data = await api("difficulty", "POST", {level: parseInt(l)});
+    if (data.error) { alert("Failed: " + data.error); return; }
+    document.getElementById("cur-diff").textContent = l;
+}
 async function applyLora() {
     await api("lora_config", "POST", {
         frequency: parseInt(document.getElementById("set-freq").value),
