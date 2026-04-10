@@ -118,7 +118,7 @@ class FlatSatDevice:
         except Exception:
             return None
 
-    def send_shell_command_full(self, cmd: str, timeout: float = 2.0, read_time: float = 0.8) -> str | None:
+    def send_shell_command_full(self, cmd: str, timeout: float = 2.0, read_time: float = 0.3) -> str | None:
         """Send command to Shell (CDC2), return full multi-line response."""
         if not self._shell or not self._shell.is_open:
             return None

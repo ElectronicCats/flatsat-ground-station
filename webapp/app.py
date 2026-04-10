@@ -331,6 +331,7 @@ def create_app(config_class=Config, db_path=None):
     @app.route("/api/satellite/info")
     @login_required
     def api_satellite_info():
+        """Full info — call once on page load."""
         dev, err = _require_hardware()
         if err:
             return err
@@ -349,6 +350,23 @@ def create_app(config_class=Config, db_path=None):
             "tm_rate": flight["tm_rate"],
             "difficulty": parse_difficulty(diff_raw),
             "sc_id": parse_sc_id(scid_raw),
+        }
+
+    @app.route("/api/satellite/status")
+    @login_required
+    def api_satellite_status():
+        """Lightweight status — only flight/battery/mode. For polling."""
+        dev, err = _require_hardware()
+        if err:
+            return err
+        flight_raw = dev.send_shell_command_full("flight")
+        mode_raw = dev.send_shell_command_full("mode")
+        flight = parse_flight(flight_raw)
+        return {
+            "mode": parse_mode(mode_raw),
+            "flight": flight["flight"],
+            "battery_mv": flight["battery_mv"],
+            "tm_rate": flight["tm_rate"],
         }
 
     @app.route("/api/satellite/sensors")

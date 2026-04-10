@@ -257,10 +257,21 @@ async function pollLora() {
     document.getElementById("lora-power").textContent = data.power;
 }
 
+// --- Lightweight polling (only flight/battery/mode) ---
+async function pollStatus() {
+    const data = await api("status");
+    if (data.error) return;
+    document.getElementById("cur-mode").textContent = data.mode;
+    document.getElementById("cur-flight").textContent = data.flight;
+    highlightBtn("mode-btns", data.mode);
+    highlightBtn("flight-btns", data.flight.toLowerCase());
+    updateBattery(data.battery_mv, data.flight);
+}
+
 // --- Actions ---
-async function setMode(m) { await api("mode", "POST", {mode: m}); pollInfo(); }
-async function setFlight(f) { await api("flight", "POST", {flight: f}); pollInfo(); }
-async function setDifficulty(l) { await api("difficulty", "POST", {level: parseInt(l)}); pollInfo(); }
+async function setMode(m) { await api("mode", "POST", {mode: m}); pollStatus(); }
+async function setFlight(f) { await api("flight", "POST", {flight: f}); pollStatus(); }
+async function setDifficulty(l) { await api("difficulty", "POST", {level: parseInt(l)}); }
 async function applyLora() {
     await api("lora_config", "POST", {
         frequency: parseInt(document.getElementById("set-freq").value),
@@ -273,26 +284,26 @@ async function applyLora() {
 }
 async function tinygsSpoof() {
     await api("tinygs", "POST", {action: "spoof", profile: document.getElementById("tinygs-profile").value});
-    pollInfo();
+    pollStatus();
 }
 async function tinygsStop() {
     await api("tinygs", "POST", {action: "stop"});
-    pollInfo();
+    pollStatus();
 }
 async function resetDefaults() {
     if (!confirm("Reset RF config and mode to factory defaults?")) return;
     await api("reset", "POST");
-    pollInfo();
+    pollStatus();
     pollLora();
     showToast("Defaults restored", 3000);
 }
 
 // --- Init ---
-pollInfo();
-pollLora();
-pollSensors();
-setInterval(pollInfo, 3000);
-setInterval(pollLora, 3000);
-setInterval(pollSensors, 5000);
+pollInfo();           // full info once
+pollLora();           // lora config once
+pollSensors();        // sensors once
+setInterval(pollStatus, 3000);   // lightweight: flight + battery + mode
+setInterval(pollLora, 10000);    // lora config every 10s
+setInterval(pollSensors, 5000);  // sensors every 5s
 </script>
 {% endblock %}
