@@ -2,14 +2,29 @@
 {% block title %}Dashboard{% endblock %}
 {% block head %}
 <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.7.5/socket.io.min.js"></script>
+<style>
+    #hw-status { padding:10px; margin-bottom:15px; border:1px solid #333; background:#111; }
+    #hw-indicator { display:inline-block; width:10px; height:10px; border-radius:50%; margin-right:8px; }
+    .ind-idle { background:#888; }
+    .ind-sim { background:#ffaa00; animation: blink 2s infinite; }
+    .ind-hw { background:#00ff41; animation: blink 1s infinite; }
+    @keyframes blink { 50% { opacity:0.4; } }
+    #tm-container { max-height:60vh; overflow-y:auto; border:1px solid #333; }
+    #tm-container table { margin:0; }
+    #pkt-counter { color:#00ccff; margin-left:15px; }
+    #last-seen { color:#888; margin-left:15px; font-size:0.9em; }
+</style>
 {% endblock %}
 {% block content %}
 <h1>Mission Dashboard</h1>
 
-<div id="hw-status" style="padding:10px; margin-bottom:15px; border:1px solid #333; background:#111;">
+<div id="hw-status">
+    <span id="hw-indicator" class="ind-idle"></span>
     <span id="hw-mode" style="font-weight:bold; color:#888;">IDLE</span>
     <span id="hw-serial"></span>
     <span id="hw-rssi"></span>
+    <span id="pkt-counter"></span>
+    <span id="last-seen"></span>
     <div style="margin-top:8px;">
         <button id="btn-simulate" onclick="hwSimulate()">Simulate</button>
         <button id="btn-stop" onclick="hwStop()" disabled>Stop</button>
@@ -25,10 +40,11 @@
 
 <h2>Live Telemetry</h2>
 <div id="telemetry-status">Connecting...</div>
+<div id="tm-container">
 <table id="telemetry-table">
     <thead>
         <tr>
-            <th>Timestamp</th><th>APID</th><th>Temperature</th>
+            <th>Time</th><th>APID</th><th>Temp</th>
             <th>Pressure</th><th>Humidity</th>
             <th>Accel X</th><th>Accel Y</th><th>Accel Z</th>
             <th>RSSI</th><th>SNR</th>
@@ -36,8 +52,11 @@
     </thead>
     <tbody id="telemetry-body"></tbody>
 </table>
+</div>
 
 <script>
+let pktCount = 0;
+
 // --- Button state management ---
 function setButtons(state) {
     const els = {
@@ -47,8 +66,6 @@ function setButtons(state) {
         connect: document.getElementById("btn-connect"),
         disconnect: document.getElementById("btn-disconnect"),
     };
-
-    // Disable all first
     Object.values(els).forEach(b => b.disabled = true);
 
     if (state === "idle") {
@@ -65,43 +82,57 @@ function setButtons(state) {
     }
 }
 
-// --- Status ---
+function setIndicator(mode) {
+    const ind = document.getElementById("hw-indicator");
+    ind.className = mode === "hardware" ? "ind-hw" : mode === "simulated" ? "ind-sim" : "ind-idle";
+}
+
+// --- Status (polls every 5s when hardware) ---
 async function hwStatus() {
     const resp = await fetch("/api/hardware/status");
     const data = await resp.json();
     const el = document.getElementById("hw-mode");
     const serial = document.getElementById("hw-serial");
-    const rssi = document.getElementById("hw-rssi");
 
     if (data.mode === "hardware") {
         el.textContent = "HARDWARE";
         el.style.color = "#00ff41";
-        serial.textContent = " | SN: " + data.serial_number;
+        serial.textContent = " | SN: ..." + (data.serial_number || "").slice(-4);
         setButtons("hardware");
+        setIndicator("hardware");
     } else if (data.mode === "simulated") {
         el.textContent = "SIMULATED";
         el.style.color = "#ffaa00";
         serial.textContent = "";
-        rssi.textContent = "";
+        document.getElementById("hw-rssi").textContent = "";
         setButtons("simulated");
+        setIndicator("simulated");
     } else {
         el.textContent = "IDLE";
         el.style.color = "#888";
         serial.textContent = "";
-        rssi.textContent = "";
+        document.getElementById("hw-rssi").textContent = "";
         setButtons("idle");
+        setIndicator("idle");
     }
 }
+
+// Poll status every 5s to detect disconnects
+setInterval(hwStatus, 5000);
 
 // --- Actions ---
 async function hwSimulate() {
     await fetch("/api/hardware/simulate", {method: "POST"});
+    pktCount = 0;
     hwStatus();
 }
 
 async function hwStop() {
     await fetch("/api/hardware/stop", {method: "POST"});
     document.getElementById("telemetry-body").innerHTML = "";
+    pktCount = 0;
+    document.getElementById("pkt-counter").textContent = "";
+    document.getElementById("last-seen").textContent = "";
     hwStatus();
 }
 
@@ -116,7 +147,7 @@ async function hwScan() {
         data.devices.forEach(d => {
             const opt = document.createElement("option");
             opt.value = d.serial_number;
-            opt.textContent = d.serial_number.substring(0, 8) + " (" + d.health + ")";
+            opt.textContent = "..." + d.serial_number.slice(-4) + " (" + d.health + ")";
             sel.appendChild(opt);
         });
         setButtons("scanned");
@@ -137,6 +168,7 @@ async function hwConnect() {
     });
     const data = await resp.json();
     if (data.mode === "hardware") {
+        pktCount = 0;
         hwStatus();
     } else {
         alert("Connection failed: " + (data.error || "unknown"));
@@ -147,10 +179,12 @@ async function hwDisconnect() {
     await fetch("/api/hardware/disconnect", {method: "POST"});
     document.getElementById("hw-devices").style.display = "none";
     document.getElementById("telemetry-body").innerHTML = "";
+    pktCount = 0;
+    document.getElementById("pkt-counter").textContent = "";
+    document.getElementById("last-seen").textContent = "";
     hwStatus();
 }
 
-// Init
 hwStatus();
 </script>
 
