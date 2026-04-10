@@ -604,6 +604,7 @@ def start_telemetry_thread(app):
                             raw_bytes = bytes.fromhex(parsed["data"])
                             pkt = parse_frame(raw_bytes)
                             if pkt:
+                                # Valid CCSDS frame
                                 decoded = decode_tm_payload(pkt.apid, pkt.payload)
                                 from datetime import datetime
 
@@ -637,6 +638,17 @@ def start_telemetry_thread(app):
                                         "raw_hex": parsed["data"],
                                         "decoded": decoded,
                                         "timestamp": pkt.timestamp,
+                                        "rssi": parsed.get("rssi"),
+                                        "snr": parsed.get("snr"),
+                                    },
+                                )
+                            else:
+                                # Non-CCSDS frame (TinyGS beacons, etc.)
+                                socketio.emit(
+                                    "telemetry_update",
+                                    {
+                                        "raw_hex": parsed["data"],
+                                        "decoded": {},
                                         "rssi": parsed.get("rssi"),
                                         "snr": parsed.get("snr"),
                                     },
