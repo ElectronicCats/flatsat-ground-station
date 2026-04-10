@@ -141,7 +141,7 @@
 <div id="toast" class="toast"></div>
 
 <script>
-let countdownEnabled = false;
+let countdownEnabled = localStorage.getItem("countdownEnabled") === "true";
 let lastNotifiedThreshold = 9999;
 let hwConnected = false;
 
@@ -242,6 +242,7 @@ function updateBattery(mv, flight) {
 
 function toggleCountdown() {
     countdownEnabled = document.getElementById("countdown-toggle").checked;
+    localStorage.setItem("countdownEnabled", countdownEnabled);
     document.getElementById("countdown-display").style.display = countdownEnabled ? "block" : "none";
     lastNotifiedThreshold = 9999;
 }
@@ -334,6 +335,10 @@ async function pollLoop() {
 }
 
 // --- Init ---
+// Restore countdown state
+document.getElementById("countdown-toggle").checked = countdownEnabled;
+document.getElementById("countdown-display").style.display = countdownEnabled ? "block" : "none";
+
 async function init() {
     await pollInfo();
     if (hwConnected) {
