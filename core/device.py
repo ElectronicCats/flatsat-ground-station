@@ -105,15 +105,16 @@ class FlatSatDevice:
         return result
 
     def disconnect(self):
-        """Close all serial ports."""
-        for attr in ["_radio0", "_radio1", "_shell"]:
-            ser = getattr(self, attr, None)
-            if ser and ser.is_open:
-                try:
-                    ser.close()
-                except Exception:
-                    pass
-            setattr(self, attr, None)
+        """Close all serial ports, holding all locks to prevent races."""
+        with self._radio0_lock, self._radio1_lock, self._shell_lock:
+            for attr in ["_radio0", "_radio1", "_shell"]:
+                ser = getattr(self, attr, None)
+                if ser and ser.is_open:
+                    try:
+                        ser.close()
+                    except Exception:
+                        pass
+                setattr(self, attr, None)
 
     def send_shell_command(self, cmd: str, timeout: float = 2.0) -> str | None:
         """Send command to Shell (CDC2), return first response line."""

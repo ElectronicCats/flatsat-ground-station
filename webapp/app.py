@@ -354,18 +354,32 @@ def create_app(config_class=Config, db_path=None):
 
         if device.is_connected:
             gs.set_hardware(device)
-            # R1 must be in command mode so send_radio1_tx() works (TX <hex> cmd)
-            device.send_shell_command_full("lora_mode R1 command")
-            # Sync difficulty from firmware so SDLS encrypt/decrypt matches
+            # Bootstrap: R1 command mode + sync difficulty (retry once on failure)
+            r1_resp = device.send_shell_command_full("lora_mode R1 command")
+            if r1_resp is None:
+                time.sleep(0.5)
+                r1_resp = device.send_shell_command_full("lora_mode R1 command")
             diff_raw = device.send_shell_command_full("difficulty")
+            if diff_raw is None:
+                time.sleep(0.5)
+                diff_raw = device.send_shell_command_full("difficulty")
             gs.difficulty = parse_difficulty(diff_raw)
+            warnings = []
+            if r1_resp is None:
+                warnings.append("R1 command mode failed")
+            if diff_raw is None:
+                warnings.append("difficulty sync failed")
+            warn_str = f" [WARN: {', '.join(warnings)}]" if warnings else ""
             log_activity(
-                "INFO", "hardware", f"Connected to FlatSat ...{serial_number[-4:]} (difficulty={gs.difficulty})"
+                "INFO",
+                "hardware",
+                f"Connected to FlatSat ...{serial_number[-4:]} (difficulty={gs.difficulty}){warn_str}",
             )
             return {
                 "mode": "hardware",
                 "serial_number": serial_number,
                 "endpoints": connect_result,
+                "warnings": warnings,
             }
         log_activity("ERROR", "hardware", f"Failed to connect to ...{serial_number[-4:]}: {connect_result}")
         return {"error": "Failed to connect", "endpoints": connect_result}, 500
