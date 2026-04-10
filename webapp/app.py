@@ -251,6 +251,7 @@ def create_app(config_class=Config, db_path=None):
     @app.route("/api/radio/send_tc", methods=["POST"])
     @login_required
     def api_radio_send_tc():
+        from core.ccsds import sdls_protect_frame
         from core.telecommand import build_command_tc
         from webapp.radio_bridge import RadioBridge
 
@@ -268,6 +269,10 @@ def create_app(config_class=Config, db_path=None):
 
         extra_bytes = bytes.fromhex(extra_hex) if extra_hex else b""
         frame = build_command_tc(opcode_int, data=extra_bytes)
+
+        # SDLS: encrypt TC payload based on current difficulty
+        difficulty = app.config["GS_STATE"].difficulty
+        frame = sdls_protect_frame(frame, difficulty)
 
         bridge = RadioBridge(app.config["GS_STATE"])
         result = bridge.send_raw(frame)
@@ -349,6 +354,8 @@ def create_app(config_class=Config, db_path=None):
 
         if device.is_connected:
             gs.set_hardware(device)
+            # R1 must be in command mode so send_radio1_tx() works (TX <hex> cmd)
+            device.send_shell_command_full("lora_mode R1 command")
             log_activity("INFO", "hardware", f"Connected to FlatSat ...{serial_number[-4:]}")
             return {
                 "mode": "hardware",
@@ -527,6 +534,8 @@ def create_app(config_class=Config, db_path=None):
         data = request.get_json(silent=True) or {}
         level = data.get("level", 0)
         resp = dev.send_shell_command_full(f"difficulty {level}")
+        gs = app.config["GS_STATE"]
+        gs.difficulty = int(level)
         log_activity("INFO", "satellite", f"Difficulty set to {level}")
         return {"status": "ok", "response": resp}
 
@@ -557,7 +566,10 @@ def create_app(config_class=Config, db_path=None):
         if err:
             return err
         resp = dev.send_shell_command_full("reset_defaults")
-        log_activity("WARN", "satellite", "Factory defaults restored")
+        # Firmware reset_defaults sets both radios to 915 MHz — restore R1 uplink offset
+        dev.send_shell_command_full("lora_freq R1 916000000")
+        dev.send_shell_command_full("lora_apply R1")
+        log_activity("WARN", "satellite", "Factory defaults restored (R1 freq corrected)")
         return {"status": "ok", "response": resp}
 
     @app.route("/api/satellite/diag")
@@ -608,7 +620,7 @@ def start_telemetry_thread(app):
 
     import serial
 
-    from core.ccsds import parse_frame
+    from core.ccsds import parse_frame, sdls_unprotect_frame
     from core.device import parse_lora_rx
     from core.telemetry import decode_tm_payload, generate_mock_telemetry
 
@@ -663,9 +675,16 @@ def start_telemetry_thread(app):
                         parsed = parse_lora_rx(line)
                         if parsed:
                             raw_bytes = bytes.fromhex(parsed["data"])
+                            # SDLS: decrypt TM payload based on difficulty
+                            difficulty = getattr(gs, "difficulty", 0)
+                            if difficulty >= 2:
+                                raw_bytes = sdls_unprotect_frame(raw_bytes, difficulty)
                             pkt = parse_frame(raw_bytes)
+                            if pkt and not pkt.crc_valid:
+                                print("[RADIO0 CRC] bad CRC, dropping frame")
+                                pkt = None
                             if pkt:
-                                # Valid CCSDS frame
+                                # Valid CCSDS frame with good CRC
                                 decoded = decode_tm_payload(pkt.apid, pkt.payload)
                                 from datetime import datetime
 

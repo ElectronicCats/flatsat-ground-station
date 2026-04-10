@@ -172,4 +172,7 @@ def test_satellite_reset(app, auth_client):
     mock_dev.send_shell_command_full.return_value = "Defaults restored"
     resp = auth_client.post("/api/satellite/reset")
     assert resp.status_code == 200
-    mock_dev.send_shell_command_full.assert_called_with("reset_defaults")
+    calls = [c[0][0] for c in mock_dev.send_shell_command_full.call_args_list]
+    assert "reset_defaults" in calls
+    assert "lora_freq R1 916000000" in calls
+    assert "lora_apply R1" in calls

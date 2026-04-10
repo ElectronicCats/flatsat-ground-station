@@ -1,6 +1,7 @@
-"""CCSDS Space Packet Protocol encoder/decoder.
+"""CCSDS Space Packet Protocol encoder/decoder with SDLS support.
 
-Matches firmware implementation in flatsat/src/ccsds/ccsds_spp.c.
+Matches firmware implementation in flatsat/src/ccsds/ccsds_spp.c
+and flatsat/src/ccsds/ccsds_sdls.c.
 Big-endian headers per CCSDS 133.0-B-2.
 """
 
@@ -8,6 +9,7 @@ import struct
 from dataclasses import dataclass
 
 from core.constants import (
+    AES_KEY_HARDCODED,
     CCSDS_CRC_SIZE,
     CCSDS_HDR_SIZE,
     CCSDS_MAX_PAYLOAD,
@@ -16,6 +18,7 @@ from core.constants import (
     CCSDS_TYPE_TC,
     CCSDS_TYPE_TM,
     CCSDS_VERSION,
+    XOR_KEY,
 )
 
 
@@ -44,6 +47,95 @@ def ccsds_crc16(data: bytes) -> int:
                 crc = crc << 1
             crc &= 0xFFFF
     return crc
+
+
+def _aes_ecb_encrypt(data: bytes) -> bytes:
+    """AES-128-ECB encrypt (no padding). Input must be multiple of 16."""
+    try:
+        from Crypto.Cipher import AES
+
+        return AES.new(AES_KEY_HARDCODED, AES.MODE_ECB).encrypt(data)
+    except ImportError:
+        pass
+    from cryptography.hazmat.primitives.ciphers import Cipher, algorithms, modes
+
+    enc = Cipher(algorithms.AES(AES_KEY_HARDCODED), modes.ECB()).encryptor()
+    return enc.update(data) + enc.finalize()
+
+
+def _aes_ecb_decrypt(data: bytes) -> bytes:
+    """AES-128-ECB decrypt (no padding). Input must be multiple of 16."""
+    try:
+        from Crypto.Cipher import AES
+
+        return AES.new(AES_KEY_HARDCODED, AES.MODE_ECB).decrypt(data)
+    except ImportError:
+        pass
+    from cryptography.hazmat.primitives.ciphers import Cipher, algorithms, modes
+
+    dec = Cipher(algorithms.AES(AES_KEY_HARDCODED), modes.ECB()).decryptor()
+    return dec.update(data) + dec.finalize()
+
+
+def sdls_protect_frame(frame: bytes, difficulty: int) -> bytes:
+    """Encrypt outgoing TC payload to match firmware sdls_unprotect_frame().
+
+    Level 0-1: plaintext.  Level 2: XOR.  Level 3+: AES-128-ECB.
+    Encryption covers payload bytes only (after primary+secondary header, before CRC).
+    CRC is recomputed over the encrypted payload.
+    """
+    if difficulty < 2:
+        return frame
+    payload_start = CCSDS_HDR_SIZE + CCSDS_SEC_HDR_SIZE
+    payload_end = len(frame) - CCSDS_CRC_SIZE
+    header = frame[:payload_start]
+    payload = bytearray(frame[payload_start:payload_end])
+
+    if difficulty == 2:
+        # XOR encrypt
+        for i in range(len(payload)):
+            payload[i] ^= XOR_KEY[i % len(XOR_KEY)]
+    else:
+        # AES-128-ECB in 16-byte blocks
+        encrypted = bytearray()
+        for i in range(0, len(payload), 16):
+            block = bytes(payload[i : i + 16]).ljust(16, b"\x00")
+            encrypted.extend(_aes_ecb_encrypt(block))
+        payload = encrypted[: len(frame[payload_start:payload_end])]
+
+    frame_no_crc = header + bytes(payload)
+    crc = ccsds_crc16(frame_no_crc)
+    return frame_no_crc + struct.pack(">H", crc)
+
+
+def sdls_unprotect_frame(frame: bytes, difficulty: int) -> bytes:
+    """Decrypt incoming TM payload to match firmware sdls_protect_frame().
+
+    Level 0-1: plaintext.  Level 2: XOR.  Level 3+: AES-128-ECB.
+    Decryption covers payload bytes only. CRC is recomputed after decryption.
+    """
+    if difficulty < 2:
+        return frame
+    payload_start = CCSDS_HDR_SIZE + CCSDS_SEC_HDR_SIZE
+    payload_end = len(frame) - CCSDS_CRC_SIZE
+    header = frame[:payload_start]
+    payload = bytearray(frame[payload_start:payload_end])
+
+    if difficulty == 2:
+        # XOR decrypt (symmetric)
+        for i in range(len(payload)):
+            payload[i] ^= XOR_KEY[i % len(XOR_KEY)]
+    else:
+        # AES-128-ECB decrypt in 16-byte blocks
+        decrypted = bytearray()
+        for i in range(0, len(payload), 16):
+            block = bytes(payload[i : i + 16]).ljust(16, b"\x00")
+            decrypted.extend(_aes_ecb_decrypt(block))
+        payload = decrypted[: len(frame[payload_start:payload_end])]
+
+    frame_no_crc = header + bytes(payload)
+    crc = ccsds_crc16(frame_no_crc)
+    return frame_no_crc + struct.pack(">H", crc)
 
 
 def build_packet_id(pkt_type: int, apid: int) -> int:

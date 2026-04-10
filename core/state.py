@@ -10,6 +10,7 @@ class GroundStationState:
         self.connection_mode: ConnectionMode = ConnectionMode.IDLE
         self.device: Any | None = None
         self.mock_running: bool = False
+        self.difficulty: int = 0
 
     @property
     def is_idle(self) -> bool:

@@ -12,7 +12,7 @@ from core.constants import (
     XOR_KEY,
 )
 
-_tc_seq_count = 0
+_tc_seq_count = 1  # Start at 1: firmware anti-replay at difficulty=3 rejects seq_count=0
 
 
 def _aes_ecb_encrypt(key: bytes, plaintext: bytes) -> bytes:
