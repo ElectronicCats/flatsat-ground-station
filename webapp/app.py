@@ -456,10 +456,12 @@ def create_app(config_class=Config, db_path=None):
         mode = data.get("mode", "raw")
 
         if mode == "ground_station":
-            # Ground Station = lora_mode command (receive parsed RX lines)
-            resp = dev.send_shell_command_full("lora_mode command")
-            log_activity("INFO", "satellite", "Mode changed to Ground Station (lora_mode command)")
-            return {"status": "ok", "mode": "ground_station", "response": resp}
+            # Ground Station: R0 command (receive RX lines), R1 command (TX telecommands)
+            # Copy R0 LoRa config to R1 so TX goes on same frequency
+            dev.send_shell_command_full("lora_mode ALL command")
+            dev.send_shell_command_full("lora_apply ALL")
+            log_activity("INFO", "satellite", "Mode changed to Ground Station (R0+R1 command mode)")
+            return {"status": "ok", "mode": "ground_station"}
 
         if mode == "raw":
             dev.send_shell_command_full("mode raw")

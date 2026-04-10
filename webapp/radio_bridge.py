@@ -22,13 +22,13 @@ class RadioBridge:
         return "hardware" if self.is_connected else "simulated"
 
     def send_raw(self, data: bytes) -> dict:
-        """Send raw bytes to satellite."""
+        """Send raw bytes to satellite via Radio 1 TX command."""
         if self.is_connected and self._state.device:
             try:
-                ok = self._state.device.send_raw(data)
-                if ok:
-                    return {"status": "sent", "bytes": len(data)}
-                return {"status": "error", "error": "send_raw failed"}
+                resp = self._state.device.send_radio1_tx(data)
+                if resp and "Success" in resp:
+                    return {"status": "sent", "bytes": len(data), "response": resp}
+                return {"status": "error", "error": resp or "no response"}
             except Exception as e:
                 return {"status": "error", "error": str(e)}
 

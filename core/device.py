@@ -161,6 +161,22 @@ class FlatSatDevice:
         except Exception:
             return False
 
+    def send_radio1_tx(self, data: bytes) -> str | None:
+        """Send data via Radio 1 using TX command (LoRa command mode)."""
+        if not self._radio1 or not self._radio1.is_open:
+            return None
+        try:
+            self._radio1.timeout = 3.0
+            self._radio1.reset_input_buffer()
+            self._radio1.write(f"TX {data.hex()}\r\n".encode("ascii"))
+            self._radio1.flush()
+            response = self._radio1.readline()
+            if response:
+                return response.decode("ascii", errors="ignore").strip()
+            return None
+        except Exception:
+            return None
+
     def send_radio1_raw(self, data: bytes) -> bool:
         """Send raw bytes to Radio 1 (CDC1)."""
         if not self._radio1 or not self._radio1.is_open:
