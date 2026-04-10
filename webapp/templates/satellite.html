@@ -117,8 +117,8 @@
             <option value="fossasat2">FossaSat-2 (436.7 MHz)</option>
             <option value="vr3x">VR3X (915.6 MHz)</option>
         </select>
-        <button onclick="tinygsSpoof()">Spoof</button>
-        <button onclick="tinygsStop()">Stop</button>
+        <button id="btn-spoof" onclick="tinygsSpoof()">Spoof</button>
+        <button id="btn-tinygs-stop" onclick="tinygsStop()">Stop</button>
     </div>
 
     <div style="margin-bottom:10px;">
@@ -279,6 +279,9 @@ async function pollStatus() {
     highlightBtn("mode-btns", data.mode);
     highlightBtn("flight-btns", data.flight.toLowerCase());
     updateBattery(data.battery_mv, data.flight);
+
+    // TinyGS spoof indicator
+    document.getElementById("btn-spoof").className = data.mode === "tinygs" ? "btn-active" : "";
 }
 
 // --- Actions ---
@@ -301,11 +304,15 @@ async function applyLora() {
 }
 async function tinygsSpoof() {
     await api("tinygs", "POST", {action: "spoof", profile: document.getElementById("tinygs-profile").value});
-    pollStatus();
+    document.getElementById("btn-spoof").className = "btn-active";
+    document.getElementById("btn-tinygs-stop").className = "";
+    await pollStatus();
 }
 async function tinygsStop() {
     await api("tinygs", "POST", {action: "stop"});
-    pollStatus();
+    document.getElementById("btn-spoof").className = "";
+    document.getElementById("btn-tinygs-stop").className = "";
+    await pollStatus();
 }
 async function resetDefaults() {
     if (!confirm("Reset RF config and mode to factory defaults?")) return;
