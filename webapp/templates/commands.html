@@ -15,12 +15,13 @@
     <label>Data (hex): <input name="data" id="data" placeholder="optional hex data"></label><br><br>
     <button type="submit">Send TC</button>
 </form>
-<h2>Response</h2>
-<pre id="response">Waiting...</pre>
+<h2>Response History</h2>
+<pre id="response"></pre>
 <script>
 document.getElementById("tc-form").addEventListener("submit", async function(e) {
     e.preventDefault();
     const opcode = document.getElementById("opcode").value;
+    const cmdName = document.getElementById("opcode").selectedOptions[0].text;
     const data = document.getElementById("data").value || "";
     const payload = opcode + data;
     const resp = await fetch("/api/radio/send", {
@@ -29,7 +30,10 @@ document.getElementById("tc-form").addEventListener("submit", async function(e) 
         body: JSON.stringify({data: payload})
     });
     const result = await resp.json();
-    document.getElementById("response").textContent = JSON.stringify(result, null, 2);
+    const ts = new Date().toLocaleTimeString();
+    const pre = document.getElementById("response");
+    const entry = "[" + ts + "] " + cmdName + " → " + JSON.stringify(result) + "\n";
+    pre.textContent = entry + pre.textContent;
 });
 </script>
 {% endblock %}
