@@ -162,17 +162,26 @@ class FlatSatDevice:
             return False
 
     def send_radio1_tx(self, data: bytes) -> str | None:
-        """Send data via Radio 1 using TX command (LoRa command mode)."""
+        """Send data via Radio 1 using TX command (LoRa command mode).
+
+        Reads lines until 'TX Result' is found, skipping incoming RX lines.
+        """
         if not self._radio1 or not self._radio1.is_open:
             return None
         try:
-            self._radio1.timeout = 3.0
+            self._radio1.timeout = 5.0
             self._radio1.reset_input_buffer()
             self._radio1.write(f"TX {data.hex()}\r\n".encode("ascii"))
             self._radio1.flush()
-            response = self._radio1.readline()
-            if response:
-                return response.decode("ascii", errors="ignore").strip()
+
+            # Read lines until we get TX Result (skip RX lines from beacons)
+            for _ in range(10):
+                line = self._radio1.readline()
+                if not line:
+                    return None
+                decoded = line.decode("ascii", errors="ignore").strip()
+                if "TX Result" in decoded:
+                    return decoded
             return None
         except Exception:
             return None
