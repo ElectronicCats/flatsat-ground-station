@@ -458,7 +458,8 @@ def create_app(config_class=Config, db_path=None):
         mode = data.get("mode", "raw")
 
         if mode == "ground_station":
-            # Ground Station: R0 command (receive TM), R1 command (TX telecommands)
+            # Ground Station: apply config then set command mode on both radios
+            dev.send_shell_command_full("lora_apply ALL")
             dev.send_shell_command_full("lora_mode ALL command")
             log_activity("INFO", "satellite", "Mode changed to Ground Station (R0+R1 command mode)")
             return {"status": "ok", "mode": "ground_station"}
