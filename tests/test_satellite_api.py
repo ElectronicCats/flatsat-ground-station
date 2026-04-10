@@ -113,12 +113,22 @@ def test_satellite_lora_config_post(app, auth_client):
     assert "lora_apply R0" in calls
 
 
-def test_satellite_mode_post(app, auth_client):
+def test_satellite_mode_mission(app, auth_client):
     mock_dev = _setup_hardware(app)
-    mock_dev.send_shell_command_full.return_value = "mode set to mission"
+    mock_dev.send_shell_command_full.return_value = "OK"
     resp = auth_client.post("/api/satellite/mode", json={"mode": "mission"}, content_type="application/json")
     assert resp.status_code == 200
-    mock_dev.send_shell_command_full.assert_called_with("mode mission")
+    calls = [c[0][0] for c in mock_dev.send_shell_command_full.call_args_list]
+    assert "mode mission" in calls
+    assert "lora_mode stream" in calls
+
+
+def test_satellite_mode_ground_station(app, auth_client):
+    mock_dev = _setup_hardware(app)
+    mock_dev.send_shell_command_full.return_value = "OK"
+    resp = auth_client.post("/api/satellite/mode", json={"mode": "ground_station"}, content_type="application/json")
+    assert resp.status_code == 200
+    mock_dev.send_shell_command_full.assert_called_with("lora_mode command")
 
 
 def test_satellite_flight_post(app, auth_client):

@@ -395,9 +395,16 @@ def create_app(config_class=Config, db_path=None):
             return err
         flight_raw = dev.send_shell_command_full("flight")
         mode_raw = dev.send_shell_command_full("mode")
+        status_raw = dev.send_shell_command_full("status")
         flight = parse_flight(flight_raw)
+
+        mode = parse_mode(mode_raw)
+        # Detect ground station: lora_mode=command means receiving
+        if status_raw and "mode=command" in status_raw and mode == "raw":
+            mode = "ground_station"
+
         return {
-            "mode": parse_mode(mode_raw),
+            "mode": mode,
             "flight": flight["flight"],
             "battery_mv": flight["battery_mv"],
             "tm_rate": flight["tm_rate"],
@@ -447,7 +454,22 @@ def create_app(config_class=Config, db_path=None):
             return err
         data = request.get_json(silent=True) or {}
         mode = data.get("mode", "raw")
-        resp = dev.send_shell_command_full(f"mode {mode}")
+
+        if mode == "ground_station":
+            # Ground Station = lora_mode command (receive parsed RX lines)
+            resp = dev.send_shell_command_full("lora_mode command")
+            log_activity("INFO", "satellite", "Mode changed to Ground Station (lora_mode command)")
+            return {"status": "ok", "mode": "ground_station", "response": resp}
+
+        if mode == "raw":
+            dev.send_shell_command_full("mode raw")
+            resp = dev.send_shell_command_full("lora_mode stream")
+        elif mode == "mission":
+            dev.send_shell_command_full("mode mission")
+            resp = dev.send_shell_command_full("lora_mode stream")
+        else:
+            resp = dev.send_shell_command_full(f"mode {mode}")
+
         log_activity("INFO", "satellite", f"Mode changed to {mode}")
         return {"status": "ok", "response": resp}
 

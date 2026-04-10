@@ -96,6 +96,7 @@
         <div class="btn-group" id="mode-btns">
             <button onclick="setMode('raw')">Raw</button>
             <button onclick="setMode('mission')">Mission</button>
+            <button onclick="setMode('ground_station')">Ground Station</button>
             <button onclick="setMode('tinygs')">TinyGS</button>
         </div>
     </div>
@@ -202,7 +203,9 @@ async function pollInfo() {
 function highlightBtn(groupId, active) {
     const btns = document.getElementById(groupId).querySelectorAll("button");
     btns.forEach(b => {
-        b.className = b.textContent.toLowerCase() === active ? "btn-active" : "";
+        // Normalize: "Ground Station" -> "ground_station" for comparison
+        const btnKey = b.textContent.toLowerCase().replace(/\s+/g, "_");
+        b.className = btnKey === active ? "btn-active" : "";
     });
 }
 
@@ -285,7 +288,15 @@ async function pollStatus() {
 }
 
 // --- Actions ---
-async function setMode(m) { await api("mode", "POST", {mode: m}); pollStatus(); }
+async function setMode(m) {
+    if (m === "ground_station") {
+        // Ground Station = lora_mode command (receive mode)
+        await api("mode", "POST", {mode: "ground_station"});
+    } else {
+        await api("mode", "POST", {mode: m});
+    }
+    await pollStatus();
+}
 async function setFlight(f) { await api("flight", "POST", {flight: f}); pollStatus(); }
 async function setDifficulty(l) {
     const data = await api("difficulty", "POST", {level: parseInt(l)});
