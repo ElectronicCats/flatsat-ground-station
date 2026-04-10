@@ -79,24 +79,25 @@ Humid: 48%"""
 
 
 def test_parse_lora_config():
-    raw = """lora_config R0Radio 0 LoRa Config:
+    raw = """lora_config R0LoRa Configuration [Radio 0]:
   Frequency: 915000000 Hz
-  SF: 7
-  BW: 125 kHz
-  CR: 4/5
-  Power: 20 dBm
-  Preamble: 12
-  SyncWord: 0x12 (private)
-  IQ: normal"""
+  Spreading Factor: SF12
+  Bandwidth: 250 kHz
+  Coding Rate: 4/5
+  TX Power: 20 dBm
+  Preamble Length: 12
+  IQ: Normal
+  Sync Word: Private (0x12)
+  Mode: Stream"""
     result = parse_lora_config(raw)
     assert result["frequency"] == 915000000
-    assert result["sf"] == 7
-    assert result["bw"] == 125
+    assert result["sf"] == 12
+    assert result["bw"] == 250
     assert result["cr"] == "4/5"
     assert result["power"] == 20
     assert result["preamble"] == 12
     assert result["syncword"] == "0x12"
-    assert result["iq"] == "normal"
+    assert result["iq"] == "Normal"
 
 
 def test_parse_flight_none():

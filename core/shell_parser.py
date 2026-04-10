@@ -129,15 +129,18 @@ def parse_lora_config(raw: str | None) -> dict:
     if freq_match:
         result["frequency"] = int(freq_match.group(1))
 
-    sf_match = re.search(r"SF:\s*(\d+)", raw)
+    # Matches both "SF: 7" and "Spreading Factor: SF12"
+    sf_match = re.search(r"(?:Spreading Factor|SF):\s*(?:SF)?(\d+)", raw)
     if sf_match:
         result["sf"] = int(sf_match.group(1))
 
-    bw_match = re.search(r"BW:\s*(\d+)\s*kHz", raw)
+    # Matches both "BW: 125 kHz" and "Bandwidth: 250 kHz"
+    bw_match = re.search(r"(?:Bandwidth|BW):\s*(\d+)\s*kHz", raw)
     if bw_match:
         result["bw"] = int(bw_match.group(1))
 
-    cr_match = re.search(r"CR:\s*([\d/]+)", raw)
+    # Matches both "CR: 4/5" and "Coding Rate: 4/5"
+    cr_match = re.search(r"(?:Coding Rate|CR):\s*([\d/]+)", raw)
     if cr_match:
         result["cr"] = cr_match.group(1)
 
@@ -145,11 +148,13 @@ def parse_lora_config(raw: str | None) -> dict:
     if power_match:
         result["power"] = int(power_match.group(1))
 
-    preamble_match = re.search(r"Preamble:\s*(\d+)", raw)
+    # Matches both "Preamble: 12" and "Preamble Length: 12"
+    preamble_match = re.search(r"Preamble(?:\s*Length)?:\s*(\d+)", raw)
     if preamble_match:
         result["preamble"] = int(preamble_match.group(1))
 
-    sw_match = re.search(r"SyncWord:\s*(0x\w+)", raw)
+    # Matches both "SyncWord: 0x12" and "Sync Word: Private (0x12)"
+    sw_match = re.search(r"(?:Sync\s*Word|SyncWord):\s*(?:\w+\s*\()?(0x\w+)", raw)
     if sw_match:
         result["syncword"] = sw_match.group(1)
 
