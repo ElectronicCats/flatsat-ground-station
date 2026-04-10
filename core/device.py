@@ -63,7 +63,8 @@ class FlatSatDevice:
 
     @property
     def is_connected(self) -> bool:
-        return any(s is not None and s.is_open for s in [self._radio0, self._radio1, self._shell])
+        """True only if all three endpoints (radio0, radio1, shell) are open."""
+        return all(s is not None and s.is_open for s in [self._radio0, self._radio1, self._shell])
 
     def connect(self) -> dict[str, bool]:
         """Open all serial ports. Returns {endpoint: success}."""
@@ -118,21 +119,33 @@ class FlatSatDevice:
         except Exception:
             return None
 
-    def send_shell_command_full(self, cmd: str, timeout: float = 2.0, read_time: float = 0.3) -> str | None:
-        """Send command to Shell (CDC2), return full multi-line response."""
+    def send_shell_command_full(self, cmd: str, timeout: float = 2.0) -> str | None:
+        """Send command to Shell (CDC2), return full multi-line response.
+
+        Reads in a loop until no new data arrives for 100ms, up to timeout.
+        """
         if not self._shell or not self._shell.is_open:
             return None
         try:
             import time
 
-            self._shell.timeout = timeout
+            self._shell.timeout = 0.2
             self._shell.reset_input_buffer()
             self._shell.write(f"{cmd}\r\n".encode("ascii"))
             self._shell.flush()
-            time.sleep(read_time)
-            data = self._shell.read(self._shell.in_waiting or 1)
-            if data:
-                return data.decode("ascii", errors="ignore").strip()
+
+            buf = b""
+            deadline = time.time() + timeout
+            while time.time() < deadline:
+                chunk = self._shell.read(self._shell.in_waiting or 1)
+                if chunk:
+                    buf += chunk
+                elif buf:
+                    break  # Had data, now nothing more — done
+                time.sleep(0.05)
+
+            if buf:
+                return buf.decode("ascii", errors="ignore").strip()
             return None
         except Exception:
             return None

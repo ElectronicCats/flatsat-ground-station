@@ -34,6 +34,13 @@ def create_app(config_class=Config, db_path=None):
 
     app.teardown_appcontext(close_db)
 
+    # Initialize DB and seed on first request (or immediately if context available)
+    with app.app_context():
+        init_db()
+        from webapp.seed import seed_db
+
+        seed_db()
+
     socketio.init_app(app, cors_allowed_origins="*")
 
     # Shared ground station state
@@ -492,6 +499,9 @@ def start_mock_telemetry(app):
             if gs and gs.is_hardware and gs.device:
                 # HARDWARE MODE: read from Radio 0
                 try:
+                    if not gs.device.is_connected:
+                        raise OSError("Device disconnected")
+
                     line = gs.device.read_line(timeout=1.0)
                     if line:
                         parsed = parse_lora_rx(line)
@@ -538,7 +548,10 @@ def start_mock_telemetry(app):
                                 )
                             continue
                 except Exception:
-                    pass
+                    # Hardware read failed — fall back to IDLE
+                    if gs.device:
+                        gs.device.disconnect()
+                    gs.set_idle()
                 time.sleep(0.1)
             elif gs and gs.is_simulated and gs.mock_running:
                 # SIMULATED MODE: generate mock
@@ -564,13 +577,8 @@ def start_mock_telemetry(app):
 if __name__ == "__main__":
     import os
 
-    app = create_app()
     os.makedirs("db", exist_ok=True)
-    with app.app_context():
-        init_db()
-        from webapp.seed import seed_db
-
-        seed_db()
+    app = create_app()
     start_mock_telemetry(app)
     print("PwnSat2 Ground Station running on http://localhost:5000")
     print("Mode: SIMULATED (no FlatSat detected)")

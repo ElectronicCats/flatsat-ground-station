@@ -1,5 +1,6 @@
 Flask==3.0.3
 Flask-SocketIO==5.3.7
+pycryptodome==3.20.0
 pyserial==3.5
 pyudev
 requests

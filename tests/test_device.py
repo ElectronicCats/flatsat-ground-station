@@ -133,3 +133,23 @@ def test_send_not_connected(mock_serial_cls):
     dev = FlatSatDevice(disc)
     assert dev.send_shell_command("status") is None
     assert dev.send_raw(b"\x00") is False
+
+
+@patch("core.device.serial.Serial")
+def test_partial_connect_not_connected(mock_serial_cls):
+    """is_connected requires ALL three ports open, not just any."""
+    import serial
+
+    def side_effect(port, *args, **kwargs):
+        if port == "/dev/ttyACM0":
+            raise serial.SerialException("port busy")
+        return MagicMock()
+
+    mock_serial_cls.side_effect = side_effect
+    disc = _make_discovered()
+    dev = FlatSatDevice(disc)
+    result = dev.connect()
+    assert result["radio0"] is False
+    assert result["radio1"] is True
+    assert result["shell"] is True
+    assert not dev.is_connected  # partial = not connected
