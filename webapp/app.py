@@ -426,24 +426,26 @@ def create_app(config_class=Config, db_path=None):
         if err:
             return err
         if request.method == "GET":
-            raw = dev.send_shell_command_full("lora_config R0")
+            radio = request.args.get("radio", "R0")
+            raw = dev.send_shell_command_full(f"lora_config {radio}")
             return parse_lora_config(raw)
         data = request.get_json(silent=True) or {}
+        radio = data.get("radio", "R0")
         freq = data.get("frequency")
         sf = data.get("sf")
         bw = data.get("bw")
         power = data.get("power")
         results = []
         if freq:
-            results.append(dev.send_shell_command_full(f"lora_freq R0 {freq}"))
+            results.append(dev.send_shell_command_full(f"lora_freq {radio} {freq}"))
         if sf:
-            results.append(dev.send_shell_command_full(f"lora_sf R0 {sf}"))
+            results.append(dev.send_shell_command_full(f"lora_sf {radio} {sf}"))
         if bw:
-            results.append(dev.send_shell_command_full(f"lora_bw R0 {bw}"))
+            results.append(dev.send_shell_command_full(f"lora_bw {radio} {bw}"))
         if power:
-            results.append(dev.send_shell_command_full(f"lora_power R0 {power}"))
-        results.append(dev.send_shell_command_full("lora_apply R0"))
-        log_activity("INFO", "satellite", f"LoRa config updated: freq={freq} sf={sf} bw={bw} power={power}")
+            results.append(dev.send_shell_command_full(f"lora_power {radio} {power}"))
+        results.append(dev.send_shell_command_full(f"lora_apply {radio}"))
+        log_activity("INFO", "satellite", f"{radio} LoRa config updated: freq={freq} sf={sf} bw={bw} power={power}")
         return {"status": "ok", "responses": results}
 
     @app.route("/api/satellite/mode", methods=["POST"])
@@ -456,10 +458,8 @@ def create_app(config_class=Config, db_path=None):
         mode = data.get("mode", "raw")
 
         if mode == "ground_station":
-            # Ground Station: R0 command (receive RX lines), R1 command (TX telecommands)
-            # Copy R0 LoRa config to R1 so TX goes on same frequency
+            # Ground Station: R0 command (receive TM), R1 command (TX telecommands)
             dev.send_shell_command_full("lora_mode ALL command")
-            dev.send_shell_command_full("lora_apply ALL")
             log_activity("INFO", "satellite", "Mode changed to Ground Station (R0+R1 command mode)")
             return {"status": "ok", "mode": "ground_station"}
 

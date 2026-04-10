@@ -59,19 +59,34 @@
     </div>
 </div>
 
-<!-- LoRa Config Panel -->
+<!-- LoRa Config Panel — Radio 0 -->
 <div class="panel">
-    <h2>LoRa Configuration</h2>
-    <div class="field"><label>Frequency:</label> <span id="lora-freq">-</span> Hz</div>
-    <div class="field"><label>SF:</label> <span id="lora-sf">-</span></div>
-    <div class="field"><label>BW:</label> <span id="lora-bw">-</span> kHz</div>
-    <div class="field"><label>Power:</label> <span id="lora-power">-</span> dBm</div>
+    <h2>Radio 0 — Telemetry RX/TX</h2>
+    <div class="field"><label>Frequency:</label> <span id="lora-r0-freq">-</span> Hz</div>
+    <div class="field"><label>SF:</label> <span id="lora-r0-sf">-</span></div>
+    <div class="field"><label>BW:</label> <span id="lora-r0-bw">-</span> kHz</div>
+    <div class="field"><label>Power:</label> <span id="lora-r0-power">-</span> dBm</div>
     <hr style="border-color:#333;">
-    <div class="field"><label>Set Freq (Hz):</label> <input id="set-freq" type="number" value="915000000" style="width:130px;"></div>
-    <div class="field"><label>Set SF:</label> <input id="set-sf" type="number" min="7" max="12" value="7" style="width:60px;"></div>
-    <div class="field"><label>Set BW (kHz):</label> <select id="set-bw"><option>125</option><option>250</option><option>500</option></select></div>
-    <div class="field"><label>Set Power (dBm):</label> <input id="set-power" type="number" min="-9" max="22" value="20" style="width:60px;"></div>
-    <button onclick="applyLora()">Apply LoRa Config</button>
+    <div class="field"><label>Set Freq (Hz):</label> <input id="set-r0-freq" type="number" value="915000000" style="width:130px;"></div>
+    <div class="field"><label>Set SF:</label> <input id="set-r0-sf" type="number" min="7" max="12" value="7" style="width:60px;"></div>
+    <div class="field"><label>Set BW (kHz):</label> <select id="set-r0-bw"><option>125</option><option>250</option><option>500</option></select></div>
+    <div class="field"><label>Set Power (dBm):</label> <input id="set-r0-power" type="number" min="-9" max="22" value="20" style="width:60px;"></div>
+    <button onclick="applyLora('R0')">Apply R0</button>
+</div>
+
+<!-- LoRa Config Panel — Radio 1 -->
+<div class="panel">
+    <h2>Radio 1 — Telecommand TX/RX</h2>
+    <div class="field"><label>Frequency:</label> <span id="lora-r1-freq">-</span> Hz</div>
+    <div class="field"><label>SF:</label> <span id="lora-r1-sf">-</span></div>
+    <div class="field"><label>BW:</label> <span id="lora-r1-bw">-</span> kHz</div>
+    <div class="field"><label>Power:</label> <span id="lora-r1-power">-</span> dBm</div>
+    <hr style="border-color:#333;">
+    <div class="field"><label>Set Freq (Hz):</label> <input id="set-r1-freq" type="number" value="915000000" style="width:130px;"></div>
+    <div class="field"><label>Set SF:</label> <input id="set-r1-sf" type="number" min="7" max="12" value="7" style="width:60px;"></div>
+    <div class="field"><label>Set BW (kHz):</label> <select id="set-r1-bw"><option>125</option><option>250</option><option>500</option></select></div>
+    <div class="field"><label>Set Power (dBm):</label> <input id="set-r1-power" type="number" min="-9" max="22" value="20" style="width:60px;"></div>
+    <button onclick="applyLora('R1')">Apply R1</button>
 </div>
 
 <!-- Sensors Panel -->
@@ -264,12 +279,15 @@ async function pollSensors() {
 
 async function pollLora() {
     if (!hwConnected) return;
-    const data = await api("lora_config");
-    if (data.error) return;
-    document.getElementById("lora-freq").textContent = data.frequency;
-    document.getElementById("lora-sf").textContent = data.sf;
-    document.getElementById("lora-bw").textContent = data.bw;
-    document.getElementById("lora-power").textContent = data.power;
+    for (const radio of ["R0", "R1"]) {
+        const data = await api("lora_config?radio=" + radio);
+        if (data.error) continue;
+        const r = radio.toLowerCase();
+        document.getElementById("lora-" + r + "-freq").textContent = data.frequency;
+        document.getElementById("lora-" + r + "-sf").textContent = data.sf;
+        document.getElementById("lora-" + r + "-bw").textContent = data.bw;
+        document.getElementById("lora-" + r + "-power").textContent = data.power;
+    }
 }
 
 // --- Lightweight polling (only flight/battery/mode) ---
@@ -306,15 +324,17 @@ async function setDifficulty(l) {
     if (data.error) { alert("Failed: " + data.error); return; }
     document.getElementById("cur-diff").textContent = l;
 }
-async function applyLora() {
+async function applyLora(radio) {
+    const r = radio.toLowerCase();
     await api("lora_config", "POST", {
-        frequency: parseInt(document.getElementById("set-freq").value),
-        sf: parseInt(document.getElementById("set-sf").value),
-        bw: parseInt(document.getElementById("set-bw").value),
-        power: parseInt(document.getElementById("set-power").value),
+        radio: radio,
+        frequency: parseInt(document.getElementById("set-" + r + "-freq").value),
+        sf: parseInt(document.getElementById("set-" + r + "-sf").value),
+        bw: parseInt(document.getElementById("set-" + r + "-bw").value),
+        power: parseInt(document.getElementById("set-" + r + "-power").value),
     });
-    pollLora();
-    showToast("LoRa config applied", 3000);
+    await pollLora();
+    showToast(radio + " LoRa config applied", 3000);
 }
 async function tinygsSpoof() {
     await api("tinygs", "POST", {action: "spoof", profile: document.getElementById("tinygs-profile").value});
