@@ -13,6 +13,7 @@
     #tm-container table { margin:0; }
     #pkt-counter { color:#00ccff; margin-left:15px; }
     #last-seen { color:#888; margin-left:15px; font-size:0.9em; }
+    .btn-active { background:#00ff41 !important; color:#0a0a0a !important; font-weight:bold; }
 </style>
 {% endblock %}
 {% block content %}
@@ -98,12 +99,17 @@ async function hwStatus() {
     const el = document.getElementById("hw-mode");
     const serial = document.getElementById("hw-serial");
 
+    // Clear all active states first
+    document.getElementById("btn-simulate").className = "";
+    document.getElementById("btn-connect").className = "";
+
     if (data.mode === "hardware") {
         el.textContent = "HARDWARE";
         el.style.color = "#00ff41";
         serial.textContent = " | SN: ..." + (data.serial_number || "").slice(-4);
         setButtons("hardware");
         setIndicator("hardware");
+        document.getElementById("btn-connect").className = "btn-active";
     } else if (data.mode === "simulated") {
         el.textContent = "SIMULATED";
         el.style.color = "#ffaa00";
@@ -111,6 +117,7 @@ async function hwStatus() {
         document.getElementById("hw-rssi").textContent = "";
         setButtons("simulated");
         setIndicator("simulated");
+        document.getElementById("btn-simulate").className = "btn-active";
     } else {
         el.textContent = "IDLE";
         el.style.color = "#888";
