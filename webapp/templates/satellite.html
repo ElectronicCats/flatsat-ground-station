@@ -1,6 +1,298 @@
 {% extends "base.html" %}
 {% block title %}Satellite{% endblock %}
+{% block head %}
+<style>
+    .panel { border:1px solid #333; padding:15px; margin-bottom:15px; background:#111; }
+    .panel h2 { margin-top:0; color:#00ccff; font-size:1.1em; }
+    .grid { display:grid; grid-template-columns:1fr 1fr; gap:15px; }
+    .field { margin:5px 0; }
+    .field label { display:inline-block; width:140px; color:#888; }
+    .field span { color:#00ff41; }
+    .btn-group button { margin-right:5px; margin-bottom:5px; }
+    .btn-active { background:#00ff41; color:#0a0a0a; font-weight:bold; }
+    .battery-bar { width:200px; height:20px; background:#333; border:1px solid #555; display:inline-block; vertical-align:middle; }
+    .battery-fill { height:100%; transition: width 0.5s; }
+    .batt-green { background:#00ff41; }
+    .batt-yellow { background:#ffaa00; }
+    .batt-red { background:#ff4444; }
+    .countdown { font-size:1.5em; font-weight:bold; margin:10px 0; }
+    .countdown-danger { color:#ff4444; animation: blink 1s infinite; }
+    @keyframes blink { 50% { opacity:0.4; } }
+    .toast { position:fixed; top:20px; right:20px; background:#ff4444; color:white; padding:15px; border-radius:5px; display:none; z-index:999; }
+</style>
+{% endblock %}
 {% block content %}
 <h1>Satellite Control</h1>
-<p>Placeholder — full UI in next task.</p>
+
+<div id="no-hw" style="display:none; color:#ff4444; font-size:1.2em; padding:20px;">
+    No satellite connected — <a href="/dashboard">connect from Dashboard</a>.
+</div>
+
+<div id="sat-content" style="display:none;">
+<div class="grid">
+
+<!-- Info Panel -->
+<div class="panel">
+    <h2>Satellite Info</h2>
+    <div class="field"><label>Firmware:</label> <span id="fw-version">-</span></div>
+    <div class="field"><label>Git:</label> <span id="fw-git">-</span></div>
+    <div class="field"><label>Build:</label> <span id="fw-build">-</span></div>
+    <div class="field"><label>Spacecraft ID:</label> <span id="sc-id">-</span></div>
+    <div class="field"><label>Mode:</label> <span id="cur-mode">-</span></div>
+    <div class="field"><label>Flight:</label> <span id="cur-flight">-</span></div>
+    <div class="field"><label>Difficulty:</label> <span id="cur-diff">-</span></div>
+</div>
+
+<!-- Battery Panel -->
+<div class="panel">
+    <h2>Battery</h2>
+    <div class="field">
+        <label>Voltage:</label> <span id="batt-mv">-</span> mV
+    </div>
+    <div class="battery-bar"><div id="batt-fill" class="battery-fill batt-green" style="width:100%"></div></div>
+    <div style="margin-top:10px;">
+        <label><input type="checkbox" id="countdown-toggle" onchange="toggleCountdown()"> Enable Countdown</label>
+    </div>
+    <div id="countdown-display" style="display:none;">
+        <div class="countdown" id="countdown-timer">--:--</div>
+        <div style="color:#888;">before forced SAFE mode</div>
+    </div>
+</div>
+
+<!-- LoRa Config Panel -->
+<div class="panel">
+    <h2>LoRa Configuration</h2>
+    <div class="field"><label>Frequency:</label> <span id="lora-freq">-</span> Hz</div>
+    <div class="field"><label>SF:</label> <span id="lora-sf">-</span></div>
+    <div class="field"><label>BW:</label> <span id="lora-bw">-</span> kHz</div>
+    <div class="field"><label>Power:</label> <span id="lora-power">-</span> dBm</div>
+    <hr style="border-color:#333;">
+    <div class="field"><label>Set Freq (Hz):</label> <input id="set-freq" type="number" value="915000000" style="width:130px;"></div>
+    <div class="field"><label>Set SF:</label> <input id="set-sf" type="number" min="7" max="12" value="7" style="width:60px;"></div>
+    <div class="field"><label>Set BW (kHz):</label> <select id="set-bw"><option>125</option><option>250</option><option>500</option></select></div>
+    <div class="field"><label>Set Power (dBm):</label> <input id="set-power" type="number" min="-9" max="22" value="20" style="width:60px;"></div>
+    <button onclick="applyLora()">Apply LoRa Config</button>
+</div>
+
+<!-- Sensors Panel -->
+<div class="panel">
+    <h2>Sensors</h2>
+    <div class="field"><label>Temperature:</label> <span id="sens-temp">-</span> C</div>
+    <div class="field"><label>Pressure:</label> <span id="sens-press">-</span> Pa</div>
+    <div class="field"><label>Humidity:</label> <span id="sens-humid">-</span>%</div>
+    <div class="field"><label>Accel X:</label> <span id="sens-ax">-</span> mg</div>
+    <div class="field"><label>Accel Y:</label> <span id="sens-ay">-</span> mg</div>
+    <div class="field"><label>Accel Z:</label> <span id="sens-az">-</span> mg</div>
+</div>
+
+</div><!-- grid -->
+
+<!-- Controls Panel (full width) -->
+<div class="panel">
+    <h2>Controls</h2>
+
+    <div style="margin-bottom:10px;">
+        <label style="color:#888;">Mode:</label>
+        <div class="btn-group" id="mode-btns">
+            <button onclick="setMode('raw')">Raw</button>
+            <button onclick="setMode('mission')">Mission</button>
+            <button onclick="setMode('tinygs')">TinyGS</button>
+        </div>
+    </div>
+
+    <div style="margin-bottom:10px;">
+        <label style="color:#888;">Flight:</label>
+        <div class="btn-group" id="flight-btns">
+            <button onclick="setFlight('idle')">Idle</button>
+            <button onclick="setFlight('nominal')">Nominal</button>
+            <button onclick="setFlight('safe')">Safe</button>
+            <button onclick="setFlight('debug')">Debug</button>
+        </div>
+    </div>
+
+    <div style="margin-bottom:10px;">
+        <label style="color:#888;">TinyGS:</label>
+        <select id="tinygs-profile">
+            <option value="norbi">Norbi (436.703 MHz)</option>
+            <option value="fossasat2">FossaSat-2 (436.7 MHz)</option>
+            <option value="vr3x">VR3X (915.6 MHz)</option>
+        </select>
+        <button onclick="tinygsSpoof()">Spoof</button>
+        <button onclick="tinygsStop()">Stop</button>
+    </div>
+
+    <div style="margin-bottom:10px;">
+        <label style="color:#888;">Difficulty:</label>
+        <select id="diff-select" onchange="setDifficulty(this.value)">
+            <option value="0">0 — Training</option>
+            <option value="1">1 — Normal</option>
+            <option value="2">2 — Hardened</option>
+            <option value="3">3 — Blue Team</option>
+        </select>
+    </div>
+
+    <div>
+        <button onclick="resetDefaults()" style="background:#442; border-color:#664;">Reset Defaults</button>
+    </div>
+</div>
+
+</div><!-- sat-content -->
+
+<div id="toast" class="toast"></div>
+
+<script>
+let countdownEnabled = false;
+let lastNotifiedThreshold = 9999;
+
+// --- API helpers ---
+async function api(path, method, body) {
+    const opts = {method: method || "GET", headers: {}};
+    if (body) {
+        opts.headers["Content-Type"] = "application/json";
+        opts.body = JSON.stringify(body);
+    }
+    const resp = await fetch("/api/satellite/" + path, opts);
+    return await resp.json();
+}
+
+function showToast(msg, duration) {
+    const t = document.getElementById("toast");
+    t.textContent = msg;
+    t.style.display = "block";
+    setTimeout(() => t.style.display = "none", duration || 5000);
+}
+
+// --- Polling ---
+async function pollInfo() {
+    const data = await api("info");
+    if (data.error) {
+        document.getElementById("no-hw").style.display = "block";
+        document.getElementById("sat-content").style.display = "none";
+        return;
+    }
+    document.getElementById("no-hw").style.display = "none";
+    document.getElementById("sat-content").style.display = "block";
+
+    document.getElementById("fw-version").textContent = data.fw_version;
+    document.getElementById("fw-git").textContent = data.git_sha + (data.git_dirty ? " (dirty)" : "");
+    document.getElementById("fw-build").textContent = data.build_date;
+    document.getElementById("sc-id").textContent = "0x" + (data.sc_id || 0).toString(16).padStart(2, "0");
+    document.getElementById("cur-mode").textContent = data.mode;
+    document.getElementById("cur-flight").textContent = data.flight;
+    document.getElementById("cur-diff").textContent = data.difficulty;
+    document.getElementById("diff-select").value = data.difficulty;
+
+    // Highlight active mode/flight buttons
+    highlightBtn("mode-btns", data.mode);
+    highlightBtn("flight-btns", data.flight.toLowerCase());
+
+    // Battery
+    updateBattery(data.battery_mv, data.flight);
+}
+
+function highlightBtn(groupId, active) {
+    const btns = document.getElementById(groupId).querySelectorAll("button");
+    btns.forEach(b => {
+        b.className = b.textContent.toLowerCase() === active ? "btn-active" : "";
+    });
+}
+
+function updateBattery(mv, flight) {
+    document.getElementById("batt-mv").textContent = mv;
+    const pct = Math.max(0, Math.min(100, ((mv - 3000) / 700) * 100));
+    const fill = document.getElementById("batt-fill");
+    fill.style.width = pct + "%";
+    fill.className = "battery-fill " + (mv > 3500 ? "batt-green" : mv > 3200 ? "batt-yellow" : "batt-red");
+
+    // Countdown
+    if (countdownEnabled) {
+        const drainRate = flight === "DEBUG" ? 0.3 : 0.1; // mV per second
+        const secsLeft = Math.max(0, (mv - 3000) / drainRate);
+        const mins = Math.floor(secsLeft / 60);
+        const secs = Math.floor(secsLeft % 60);
+        const timer = document.getElementById("countdown-timer");
+        timer.textContent = String(mins).padStart(2, "0") + ":" + String(secs).padStart(2, "0");
+        timer.className = "countdown" + (mv < 3200 ? " countdown-danger" : "");
+
+        // Toast notifications
+        if (mv <= 3000 && lastNotifiedThreshold > 3000) {
+            showToast("SATELLITE FORCED TO SAFE MODE", 10000);
+            lastNotifiedThreshold = 3000;
+        } else if (mv <= 3100 && lastNotifiedThreshold > 3100) {
+            showToast("DANGER: 100mV until forced SAFE", 5000);
+            lastNotifiedThreshold = 3100;
+        } else if (mv <= 3200 && lastNotifiedThreshold > 3200) {
+            showToast("Critical: battery at " + mv + "mV", 5000);
+            lastNotifiedThreshold = 3200;
+        } else if (mv <= 3500 && lastNotifiedThreshold > 3500) {
+            showToast("Warning: battery at " + mv + "mV", 4000);
+            lastNotifiedThreshold = 3500;
+        }
+    }
+}
+
+function toggleCountdown() {
+    countdownEnabled = document.getElementById("countdown-toggle").checked;
+    document.getElementById("countdown-display").style.display = countdownEnabled ? "block" : "none";
+    lastNotifiedThreshold = 9999;
+}
+
+async function pollSensors() {
+    const data = await api("sensors");
+    if (data.error) return;
+    document.getElementById("sens-temp").textContent = data.temperature;
+    document.getElementById("sens-press").textContent = data.pressure;
+    document.getElementById("sens-humid").textContent = data.humidity;
+    document.getElementById("sens-ax").textContent = data.accel_x;
+    document.getElementById("sens-ay").textContent = data.accel_y;
+    document.getElementById("sens-az").textContent = data.accel_z;
+}
+
+async function pollLora() {
+    const data = await api("lora_config");
+    if (data.error) return;
+    document.getElementById("lora-freq").textContent = data.frequency;
+    document.getElementById("lora-sf").textContent = data.sf;
+    document.getElementById("lora-bw").textContent = data.bw;
+    document.getElementById("lora-power").textContent = data.power;
+}
+
+// --- Actions ---
+async function setMode(m) { await api("mode", "POST", {mode: m}); pollInfo(); }
+async function setFlight(f) { await api("flight", "POST", {flight: f}); pollInfo(); }
+async function setDifficulty(l) { await api("difficulty", "POST", {level: parseInt(l)}); pollInfo(); }
+async function applyLora() {
+    await api("lora_config", "POST", {
+        frequency: parseInt(document.getElementById("set-freq").value),
+        sf: parseInt(document.getElementById("set-sf").value),
+        bw: parseInt(document.getElementById("set-bw").value),
+        power: parseInt(document.getElementById("set-power").value),
+    });
+    pollLora();
+    showToast("LoRa config applied", 3000);
+}
+async function tinygsSpoof() {
+    await api("tinygs", "POST", {action: "spoof", profile: document.getElementById("tinygs-profile").value});
+    pollInfo();
+}
+async function tinygsStop() {
+    await api("tinygs", "POST", {action: "stop"});
+    pollInfo();
+}
+async function resetDefaults() {
+    if (!confirm("Reset RF config and mode to factory defaults?")) return;
+    await api("reset", "POST");
+    pollInfo();
+    pollLora();
+    showToast("Defaults restored", 3000);
+}
+
+// --- Init ---
+pollInfo();
+pollLora();
+pollSensors();
+setInterval(pollInfo, 3000);
+setInterval(pollLora, 3000);
+setInterval(pollSensors, 5000);
+</script>
 {% endblock %}
