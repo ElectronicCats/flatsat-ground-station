@@ -17,7 +17,7 @@ Queried once on page load via `GET /api/satellite/info`.
 | Firmware version | `fw_version` | `dev-c6512ae-dirty` |
 | Git SHA | `fw_version` | `c6512ae (dirty)` |
 | Build date | `fw_version` | `2026-04-10T00:31:46Z` |
-| Spacecraft ID | `sc_id` | `0x02` |
+| Spacecraft ID | `sc_id` | `spacecraft_id: 0x02` |
 | Operating mode | `mode` | `mission` |
 | Flight state | `flight` | `NOMINAL` |
 | Difficulty | `difficulty` | `1 (normal)` |
@@ -65,8 +65,14 @@ Queried every 3 seconds via `GET /api/satellite/info` (battery is in `flight` ou
 
 ### Section 4: Controls
 
-**Mode:** Three buttons — `raw` / `mission` / `tinygs`. Active mode highlighted.
+**Mode:** Four buttons — `raw` / `mission` / `ground_station` / `tinygs`. Active mode highlighted.
 POST `/api/satellite/mode` with `{mode: "mission"}`.
+
+Button actions:
+- **Raw:** sends `mode raw` + `lora_mode stream`
+- **Mission:** sends `mode mission` + `lora_mode stream`
+- **Ground Station:** sends `lora_mode command` (puts radio in command-receive mode for ground station reception)
+- **TinyGS:** sends `mode tinygs`
 
 **Flight:** Four buttons — `idle` / `nominal` / `safe` / `debug`. Active state highlighted.
 POST `/api/satellite/flight` with `{flight: "nominal"}`.
@@ -124,7 +130,7 @@ Parse: extract lines by prefix.
 
 **`difficulty`** response: `difficulty: 1 (normal)` — extract number.
 
-**`sc_id`** response: `sc_id: 2` — extract number.
+**`sc_id`** response: `spacecraft_id: 0x02` — extract hex value (format is `spacecraft_id: 0xNN`, not `sc_id: N`).
 
 **`sensors`** response:
 ```
@@ -139,15 +145,20 @@ Parse: regex for each field.
 ```
 Radio 0 LoRa Config:
   Frequency: 915000000 Hz
-  SF: 7
-  BW: 125 kHz
-  CR: 4/5
-  Power: 20 dBm
-  Preamble: 12
-  SyncWord: 0x12 (private)
+  Spreading Factor: SF12
+  Bandwidth: 250 kHz
+  Coding Rate: 4/5
+  Preamble Length: 12
+  Sync Word: Private (0x12)
   IQ: normal
+  Power: 20 dBm
 ```
-Parse: regex per line.
+Parse: regex per line. Note field name differences from original design:
+- `SF: 7` is now `Spreading Factor: SF12` (includes "SF" prefix in value)
+- `BW: 125 kHz` is now `Bandwidth: 250 kHz`
+- `CR: 4/5` is now `Coding Rate: 4/5`
+- `Preamble: 12` is now `Preamble Length: 12`
+- `SyncWord: 0x12 (private)` is now `Sync Word: Private (0x12)` (order reversed)
 
 ## Polling Strategy
 

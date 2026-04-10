@@ -45,7 +45,7 @@ Shared, non-vulnerable Python library. Starts as a local directory, migrates to 
 | `serial_manager.py` | Adapted from TUI `discovery.py` + `hotplug.py` | Device discovery (VID/PID 0x1209:0xBABC), endpoint grouping (radio0, radio1, shell), hotplug detection (udev/IOKit) |
 | `device.py` | Adapted from TUI `device.py` | Serial I/O with dual API: async (`await device.send_tc()`) for TUI, sync (`device.send_tc_sync()`) for Flask. Command queue, response parsing, mode switching |
 | `constants.py` | Adapted from TUI `constants.py` | USB IDs, baud rates (115200), endpoint names, shell commands, enums (DeviceHealth, CommandStatus) |
-| `ccsds.py` | New | CCSDS SPP frame builder/parser. Big-endian headers per CCSDS 133.0-B-2. SPACECRAFT_ID=0x02, idle payload="pwnsat2" |
+| `ccsds.py` | New | CCSDS SPP frame builder/parser. CCSDS headers are big-endian per CCSDS 133.0-B-2; payload structs are little-endian (RP2040 ARM native byte order). SPACECRAFT_ID=0x02, idle payload="pwnsat2" |
 | `telemetry.py` | New | TM frame decoder, field extraction (temp, pressure, humidity, accel), event callbacks for real-time streaming |
 | `telecommand.py` | New | TC frame builder, APID routing, AES-128 encryption for privileged commands (TC_OP_PRIVILEGED 0xD0) |
 | `state.py` | New | FlatSat state tracking: connection status, mode, difficulty, flight state. Auto-detect hardware vs mock mode |
@@ -351,7 +351,34 @@ When no FlatSat hardware is detected via USB:
 
 This allows CTF participants to practice all web vulns without physical hardware. Only GS-08 (kill chain pivot to actual satellite) requires a connected FlatSat.
 
-## 9. Hardcoded Secrets (Deliberate)
+## 9. Telemetry Payload Formats
+
+Payload structs are **little-endian** (RP2040 ARM native byte order). CCSDS primary and secondary headers remain big-endian per standard.
+
+### Heartbeat (APID 0x00) — 13 bytes
+
+| Field | Type | Size | Notes |
+|-------|------|------|-------|
+| uptime_s | uint32_t | 4 | Seconds since boot |
+| mode | uint8_t | 1 | Operating mode enum |
+| flight_state | uint8_t | 1 | Flight state enum |
+| battery_mv | uint16_t | 2 | Battery voltage in mV |
+| tc_count | uint16_t | 2 | Telecommand receive count |
+| error_count | uint16_t | 2 | Error counter |
+
+Total: 13 bytes (updated from original 9-byte design; added tc_count and error_count).
+
+### BME280 Telemetry (APID 0x01)
+
+| Field | Type | Size | Notes |
+|-------|------|------|-------|
+| temp_x10 | int16_t | 2 | Temperature × 10 (e.g., 253 = 25.3 C) |
+| press_x10 | uint32_t | 4 | Pressure × 10 Pa (updated from uint16_t) |
+| humid_x10 | uint16_t | 2 | Humidity × 10 % |
+
+Note: `press_x10` was changed from `uint16_t` to `uint32_t` to accommodate full atmospheric pressure range (e.g., 1013250 for 101325.0 Pa × 10).
+
+## 11. Hardcoded Secrets (Deliberate)
 
 | Secret | Value | Purpose |
 |--------|-------|---------|
@@ -360,7 +387,7 @@ This allows CTF participants to practice all web vulns without physical hardware
 | CORS | `*` (open) | Realistic misconfiguration |
 | AES key | Same as firmware `aes_key_hardcoded` | Privileged TC encryption |
 
-## 10. Decisions Log
+## 12. Decisions Log
 
 | Decision | Choice | Rationale |
 |----------|--------|-----------|

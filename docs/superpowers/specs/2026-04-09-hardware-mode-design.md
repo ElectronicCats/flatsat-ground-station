@@ -92,6 +92,36 @@ Add a hardware status section at the top of `dashboard.html`:
 - "Disconnect" button: POST `/api/hardware/disconnect`
 - Status shows: mode, serial number, RSSI/SNR of last received frame
 
+## Setup Requirements
+
+The following conditions must be met for hardware communication to work correctly. These were verified during implementation and testing.
+
+### Receptor (Ground Station) Setup
+
+- The receptor must be in `lora_mode command` to receive LoRa packets formatted as `RX:` lines. Without this, incoming packets are not printed in the parseable format.
+- After changing any LoRa parameter (freq, SF, BW), `lora_apply R0` **must** be called. Parameters remain in a "pending" state until applied — the radio does not use the new values until `lora_apply` is executed.
+
+### Satellite Setup for Beacon Reception
+
+For the ground station to receive satellite beacons:
+1. Satellite must be in `mode mission` — enables periodic beacon transmission
+2. Satellite must be in `lora_mode stream` — sends beacon frames over LoRa
+3. Satellite flight state must be `flight nominal` — SAFE/IDLE states suppress beacons
+
+### LoRa Parameter Matching
+
+Both devices (satellite and ground station) must have identical LoRa parameters:
+- Frequency (Hz)
+- Spreading Factor (SF)
+- Bandwidth (BW)
+
+Mismatched parameters result in no frames received (no error shown — frames are simply not demodulated).
+
+### State Transitions
+
+- **Disconnect:** transitions to IDLE state. User must manually choose next action (reconnect, scan, or stay idle).
+- **Hardware error / read failure:** automatically falls back to SIMULATED mode. The webapp continues to function with synthetic telemetry.
+
 ## Decisions
 
 | Decision | Choice | Rationale |
