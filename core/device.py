@@ -118,6 +118,25 @@ class FlatSatDevice:
         except Exception:
             return None
 
+    def send_shell_command_full(self, cmd: str, timeout: float = 2.0, read_time: float = 0.8) -> str | None:
+        """Send command to Shell (CDC2), return full multi-line response."""
+        if not self._shell or not self._shell.is_open:
+            return None
+        try:
+            import time
+
+            self._shell.timeout = timeout
+            self._shell.reset_input_buffer()
+            self._shell.write(f"{cmd}\r\n".encode("ascii"))
+            self._shell.flush()
+            time.sleep(read_time)
+            data = self._shell.read(self._shell.in_waiting or 1)
+            if data:
+                return data.decode("ascii", errors="ignore").strip()
+            return None
+        except Exception:
+            return None
+
     def send_raw(self, data: bytes) -> bool:
         """Send raw bytes to Radio 0 (CDC0)."""
         if not self._radio0 or not self._radio0.is_open:
