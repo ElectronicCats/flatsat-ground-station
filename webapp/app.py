@@ -8,6 +8,15 @@ from flask_socketio import SocketIO
 
 from core.device import FlatSatDevice
 from core.serial_manager import discover_devices
+from core.shell_parser import (
+    parse_difficulty,
+    parse_flight,
+    parse_fw_version,
+    parse_lora_config,
+    parse_mode,
+    parse_sc_id,
+    parse_sensors,
+)
 from core.state import GroundStationState
 from webapp.auth import authenticate, create_session_token, login_required
 from webapp.config import Config
@@ -307,6 +316,134 @@ def create_app(config_class=Config, db_path=None):
         gs.stop_mock()
         gs.set_idle()
         return {"mode": "idle"}
+
+    @app.route("/satellite")
+    @login_required
+    def satellite_page():
+        return render_template("satellite.html")
+
+    def _require_hardware():
+        gs = app.config["GS_STATE"]
+        if not gs.is_hardware or not gs.device:
+            return None, ({"error": "Satellite not connected"}, 400)
+        return gs.device, None
+
+    @app.route("/api/satellite/info")
+    @login_required
+    def api_satellite_info():
+        dev, err = _require_hardware()
+        if err:
+            return err
+        fw_raw = dev.send_shell_command_full("fw_version")
+        mode_raw = dev.send_shell_command_full("mode")
+        flight_raw = dev.send_shell_command_full("flight")
+        diff_raw = dev.send_shell_command_full("difficulty")
+        scid_raw = dev.send_shell_command_full("sc_id")
+        fw = parse_fw_version(fw_raw)
+        flight = parse_flight(flight_raw)
+        return {
+            **fw,
+            "mode": parse_mode(mode_raw),
+            "flight": flight["flight"],
+            "battery_mv": flight["battery_mv"],
+            "tm_rate": flight["tm_rate"],
+            "difficulty": parse_difficulty(diff_raw),
+            "sc_id": parse_sc_id(scid_raw),
+        }
+
+    @app.route("/api/satellite/sensors")
+    @login_required
+    def api_satellite_sensors():
+        dev, err = _require_hardware()
+        if err:
+            return err
+        raw = dev.send_shell_command_full("sensors")
+        return parse_sensors(raw)
+
+    @app.route("/api/satellite/lora_config", methods=["GET", "POST"])
+    @login_required
+    def api_satellite_lora_config():
+        dev, err = _require_hardware()
+        if err:
+            return err
+        if request.method == "GET":
+            raw = dev.send_shell_command_full("lora_config R0")
+            return parse_lora_config(raw)
+        data = request.get_json(silent=True) or {}
+        freq = data.get("frequency")
+        sf = data.get("sf")
+        bw = data.get("bw")
+        power = data.get("power")
+        results = []
+        if freq:
+            results.append(dev.send_shell_command_full(f"lora_freq R0 {freq}"))
+        if sf:
+            results.append(dev.send_shell_command_full(f"lora_sf R0 {sf}"))
+        if bw:
+            results.append(dev.send_shell_command_full(f"lora_bw R0 {bw}"))
+        if power:
+            results.append(dev.send_shell_command_full(f"lora_power R0 {power}"))
+        results.append(dev.send_shell_command_full("lora_apply R0"))
+        return {"status": "ok", "responses": results}
+
+    @app.route("/api/satellite/mode", methods=["POST"])
+    @login_required
+    def api_satellite_mode():
+        dev, err = _require_hardware()
+        if err:
+            return err
+        data = request.get_json(silent=True) or {}
+        mode = data.get("mode", "raw")
+        resp = dev.send_shell_command_full(f"mode {mode}")
+        return {"status": "ok", "response": resp}
+
+    @app.route("/api/satellite/flight", methods=["POST"])
+    @login_required
+    def api_satellite_flight():
+        dev, err = _require_hardware()
+        if err:
+            return err
+        data = request.get_json(silent=True) or {}
+        flight = data.get("flight", "idle")
+        resp = dev.send_shell_command_full(f"flight {flight}")
+        return {"status": "ok", "response": resp}
+
+    @app.route("/api/satellite/difficulty", methods=["POST"])
+    @login_required
+    def api_satellite_difficulty():
+        dev, err = _require_hardware()
+        if err:
+            return err
+        data = request.get_json(silent=True) or {}
+        level = data.get("level", 0)
+        resp = dev.send_shell_command_full(f"difficulty {level}")
+        return {"status": "ok", "response": resp}
+
+    @app.route("/api/satellite/tinygs", methods=["POST"])
+    @login_required
+    def api_satellite_tinygs():
+        dev, err = _require_hardware()
+        if err:
+            return err
+        data = request.get_json(silent=True) or {}
+        action = data.get("action", "status")
+        if action == "spoof":
+            profile = data.get("profile", "norbi")
+            resp = dev.send_shell_command_full(f"tinygs spoof {profile}")
+        elif action == "stop":
+            resp = dev.send_shell_command_full("tinygs stop")
+        else:
+            resp = dev.send_shell_command_full("tinygs status")
+        return {"status": "ok", "response": resp}
+
+    @app.route("/api/satellite/reset", methods=["POST"])
+    @login_required
+    def api_satellite_reset():
+        dev, err = _require_hardware()
+        if err:
+            return err
+        resp = dev.send_shell_command_full("reset_defaults")
+        return {"status": "ok", "response": resp}
 
     @socketio.on("connect")
     def handle_connect():
