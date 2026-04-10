@@ -315,10 +315,9 @@ def create_app(config_class=Config, db_path=None):
         if gs.device:
             gs.device.disconnect()
             time.sleep(0.3)  # Let OS release serial ports
-        gs.set_simulated()
-        gs.start_mock()
+        gs.set_idle()
         app.config["SCANNED_DEVICES"] = {}  # Force re-scan
-        return {"mode": "simulated"}
+        return {"mode": "idle"}
 
     @app.route("/api/hardware/stop", methods=["POST"])
     @login_required

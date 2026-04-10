@@ -64,11 +64,11 @@ def test_hardware_connect_no_device(auth_client):
     assert resp.status_code == 404
 
 
-def test_hardware_disconnect_goes_simulated(auth_client):
+def test_hardware_disconnect_goes_idle(auth_client):
     resp = auth_client.post("/api/hardware/disconnect")
     assert resp.status_code == 200
     data = resp.get_json()
-    assert data["mode"] == "simulated"
+    assert data["mode"] == "idle"
 
 
 def test_simulate_mode(auth_client):
