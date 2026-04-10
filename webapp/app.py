@@ -540,6 +540,7 @@ def create_app(config_class=Config, db_path=None):
         action = data.get("action", "status")
         if action == "spoof":
             profile = data.get("profile", "norbi")
+            dev.send_shell_command_full("lora_mode ALL stream")
             resp = dev.send_shell_command_full(f"tinygs spoof {profile}")
             log_activity("INFO", "satellite", f"TinyGS spoofing {profile}")
         elif action == "stop":
