@@ -58,7 +58,7 @@ def test_satellite_info_connected(app, auth_client):
         "mode": "modemode: mission",
         "flight": "flightflight: NOMINAL  battery: 3650 mV  tm_rate: 10 sec",
         "difficulty": "difficultydifficulty: 1 (normal)",
-        "sc_id": "sc_idsc_id: 2",
+        "sc_id": "sc_idspacecraft_id: 0x02",
     }.get(cmd)
 
     resp = auth_client.get("/api/satellite/info")

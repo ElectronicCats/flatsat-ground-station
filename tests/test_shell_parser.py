@@ -59,8 +59,9 @@ def test_parse_difficulty():
 
 
 def test_parse_sc_id():
-    assert parse_sc_id("sc_idsc_id: 2") == 2
-    assert parse_sc_id("sc_idsc_id: 255") == 255
+    assert parse_sc_id("sc_idspacecraft_id: 0x02") == 2
+    assert parse_sc_id("sc_idspacecraft_id: 0xFF") == 255
+    assert parse_sc_id("sc_idspacecraft_id: 10") == 10
 
 
 def test_parse_sensors():

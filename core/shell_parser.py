@@ -66,8 +66,12 @@ def parse_difficulty(raw: str | None) -> int:
 def parse_sc_id(raw: str | None) -> int:
     if not raw:
         return 0
-    match = re.search(r"sc_id:\s*(\d+)", raw)
-    return int(match.group(1)) if match else 0
+    # Firmware responds "spacecraft_id: 0x02" (hex format)
+    match = re.search(r"spacecraft_id:\s*(0x[0-9a-fA-F]+|\d+)", raw)
+    if match:
+        val = match.group(1)
+        return int(val, 16) if val.startswith("0x") else int(val)
+    return 0
 
 
 def parse_sensors(raw: str | None) -> dict:
