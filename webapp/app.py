@@ -245,7 +245,35 @@ def create_app(config_class=Config, db_path=None):
             return {"error": "Invalid hex data"}, 400
         bridge = RadioBridge(app.config["GS_STATE"])
         result = bridge.send_raw(raw_bytes)
-        log_activity("INFO", "telecommand", f"TC sent ({len(raw_bytes)} bytes): {raw_hex[:32]}")
+        log_activity("INFO", "telecommand", f"TC raw sent ({len(raw_bytes)} bytes): {raw_hex[:32]}")
+        return result
+
+    @app.route("/api/radio/send_tc", methods=["POST"])
+    @login_required
+    def api_radio_send_tc():
+        from core.telecommand import build_command_tc
+        from webapp.radio_bridge import RadioBridge
+
+        data = request.get_json(silent=True) or {}
+        opcode = data.get("opcode")
+        extra_hex = data.get("data", "")
+
+        if opcode is None:
+            return {"error": "Missing 'opcode'"}, 400
+
+        try:
+            opcode_int = int(str(opcode), 16)
+        except ValueError:
+            return {"error": "Invalid opcode"}, 400
+
+        extra_bytes = bytes.fromhex(extra_hex) if extra_hex else b""
+        frame = build_command_tc(opcode_int, data=extra_bytes)
+
+        bridge = RadioBridge(app.config["GS_STATE"])
+        result = bridge.send_raw(frame)
+        result["frame_hex"] = frame.hex()
+        result["frame_size"] = len(frame)
+        log_activity("INFO", "telecommand", f"TC sent: opcode=0x{opcode_int:02X} ({len(frame)} bytes)")
         return result
 
     @app.route("/commands")

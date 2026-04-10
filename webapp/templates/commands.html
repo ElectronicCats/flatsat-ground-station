@@ -23,16 +23,19 @@ document.getElementById("tc-form").addEventListener("submit", async function(e) 
     const opcode = document.getElementById("opcode").value;
     const cmdName = document.getElementById("opcode").selectedOptions[0].text;
     const data = document.getElementById("data").value || "";
-    const payload = opcode + data;
-    const resp = await fetch("/api/radio/send", {
+    const resp = await fetch("/api/radio/send_tc", {
         method: "POST",
         headers: {"Content-Type": "application/json"},
-        body: JSON.stringify({data: payload})
+        body: JSON.stringify({opcode: opcode, data: data})
     });
     const result = await resp.json();
     const ts = new Date().toLocaleTimeString();
     const pre = document.getElementById("response");
-    const entry = "[" + ts + "] " + cmdName + " → " + JSON.stringify(result) + "\n";
+    const entry = "[" + ts + "] " + cmdName + " → " + result.status
+        + (result.frame_size ? " (" + result.frame_size + " bytes)" : "")
+        + (result.response ? " — " + result.response : "")
+        + (result.error ? " — " + result.error : "")
+        + "\n";
     pre.textContent = entry + pre.textContent;
 });
 </script>
