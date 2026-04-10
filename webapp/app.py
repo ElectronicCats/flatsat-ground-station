@@ -365,10 +365,10 @@ def create_app(config_class=Config, db_path=None):
                 diff_raw = device.send_shell_command_full("difficulty")
             gs.difficulty = parse_difficulty(diff_raw)
             warnings = []
-            if r1_resp is None:
-                warnings.append("R1 command mode failed")
-            if diff_raw is None:
-                warnings.append("difficulty sync failed")
+            if r1_resp is None or "error" in (r1_resp or "").lower() or "unknown" in (r1_resp or "").lower():
+                warnings.append(f"R1 command mode: {r1_resp!r}")
+            if diff_raw is None or gs.difficulty == 0 and "difficulty" not in (diff_raw or ""):
+                warnings.append(f"difficulty sync: {diff_raw!r}")
             warn_str = f" [WARN: {', '.join(warnings)}]" if warnings else ""
             log_activity(
                 "INFO",
