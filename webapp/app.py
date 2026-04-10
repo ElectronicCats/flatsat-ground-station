@@ -412,6 +412,7 @@ def create_app(config_class=Config, db_path=None):
             "tm_rate": flight["tm_rate"],
             "difficulty": parse_difficulty(diff_raw),
             "sc_id": parse_sc_id(scid_raw),
+            "_debug_fw_raw": fw_raw,
         }
 
     @app.route("/api/satellite/status")
@@ -486,7 +487,8 @@ def create_app(config_class=Config, db_path=None):
         mode = data.get("mode", "raw")
 
         if mode == "ground_station":
-            # Ground Station: apply config then set command mode on both radios
+            # Ground Station: firmware in raw + radios in command mode
+            dev.send_shell_command_full("mode raw")
             dev.send_shell_command_full("lora_apply ALL")
             dev.send_shell_command_full("lora_mode ALL command")
             log_activity("INFO", "satellite", "Mode changed to Ground Station (R0+R1 command mode)")
@@ -494,10 +496,10 @@ def create_app(config_class=Config, db_path=None):
 
         if mode == "raw":
             dev.send_shell_command_full("mode raw")
-            resp = dev.send_shell_command_full("lora_mode stream")
+            resp = dev.send_shell_command_full("lora_mode ALL stream")
         elif mode == "mission":
             dev.send_shell_command_full("mode mission")
-            resp = dev.send_shell_command_full("lora_mode stream")
+            resp = dev.send_shell_command_full("lora_mode ALL stream")
         else:
             resp = dev.send_shell_command_full(f"mode {mode}")
 
@@ -556,6 +558,32 @@ def create_app(config_class=Config, db_path=None):
         resp = dev.send_shell_command_full("reset_defaults")
         log_activity("WARN", "satellite", "Factory defaults restored")
         return {"status": "ok", "response": resp}
+
+    @app.route("/api/satellite/diag")
+    @login_required
+    def api_satellite_diag():
+        """Diagnostic: read firmware state + try raw radio0 read."""
+        dev, err = _require_hardware()
+        if err:
+            return err
+        diag = {}
+        # Firmware state via shell
+        diag["status_raw"] = dev.send_shell_command_full("status")
+        diag["mode_raw"] = dev.send_shell_command_full("mode")
+        diag["flight_raw"] = dev.send_shell_command_full("flight")
+        diag["lora_config_r0"] = dev.send_shell_command_full("lora_config R0")
+        diag["lora_config_r1"] = dev.send_shell_command_full("lora_config R1")
+        # Try reading lines from radio0 (3 attempts, 2s each)
+        lines = []
+        for _ in range(3):
+            line = dev.read_line(timeout=2.0)
+            if line:
+                lines.append(line)
+        diag["radio0_lines"] = lines
+        diag["radio0_port"] = dev._radio0.port if dev._radio0 else None
+        diag["radio0_is_open"] = dev._radio0.is_open if dev._radio0 else False
+        diag["radio0_in_waiting"] = dev._radio0.in_waiting if dev._radio0 and dev._radio0.is_open else 0
+        return diag
 
     @socketio.on("connect")
     def handle_connect():
@@ -629,6 +657,7 @@ def start_telemetry_thread(app):
 
                 # Step 2: Parse + store (data-level — skip bad frames, don't disconnect)
                 if line:
+                    print(f"[RADIO0 RAW] {line!r}")
                     try:
                         parsed = parse_lora_rx(line)
                         if parsed:
@@ -684,8 +713,8 @@ def start_telemetry_thread(app):
                                         "snr": parsed.get("snr"),
                                     },
                                 )
-                    except Exception:
-                        pass  # Bad frame — skip, don't disconnect
+                    except Exception as exc:
+                        print(f"[RADIO0 ERR] {exc!r} for line: {line!r}")
                 time.sleep(0.1)
             elif gs and gs.is_simulated and gs.mock_running:
                 # SIMULATED MODE: generate mock

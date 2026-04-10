@@ -120,7 +120,7 @@ def test_satellite_mode_mission(app, auth_client):
     assert resp.status_code == 200
     calls = [c[0][0] for c in mock_dev.send_shell_command_full.call_args_list]
     assert "mode mission" in calls
-    assert "lora_mode stream" in calls
+    assert "lora_mode ALL stream" in calls
 
 
 def test_satellite_mode_ground_station(app, auth_client):
@@ -129,6 +129,7 @@ def test_satellite_mode_ground_station(app, auth_client):
     resp = auth_client.post("/api/satellite/mode", json={"mode": "ground_station"}, content_type="application/json")
     assert resp.status_code == 200
     calls = [c[0][0] for c in mock_dev.send_shell_command_full.call_args_list]
+    assert "mode raw" in calls
     assert "lora_mode ALL command" in calls
 
 

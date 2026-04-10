@@ -5,6 +5,7 @@ direct serial read/write with timeouts. One device at a time.
 """
 
 import re
+import threading
 
 import serial
 
@@ -56,6 +57,7 @@ class FlatSatDevice:
         self._radio0: serial.Serial | None = None
         self._radio1: serial.Serial | None = None
         self._shell: serial.Serial | None = None
+        self._shell_lock = threading.Lock()
 
     @property
     def serial_number(self) -> str:
@@ -107,17 +109,18 @@ class FlatSatDevice:
         """Send command to Shell (CDC2), return first response line."""
         if not self._shell or not self._shell.is_open:
             return None
-        try:
-            self._shell.timeout = timeout
-            self._shell.reset_input_buffer()
-            self._shell.write(f"{cmd}\r\n".encode("ascii"))
-            self._shell.flush()
-            response = self._shell.readline()
-            if response:
-                return response.decode("ascii", errors="ignore").strip()
-            return None
-        except Exception:
-            return None
+        with self._shell_lock:
+            try:
+                self._shell.timeout = timeout
+                self._shell.reset_input_buffer()
+                self._shell.write(f"{cmd}\r\n".encode("ascii"))
+                self._shell.flush()
+                response = self._shell.readline()
+                if response:
+                    return response.decode("ascii", errors="ignore").strip()
+                return None
+            except Exception:
+                return None
 
     def send_shell_command_full(self, cmd: str, timeout: float = 2.0) -> str | None:
         """Send command to Shell (CDC2), return full multi-line response.
@@ -126,29 +129,30 @@ class FlatSatDevice:
         """
         if not self._shell or not self._shell.is_open:
             return None
-        try:
-            import time
+        with self._shell_lock:
+            try:
+                import time
 
-            self._shell.timeout = 0.2
-            self._shell.reset_input_buffer()
-            self._shell.write(f"{cmd}\r\n".encode("ascii"))
-            self._shell.flush()
+                self._shell.timeout = 0.2
+                self._shell.reset_input_buffer()
+                self._shell.write(f"{cmd}\r\n".encode("ascii"))
+                self._shell.flush()
 
-            buf = b""
-            deadline = time.time() + timeout
-            while time.time() < deadline:
-                chunk = self._shell.read(self._shell.in_waiting or 1)
-                if chunk:
-                    buf += chunk
-                elif buf:
-                    break  # Had data, now nothing more — done
-                time.sleep(0.05)
+                buf = b""
+                deadline = time.time() + timeout
+                while time.time() < deadline:
+                    chunk = self._shell.read(self._shell.in_waiting or 1)
+                    if chunk:
+                        buf += chunk
+                    elif buf:
+                        break  # Had data, now nothing more — done
+                    time.sleep(0.05)
 
-            if buf:
-                return buf.decode("ascii", errors="ignore").strip()
-            return None
-        except Exception:
-            return None
+                if buf:
+                    return buf.decode("ascii", errors="ignore").strip()
+                return None
+            except Exception:
+                return None
 
     def send_raw(self, data: bytes) -> bool:
         """Send raw bytes to Radio 0 (CDC0)."""
