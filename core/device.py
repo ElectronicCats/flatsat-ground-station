@@ -58,6 +58,8 @@ class FlatSatDevice:
         self._radio1: serial.Serial | None = None
         self._shell: serial.Serial | None = None
         self._shell_lock = threading.Lock()
+        self._radio0_lock = threading.Lock()
+        self._radio1_lock = threading.Lock()
 
     @property
     def serial_number(self) -> str:
@@ -69,7 +71,10 @@ class FlatSatDevice:
         return all(s is not None and s.is_open for s in [self._radio0, self._radio1, self._shell])
 
     def connect(self) -> dict[str, bool]:
-        """Open all serial ports. Returns {endpoint: success}."""
+        """Open all serial ports. Returns {endpoint: success}.
+
+        On partial failure, closes any ports that were successfully opened.
+        """
         result = {}
         for name, port_path, attr in [
             ("radio0", self._discovered.radio0_port, "_radio0"),
@@ -92,6 +97,11 @@ class FlatSatDevice:
                     result[name] = False
             else:
                 result[name] = False
+
+        # If any port failed, clean up the ones that opened
+        if not all(result.values()):
+            self.disconnect()
+
         return result
 
     def disconnect(self):
@@ -158,49 +168,53 @@ class FlatSatDevice:
         """Send raw bytes to Radio 0 (CDC0)."""
         if not self._radio0 or not self._radio0.is_open:
             return False
-        try:
-            self._radio0.write(data)
-            self._radio0.flush()
-            return True
-        except Exception:
-            return False
+        with self._radio0_lock:
+            try:
+                self._radio0.write(data)
+                self._radio0.flush()
+                return True
+            except Exception:
+                return False
 
     def send_radio1_tx(self, data: bytes) -> str | None:
         """Send data via Radio 1 using TX command (LoRa command mode)."""
         if not self._radio1 or not self._radio1.is_open:
             return None
-        try:
-            self._radio1.timeout = 3.0
-            self._radio1.reset_input_buffer()
-            self._radio1.write(f"TX {data.hex()}\r\n".encode("ascii"))
-            self._radio1.flush()
-            response = self._radio1.readline()
-            if response:
-                return response.decode("ascii", errors="ignore").strip()
-            return None
-        except Exception:
-            return None
+        with self._radio1_lock:
+            try:
+                self._radio1.timeout = 3.0
+                self._radio1.reset_input_buffer()
+                self._radio1.write(f"TX {data.hex()}\r\n".encode("ascii"))
+                self._radio1.flush()
+                response = self._radio1.readline()
+                if response:
+                    return response.decode("ascii", errors="ignore").strip()
+                return None
+            except Exception:
+                return None
 
     def send_radio1_raw(self, data: bytes) -> bool:
         """Send raw bytes to Radio 1 (CDC1)."""
         if not self._radio1 or not self._radio1.is_open:
             return False
-        try:
-            self._radio1.write(data)
-            self._radio1.flush()
-            return True
-        except Exception:
-            return False
+        with self._radio1_lock:
+            try:
+                self._radio1.write(data)
+                self._radio1.flush()
+                return True
+            except Exception:
+                return False
 
     def read_line(self, timeout: float = 1.0) -> str | None:
         """Read one line from Radio 0. Returns None on timeout."""
         if not self._radio0 or not self._radio0.is_open:
             return None
-        try:
-            self._radio0.timeout = timeout
-            line = self._radio0.readline()
-            if line:
-                return line.decode("ascii", errors="ignore").strip()
-            return None
-        except Exception:
-            return None
+        with self._radio0_lock:
+            try:
+                self._radio0.timeout = timeout
+                line = self._radio0.readline()
+                if line:
+                    return line.decode("ascii", errors="ignore").strip()
+                return None
+            except Exception:
+                return None

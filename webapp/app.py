@@ -424,7 +424,6 @@ def create_app(config_class=Config, db_path=None):
             "tm_rate": flight["tm_rate"],
             "difficulty": parse_difficulty(diff_raw),
             "sc_id": parse_sc_id(scid_raw),
-            "_debug_fw_raw": fw_raw,
         }
 
     @app.route("/api/satellite/status")
@@ -576,32 +575,6 @@ def create_app(config_class=Config, db_path=None):
         dev.send_shell_command_full("lora_apply R1")
         log_activity("WARN", "satellite", "Factory defaults restored (R1 freq corrected)")
         return {"status": "ok", "response": resp}
-
-    @app.route("/api/satellite/diag")
-    @login_required
-    def api_satellite_diag():
-        """Diagnostic: read firmware state + try raw radio0 read."""
-        dev, err = _require_hardware()
-        if err:
-            return err
-        diag = {}
-        # Firmware state via shell
-        diag["status_raw"] = dev.send_shell_command_full("status")
-        diag["mode_raw"] = dev.send_shell_command_full("mode")
-        diag["flight_raw"] = dev.send_shell_command_full("flight")
-        diag["lora_config_r0"] = dev.send_shell_command_full("lora_config R0")
-        diag["lora_config_r1"] = dev.send_shell_command_full("lora_config R1")
-        # Try reading lines from radio0 (3 attempts, 2s each)
-        lines = []
-        for _ in range(3):
-            line = dev.read_line(timeout=2.0)
-            if line:
-                lines.append(line)
-        diag["radio0_lines"] = lines
-        diag["radio0_port"] = dev._radio0.port if dev._radio0 else None
-        diag["radio0_is_open"] = dev._radio0.is_open if dev._radio0 else False
-        diag["radio0_in_waiting"] = dev._radio0.in_waiting if dev._radio0 and dev._radio0.is_open else 0
-        return diag
 
     @socketio.on("connect")
     def handle_connect():
