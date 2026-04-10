@@ -508,11 +508,24 @@ def create_app(config_class=Config, db_path=None):
     def handle_connect():
         pass
 
+    # Start telemetry background thread
+    start_telemetry_thread(app)
+
     return app
 
 
-def start_mock_telemetry(app):
-    """Background thread: emit telemetry (mock or hardware)."""
+_telemetry_thread_started = False
+
+
+def start_telemetry_thread(app):
+    """Background thread: emit telemetry (mock or hardware). Safe to call multiple times."""
+    global _telemetry_thread_started
+    if _telemetry_thread_started:
+        return
+    _telemetry_thread_started = True
+
+    import serial
+
     from core.ccsds import parse_frame
     from core.device import parse_lora_rx
     from core.telemetry import decode_tm_payload, generate_mock_telemetry
@@ -528,12 +541,42 @@ def start_mock_telemetry(app):
 
             if gs and gs.is_hardware and gs.device:
                 # HARDWARE MODE: read from Radio 0
+                # Step 1: Read line (connection-level — fallback on failure)
                 try:
                     if not gs.device.is_connected:
                         raise OSError("Device disconnected")
-
                     line = gs.device.read_line(timeout=1.0)
-                    if line:
+                except (OSError, serial.SerialException) as e:
+                    # Connection lost — fall back to simulated
+                    if gs.device:
+                        gs.device.disconnect()
+                    gs.set_simulated()
+                    gs.start_mock()
+                    with app.app_context():
+                        from datetime import datetime as _dt
+
+                        from webapp.db import get_db as _get_db
+
+                        try:
+                            db = _get_db()
+                            db.execute(
+                                "INSERT INTO logs (timestamp, level, source, message) VALUES (?, ?, ?, ?)",
+                                (
+                                    _dt.now().isoformat(),
+                                    "ERROR",
+                                    "hardware",
+                                    f"Connection lost, falling back to simulated: {e}",
+                                ),
+                            )
+                            db.commit()
+                        except Exception:
+                            pass
+                    time.sleep(0.1)
+                    continue
+
+                # Step 2: Parse + store (data-level — skip bad frames, don't disconnect)
+                if line:
+                    try:
                         parsed = parse_lora_rx(line)
                         if parsed:
                             raw_bytes = bytes.fromhex(parsed["data"])
@@ -576,32 +619,8 @@ def start_mock_telemetry(app):
                                         "snr": parsed.get("snr"),
                                     },
                                 )
-                            continue
-                except Exception as e:
-                    # Hardware read failed — fall back to simulated
-                    if gs.device:
-                        gs.device.disconnect()
-                    gs.set_simulated()
-                    gs.start_mock()
-                    with app.app_context():
-                        from datetime import datetime as _dt
-
-                        from webapp.db import get_db as _get_db
-
-                        try:
-                            db = _get_db()
-                            db.execute(
-                                "INSERT INTO logs (timestamp, level, source, message) VALUES (?, ?, ?, ?)",
-                                (
-                                    _dt.now().isoformat(),
-                                    "ERROR",
-                                    "hardware",
-                                    f"Hardware error, falling back to simulated: {e}",
-                                ),
-                            )
-                            db.commit()
-                        except Exception:
-                            pass
+                    except Exception:
+                        pass  # Bad frame — skip, don't disconnect
                 time.sleep(0.1)
             elif gs and gs.is_simulated and gs.mock_running:
                 # SIMULATED MODE: generate mock
@@ -628,8 +647,6 @@ if __name__ == "__main__":
     import os
 
     os.makedirs("db", exist_ok=True)
-    app = create_app()
-    start_mock_telemetry(app)
+    app = create_app()  # DB init + seed + telemetry thread started inside
     print("PwnSat2 Ground Station running on http://localhost:5000")
-    print("Mode: SIMULATED (no FlatSat detected)")
     socketio.run(app, host="0.0.0.0", port=5000, debug=True, allow_unsafe_werkzeug=True)
