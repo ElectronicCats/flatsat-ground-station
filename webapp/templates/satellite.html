@@ -270,9 +270,9 @@ async function pollLora() {
 
 // --- Lightweight polling (only flight/battery/mode) ---
 async function pollStatus() {
-    if (!hwConnected) { pollInfo(); return; }
+    if (!hwConnected) return;
     const data = await api("status");
-    if (data.error) { hwConnected = false; pollInfo(); return; }
+    if (data.error) { hwConnected = false; return; }
     document.getElementById("cur-mode").textContent = data.mode;
     document.getElementById("cur-flight").textContent = data.flight;
     highlightBtn("mode-btns", data.mode);
@@ -314,14 +314,33 @@ async function resetDefaults() {
     showToast("Defaults restored", 3000);
 }
 
+// --- Single sequential poll loop (avoids shell contention) ---
+let pollCycle = 0;
+
+async function pollLoop() {
+    if (!hwConnected) {
+        await pollInfo();  // try to connect
+    } else {
+        await pollStatus();            // every cycle: flight + battery
+        if (pollCycle % 3 === 0) {
+            await pollLora();          // every 3rd cycle: lora config
+        }
+        if (pollCycle % 2 === 0) {
+            await pollSensors();       // every 2nd cycle: sensors
+        }
+        pollCycle++;
+    }
+    setTimeout(pollLoop, 3000);
+}
+
 // --- Init ---
 async function init() {
-    await pollInfo();        // must complete first to set hwConnected
-    pollLora();
-    pollSensors();
-    setInterval(pollStatus, 3000);
-    setInterval(pollLora, 10000);
-    setInterval(pollSensors, 5000);
+    await pollInfo();
+    if (hwConnected) {
+        await pollLora();
+        await pollSensors();
+    }
+    setTimeout(pollLoop, 3000);
 }
 init();
 </script>
