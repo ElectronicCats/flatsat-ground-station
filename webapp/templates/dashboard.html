@@ -7,13 +7,18 @@
 <h1>Mission Dashboard</h1>
 
 <div id="hw-status" style="padding:10px; margin-bottom:15px; border:1px solid #333; background:#111;">
-    <span id="hw-mode" style="font-weight:bold;">SIMULATED</span>
+    <span id="hw-mode" style="font-weight:bold; color:#888;">IDLE</span>
     <span id="hw-serial"></span>
     <span id="hw-rssi"></span>
-    <button onclick="hwScan()" style="margin-left:15px;">Scan</button>
-    <button onclick="hwConnect()" style="margin-left:5px;" id="btn-connect" disabled>Connect</button>
-    <button onclick="hwDisconnect()" style="margin-left:5px;">Disconnect</button>
-    <select id="hw-devices" style="margin-left:10px; display:none;"></select>
+    <div style="margin-top:8px;">
+        <button id="btn-simulate" onclick="hwSimulate()">Simulate</button>
+        <button id="btn-stop" onclick="hwStop()" disabled>Stop</button>
+        <span style="margin:0 10px; color:#555;">|</span>
+        <button id="btn-scan" onclick="hwScan()">Scan USB</button>
+        <select id="hw-devices" style="display:none;"></select>
+        <button id="btn-connect" onclick="hwConnect()" disabled>Connect</button>
+        <button id="btn-disconnect" onclick="hwDisconnect()" disabled>Disconnect</button>
+    </div>
 </div>
 
 <p>Spacecraft ID: 0x02 | User: {{ g.username }} ({{ g.role }})</p>
@@ -33,19 +38,71 @@
 </table>
 
 <script>
+// --- Button state management ---
+function setButtons(state) {
+    const els = {
+        simulate: document.getElementById("btn-simulate"),
+        stop: document.getElementById("btn-stop"),
+        scan: document.getElementById("btn-scan"),
+        connect: document.getElementById("btn-connect"),
+        disconnect: document.getElementById("btn-disconnect"),
+    };
+
+    // Disable all first
+    Object.values(els).forEach(b => b.disabled = true);
+
+    if (state === "idle") {
+        els.simulate.disabled = false;
+        els.scan.disabled = false;
+    } else if (state === "simulated") {
+        els.stop.disabled = false;
+    } else if (state === "scanned") {
+        els.simulate.disabled = false;
+        els.connect.disabled = false;
+        els.scan.disabled = false;
+    } else if (state === "hardware") {
+        els.disconnect.disabled = false;
+    }
+}
+
+// --- Status ---
 async function hwStatus() {
     const resp = await fetch("/api/hardware/status");
     const data = await resp.json();
     const el = document.getElementById("hw-mode");
+    const serial = document.getElementById("hw-serial");
+    const rssi = document.getElementById("hw-rssi");
+
     if (data.mode === "hardware") {
         el.textContent = "HARDWARE";
         el.style.color = "#00ff41";
-        document.getElementById("hw-serial").textContent = " | SN: " + data.serial_number;
-    } else {
+        serial.textContent = " | SN: " + data.serial_number;
+        setButtons("hardware");
+    } else if (data.mode === "simulated") {
         el.textContent = "SIMULATED";
         el.style.color = "#ffaa00";
-        document.getElementById("hw-serial").textContent = "";
+        serial.textContent = "";
+        rssi.textContent = "";
+        setButtons("simulated");
+    } else {
+        el.textContent = "IDLE";
+        el.style.color = "#888";
+        serial.textContent = "";
+        rssi.textContent = "";
+        setButtons("idle");
     }
+}
+
+// --- Actions ---
+async function hwSimulate() {
+    await fetch("/api/hardware/simulate", {method: "POST"});
+    hwStatus();
+}
+
+async function hwStop() {
+    await fetch("/api/hardware/stop", {method: "POST"});
+    document.getElementById("telemetry-body").innerHTML = "";
+    hwStatus();
 }
 
 async function hwScan() {
@@ -53,34 +110,47 @@ async function hwScan() {
     const data = await resp.json();
     const sel = document.getElementById("hw-devices");
     sel.innerHTML = "";
-    sel.style.display = data.devices.length > 0 ? "inline" : "none";
-    document.getElementById("btn-connect").disabled = data.devices.length === 0;
-    data.devices.forEach(d => {
-        const opt = document.createElement("option");
-        opt.value = d.serial_number;
-        opt.textContent = d.serial_number.substring(0, 8) + " (" + d.health + ")";
-        sel.appendChild(opt);
-    });
+
+    if (data.devices.length > 0) {
+        sel.style.display = "inline";
+        data.devices.forEach(d => {
+            const opt = document.createElement("option");
+            opt.value = d.serial_number;
+            opt.textContent = d.serial_number.substring(0, 8) + " (" + d.health + ")";
+            sel.appendChild(opt);
+        });
+        setButtons("scanned");
+    } else {
+        sel.style.display = "none";
+        alert("No FlatSat devices found");
+        setButtons("idle");
+    }
 }
 
 async function hwConnect() {
     const sn = document.getElementById("hw-devices").value;
     if (!sn) return;
-    await fetch("/api/hardware/connect", {
+    const resp = await fetch("/api/hardware/connect", {
         method: "POST",
         headers: {"Content-Type": "application/json"},
         body: JSON.stringify({serial_number: sn})
     });
-    hwStatus();
+    const data = await resp.json();
+    if (data.mode === "hardware") {
+        hwStatus();
+    } else {
+        alert("Connection failed: " + (data.error || "unknown"));
+    }
 }
 
 async function hwDisconnect() {
     await fetch("/api/hardware/disconnect", {method: "POST"});
-    hwStatus();
     document.getElementById("hw-devices").style.display = "none";
-    document.getElementById("btn-connect").disabled = true;
+    document.getElementById("telemetry-body").innerHTML = "";
+    hwStatus();
 }
 
+// Init
 hwStatus();
 </script>
 

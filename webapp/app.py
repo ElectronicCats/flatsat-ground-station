@@ -221,12 +221,25 @@ def create_app(config_class=Config, db_path=None):
     @login_required
     def api_hardware_status():
         gs = app.config["GS_STATE"]
+        if gs.is_hardware:
+            return {
+                "mode": "hardware",
+                "serial_number": gs.device.serial_number if gs.device else None,
+            }
         if gs.is_simulated:
-            return {"mode": "simulated"}
-        return {
-            "mode": "hardware",
-            "serial_number": gs.device.serial_number if gs.device else None,
-        }
+            return {"mode": "simulated", "mock_running": gs.mock_running}
+        return {"mode": "idle"}
+
+    @app.route("/api/hardware/simulate", methods=["POST"])
+    @login_required
+    def api_hardware_simulate():
+        """Start simulated telemetry mode."""
+        gs = app.config["GS_STATE"]
+        if gs.is_hardware and gs.device:
+            gs.device.disconnect()
+        gs.set_simulated()
+        gs.start_mock()
+        return {"mode": "simulated", "mock_running": True}
 
     @app.route("/api/hardware/scan", methods=["POST"])
     @login_required
@@ -283,8 +296,17 @@ def create_app(config_class=Config, db_path=None):
         gs = app.config["GS_STATE"]
         if gs.device:
             gs.device.disconnect()
-        gs.set_simulated()
-        return {"mode": "simulated"}
+        gs.set_idle()
+        return {"mode": "idle"}
+
+    @app.route("/api/hardware/stop", methods=["POST"])
+    @login_required
+    def api_hardware_stop():
+        """Stop simulation and go back to idle."""
+        gs = app.config["GS_STATE"]
+        gs.stop_mock()
+        gs.set_idle()
+        return {"mode": "idle"}
 
     @socketio.on("connect")
     def handle_connect():
@@ -303,7 +325,12 @@ def start_mock_telemetry(app):
         while True:
             gs = app.config.get("GS_STATE")
 
-            if gs and not gs.is_simulated and gs.device:
+            if gs and gs.is_idle:
+                # IDLE MODE: waiting for user to choose mode
+                time.sleep(0.5)
+                continue
+
+            if gs and gs.is_hardware and gs.device:
                 # HARDWARE MODE: read from Radio 0
                 try:
                     line = gs.device.read_line(timeout=1.0)
@@ -354,7 +381,7 @@ def start_mock_telemetry(app):
                 except Exception:
                     pass
                 time.sleep(0.1)
-            else:
+            elif gs and gs.is_simulated and gs.mock_running:
                 # SIMULATED MODE: generate mock
                 with app.app_context():
                     tm = generate_mock_telemetry()
@@ -368,6 +395,8 @@ def start_mock_telemetry(app):
                         },
                     )
                 time.sleep(2)
+            else:
+                time.sleep(0.5)
 
     thread = threading.Thread(target=_loop, daemon=True)
     thread.start()

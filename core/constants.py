@@ -133,5 +133,6 @@ class CommandStatus(Enum):
 
 
 class ConnectionMode(Enum):
+    IDLE = auto()
     HARDWARE = auto()
     SIMULATED = auto()

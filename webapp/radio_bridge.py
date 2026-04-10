@@ -15,7 +15,7 @@ class RadioBridge:
 
     @property
     def is_connected(self) -> bool:
-        return not self._state.is_simulated
+        return self._state.is_hardware and self._state.device is not None
 
     @property
     def mode(self) -> str:
