@@ -48,6 +48,22 @@ def create_app(config_class=Config, db_path=None):
     app.config["GS_STATE"] = gs_state
     app.config["SCANNED_DEVICES"] = {}
 
+    def log_activity(level, source, message):
+        """Insert a log entry into the logs table."""
+        try:
+            from datetime import datetime
+
+            from webapp.db import get_db
+
+            db = get_db()
+            db.execute(
+                "INSERT INTO logs (timestamp, level, source, message) VALUES (?, ?, ?, ?)",
+                (datetime.now().isoformat(), level, source, message),
+            )
+            db.commit()
+        except Exception:
+            pass
+
     @app.route("/login", methods=["GET", "POST"])
     def login():
         if request.method == "POST":
@@ -58,7 +74,9 @@ def create_app(config_class=Config, db_path=None):
                 token = create_session_token(user, role)
                 resp = redirect(url_for("dashboard"))
                 resp.set_cookie("session_token", token)
+                log_activity("INFO", "auth", f"User '{user}' logged in (role={role})")
                 return resp
+            log_activity("WARN", "auth", f"Failed login attempt for '{username}'")
             return render_template("login.html", error="Invalid credentials")
         return render_template("login.html")
 
@@ -226,7 +244,9 @@ def create_app(config_class=Config, db_path=None):
         except ValueError:
             return {"error": "Invalid hex data"}, 400
         bridge = RadioBridge(app.config["GS_STATE"])
-        return bridge.send_raw(raw_bytes)
+        result = bridge.send_raw(raw_bytes)
+        log_activity("INFO", "telecommand", f"TC sent ({len(raw_bytes)} bytes): {raw_hex[:32]}")
+        return result
 
     @app.route("/commands")
     @login_required
@@ -301,11 +321,13 @@ def create_app(config_class=Config, db_path=None):
 
         if device.is_connected:
             gs.set_hardware(device)
+            log_activity("INFO", "hardware", f"Connected to FlatSat ...{serial_number[-4:]}")
             return {
                 "mode": "hardware",
                 "serial_number": serial_number,
                 "endpoints": connect_result,
             }
+        log_activity("ERROR", "hardware", f"Failed to connect to ...{serial_number[-4:]}: {connect_result}")
         return {"error": "Failed to connect", "endpoints": connect_result}, 500
 
     @app.route("/api/hardware/disconnect", methods=["POST"])
@@ -315,6 +337,7 @@ def create_app(config_class=Config, db_path=None):
         if gs.device:
             gs.device.disconnect()
             time.sleep(0.3)  # Let OS release serial ports
+        log_activity("INFO", "hardware", "Disconnected from FlatSat")
         gs.set_idle()
         app.config["SCANNED_DEVICES"] = {}  # Force re-scan
         return {"mode": "idle"}
@@ -413,6 +436,7 @@ def create_app(config_class=Config, db_path=None):
         if power:
             results.append(dev.send_shell_command_full(f"lora_power R0 {power}"))
         results.append(dev.send_shell_command_full("lora_apply R0"))
+        log_activity("INFO", "satellite", f"LoRa config updated: freq={freq} sf={sf} bw={bw} power={power}")
         return {"status": "ok", "responses": results}
 
     @app.route("/api/satellite/mode", methods=["POST"])
@@ -424,6 +448,7 @@ def create_app(config_class=Config, db_path=None):
         data = request.get_json(silent=True) or {}
         mode = data.get("mode", "raw")
         resp = dev.send_shell_command_full(f"mode {mode}")
+        log_activity("INFO", "satellite", f"Mode changed to {mode}")
         return {"status": "ok", "response": resp}
 
     @app.route("/api/satellite/flight", methods=["POST"])
@@ -435,6 +460,7 @@ def create_app(config_class=Config, db_path=None):
         data = request.get_json(silent=True) or {}
         flight = data.get("flight", "idle")
         resp = dev.send_shell_command_full(f"flight {flight}")
+        log_activity("INFO", "satellite", f"Flight state changed to {flight}")
         return {"status": "ok", "response": resp}
 
     @app.route("/api/satellite/difficulty", methods=["POST"])
@@ -446,6 +472,7 @@ def create_app(config_class=Config, db_path=None):
         data = request.get_json(silent=True) or {}
         level = data.get("level", 0)
         resp = dev.send_shell_command_full(f"difficulty {level}")
+        log_activity("INFO", "satellite", f"Difficulty set to {level}")
         return {"status": "ok", "response": resp}
 
     @app.route("/api/satellite/tinygs", methods=["POST"])
@@ -459,8 +486,10 @@ def create_app(config_class=Config, db_path=None):
         if action == "spoof":
             profile = data.get("profile", "norbi")
             resp = dev.send_shell_command_full(f"tinygs spoof {profile}")
+            log_activity("INFO", "satellite", f"TinyGS spoofing {profile}")
         elif action == "stop":
             resp = dev.send_shell_command_full("tinygs stop")
+            log_activity("INFO", "satellite", "TinyGS stopped")
         else:
             resp = dev.send_shell_command_full("tinygs status")
         return {"status": "ok", "response": resp}
@@ -472,6 +501,7 @@ def create_app(config_class=Config, db_path=None):
         if err:
             return err
         resp = dev.send_shell_command_full("reset_defaults")
+        log_activity("WARN", "satellite", "Factory defaults restored")
         return {"status": "ok", "response": resp}
 
     @socketio.on("connect")
@@ -547,12 +577,31 @@ def start_mock_telemetry(app):
                                     },
                                 )
                             continue
-                except Exception:
+                except Exception as e:
                     # Hardware read failed — fall back to simulated
                     if gs.device:
                         gs.device.disconnect()
                     gs.set_simulated()
                     gs.start_mock()
+                    with app.app_context():
+                        from datetime import datetime as _dt
+
+                        from webapp.db import get_db as _get_db
+
+                        try:
+                            db = _get_db()
+                            db.execute(
+                                "INSERT INTO logs (timestamp, level, source, message) VALUES (?, ?, ?, ?)",
+                                (
+                                    _dt.now().isoformat(),
+                                    "ERROR",
+                                    "hardware",
+                                    f"Hardware error, falling back to simulated: {e}",
+                                ),
+                            )
+                            db.commit()
+                        except Exception:
+                            pass
                 time.sleep(0.1)
             elif gs and gs.is_simulated and gs.mock_running:
                 # SIMULATED MODE: generate mock
