@@ -56,6 +56,7 @@
 
 <script>
 let pktCount = 0;
+let hasScannedDevices = false;
 
 // --- Button state management ---
 function setButtons(state) {
@@ -68,11 +69,14 @@ function setButtons(state) {
     };
     Object.values(els).forEach(b => b.disabled = true);
 
-    if (state === "idle") {
-        els.simulate.disabled = false;
+    if (state === "idle" || state === "simulated") {
+        els.simulate.disabled = (state === "simulated");
+        els.stop.disabled = (state !== "simulated");
         els.scan.disabled = false;
-    } else if (state === "simulated") {
-        els.stop.disabled = false;
+        // Keep connect enabled if we have scanned devices
+        if (hasScannedDevices) {
+            els.connect.disabled = false;
+        }
     } else if (state === "scanned") {
         els.simulate.disabled = false;
         els.connect.disabled = false;
@@ -146,6 +150,7 @@ async function hwScan() {
 
     if (data.devices.length > 0) {
         sel.style.display = "inline";
+        hasScannedDevices = true;
         data.devices.forEach(d => {
             const opt = document.createElement("option");
             opt.value = d.serial_number;
@@ -155,6 +160,7 @@ async function hwScan() {
         setButtons("scanned");
     } else {
         sel.style.display = "none";
+        hasScannedDevices = false;
         alert("No FlatSat devices found");
         setButtons("idle");
     }
@@ -190,6 +196,7 @@ async function hwDisconnect() {
     const data = await resp.json();
     console.log("[GS] Disconnect result:", data);
     document.getElementById("hw-devices").style.display = "none";
+    hasScannedDevices = false;
     document.getElementById("telemetry-body").innerHTML = "";
     pktCount = 0;
     document.getElementById("pkt-counter").textContent = "";
