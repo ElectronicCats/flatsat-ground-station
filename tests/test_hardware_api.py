@@ -99,6 +99,7 @@ def test_hardware_connect_success(mock_device_cls, mock_discover, auth_client):
     mock_dev.connect.return_value = {"radio0": True, "radio1": True, "shell": True}
     mock_dev.is_connected = True
     mock_dev.serial_number = "ABC123"
+    mock_dev.send_shell_command_full.return_value = "difficulty: 0"
     mock_device_cls.return_value = mock_dev
 
     # First scan

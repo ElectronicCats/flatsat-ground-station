@@ -77,65 +77,56 @@ def _aes_ecb_decrypt(data: bytes) -> bytes:
     return dec.update(data) + dec.finalize()
 
 
+def _sdls_transform_payload(payload: bytearray, difficulty: int, decrypt: bool = False) -> bytearray:
+    """XOR or AES transform payload in-place, matching firmware block handling.
+
+    Firmware only processes payload_len // 16 full AES blocks; trailing
+    bytes are left untouched.  CRC is never recomputed — the firmware
+    validates CRC against the plaintext payload.
+    """
+    if difficulty == 2:
+        # XOR (symmetric — same op for encrypt and decrypt)
+        for i in range(len(payload)):
+            payload[i] ^= XOR_KEY[i % len(XOR_KEY)]
+    else:
+        # AES-128-ECB: only full 16-byte blocks, trailing bytes unchanged
+        full_blocks = (len(payload) // 16) * 16
+        op = _aes_ecb_decrypt if decrypt else _aes_ecb_encrypt
+        for i in range(0, full_blocks, 16):
+            payload[i : i + 16] = op(bytes(payload[i : i + 16]))
+    return payload
+
+
 def sdls_protect_frame(frame: bytes, difficulty: int) -> bytes:
     """Encrypt outgoing TC payload to match firmware sdls_unprotect_frame().
 
     Level 0-1: plaintext.  Level 2: XOR.  Level 3+: AES-128-ECB.
-    Encryption covers payload bytes only (after primary+secondary header, before CRC).
-    CRC is recomputed over the encrypted payload.
+    Only payload bytes are encrypted; header and CRC are untouched.
+    Firmware decrypts before CRC check, so CRC must match plaintext.
     """
     if difficulty < 2:
         return frame
     payload_start = CCSDS_HDR_SIZE + CCSDS_SEC_HDR_SIZE
     payload_end = len(frame) - CCSDS_CRC_SIZE
-    header = frame[:payload_start]
     payload = bytearray(frame[payload_start:payload_end])
-
-    if difficulty == 2:
-        # XOR encrypt
-        for i in range(len(payload)):
-            payload[i] ^= XOR_KEY[i % len(XOR_KEY)]
-    else:
-        # AES-128-ECB in 16-byte blocks
-        encrypted = bytearray()
-        for i in range(0, len(payload), 16):
-            block = bytes(payload[i : i + 16]).ljust(16, b"\x00")
-            encrypted.extend(_aes_ecb_encrypt(block))
-        payload = encrypted[: len(frame[payload_start:payload_end])]
-
-    frame_no_crc = header + bytes(payload)
-    crc = ccsds_crc16(frame_no_crc)
-    return frame_no_crc + struct.pack(">H", crc)
+    _sdls_transform_payload(payload, difficulty, decrypt=False)
+    return frame[:payload_start] + bytes(payload) + frame[payload_end:]
 
 
 def sdls_unprotect_frame(frame: bytes, difficulty: int) -> bytes:
     """Decrypt incoming TM payload to match firmware sdls_protect_frame().
 
     Level 0-1: plaintext.  Level 2: XOR.  Level 3+: AES-128-ECB.
-    Decryption covers payload bytes only. CRC is recomputed after decryption.
+    Only payload bytes are decrypted; header and CRC are untouched.
+    Firmware encrypts after CRC computation, so CRC matches plaintext.
     """
     if difficulty < 2:
         return frame
     payload_start = CCSDS_HDR_SIZE + CCSDS_SEC_HDR_SIZE
     payload_end = len(frame) - CCSDS_CRC_SIZE
-    header = frame[:payload_start]
     payload = bytearray(frame[payload_start:payload_end])
-
-    if difficulty == 2:
-        # XOR decrypt (symmetric)
-        for i in range(len(payload)):
-            payload[i] ^= XOR_KEY[i % len(XOR_KEY)]
-    else:
-        # AES-128-ECB decrypt in 16-byte blocks
-        decrypted = bytearray()
-        for i in range(0, len(payload), 16):
-            block = bytes(payload[i : i + 16]).ljust(16, b"\x00")
-            decrypted.extend(_aes_ecb_decrypt(block))
-        payload = decrypted[: len(frame[payload_start:payload_end])]
-
-    frame_no_crc = header + bytes(payload)
-    crc = ccsds_crc16(frame_no_crc)
-    return frame_no_crc + struct.pack(">H", crc)
+    _sdls_transform_payload(payload, difficulty, decrypt=True)
+    return frame[:payload_start] + bytes(payload) + frame[payload_end:]
 
 
 def build_packet_id(pkt_type: int, apid: int) -> int:

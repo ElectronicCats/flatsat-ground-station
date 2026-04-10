@@ -356,7 +356,12 @@ def create_app(config_class=Config, db_path=None):
             gs.set_hardware(device)
             # R1 must be in command mode so send_radio1_tx() works (TX <hex> cmd)
             device.send_shell_command_full("lora_mode R1 command")
-            log_activity("INFO", "hardware", f"Connected to FlatSat ...{serial_number[-4:]}")
+            # Sync difficulty from firmware so SDLS encrypt/decrypt matches
+            diff_raw = device.send_shell_command_full("difficulty")
+            gs.difficulty = parse_difficulty(diff_raw)
+            log_activity(
+                "INFO", "hardware", f"Connected to FlatSat ...{serial_number[-4:]} (difficulty={gs.difficulty})"
+            )
             return {
                 "mode": "hardware",
                 "serial_number": serial_number,

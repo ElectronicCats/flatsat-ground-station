@@ -28,6 +28,7 @@ class GroundStationState:
         self.connection_mode = ConnectionMode.IDLE
         self.device = None
         self.mock_running = False
+        self.difficulty = 0
 
     def set_simulated(self):
         self.connection_mode = ConnectionMode.SIMULATED
