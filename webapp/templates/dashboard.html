@@ -137,8 +137,10 @@ async function hwStop() {
 }
 
 async function hwScan() {
+    console.log("[GS] Scanning for devices...");
     const resp = await fetch("/api/hardware/scan", {method: "POST"});
     const data = await resp.json();
+    console.log("[GS] Scan result:", data);
     const sel = document.getElementById("hw-devices");
     sel.innerHTML = "";
 
@@ -160,23 +162,33 @@ async function hwScan() {
 
 async function hwConnect() {
     const sn = document.getElementById("hw-devices").value;
-    if (!sn) return;
-    const resp = await fetch("/api/hardware/connect", {
-        method: "POST",
-        headers: {"Content-Type": "application/json"},
-        body: JSON.stringify({serial_number: sn})
-    });
-    const data = await resp.json();
-    if (data.mode === "hardware") {
-        pktCount = 0;
-        hwStatus();
-    } else {
-        alert("Connection failed: " + (data.error || "unknown"));
+    console.log("[GS] Connecting to:", sn);
+    if (!sn) { console.log("[GS] No device selected"); return; }
+    try {
+        const resp = await fetch("/api/hardware/connect", {
+            method: "POST",
+            headers: {"Content-Type": "application/json"},
+            body: JSON.stringify({serial_number: sn})
+        });
+        const data = await resp.json();
+        console.log("[GS] Connect result:", data);
+        if (data.mode === "hardware") {
+            pktCount = 0;
+            hwStatus();
+        } else {
+            alert("Connection failed: " + (data.error || JSON.stringify(data)));
+        }
+    } catch (e) {
+        console.error("[GS] Connect error:", e);
+        alert("Connection error: " + e.message);
     }
 }
 
 async function hwDisconnect() {
-    await fetch("/api/hardware/disconnect", {method: "POST"});
+    console.log("[GS] Disconnecting...");
+    const resp = await fetch("/api/hardware/disconnect", {method: "POST"});
+    const data = await resp.json();
+    console.log("[GS] Disconnect result:", data);
     document.getElementById("hw-devices").style.display = "none";
     document.getElementById("telemetry-body").innerHTML = "";
     pktCount = 0;

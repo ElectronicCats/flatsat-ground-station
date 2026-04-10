@@ -278,6 +278,7 @@ def create_app(config_class=Config, db_path=None):
         data = request.get_json(silent=True) or {}
         serial_number = data.get("serial_number", "")
 
+        # Re-scan to get fresh port info
         scanned = app.config.get("SCANNED_DEVICES", {})
         discovered = scanned.get(serial_number)
         if not discovered:
@@ -286,6 +287,7 @@ def create_app(config_class=Config, db_path=None):
         gs = app.config["GS_STATE"]
         if gs.device:
             gs.device.disconnect()
+            time.sleep(0.5)  # Let OS release serial ports
 
         device = FlatSatDevice(discovered)
         connect_result = device.connect()
@@ -305,7 +307,9 @@ def create_app(config_class=Config, db_path=None):
         gs = app.config["GS_STATE"]
         if gs.device:
             gs.device.disconnect()
+            time.sleep(0.3)  # Let OS release serial ports
         gs.set_idle()
+        app.config["SCANNED_DEVICES"] = {}  # Force re-scan
         return {"mode": "idle"}
 
     @app.route("/api/hardware/stop", methods=["POST"])
