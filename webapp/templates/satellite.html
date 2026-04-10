@@ -290,8 +290,11 @@ async function pollStatus() {
 // --- Actions ---
 async function setMode(m) {
     if (m === "ground_station") {
-        // Ground Station = lora_mode command (receive mode)
         await api("mode", "POST", {mode: "ground_station"});
+    } else if (m === "tinygs") {
+        // TinyGS immediately starts spoofing with selected profile
+        const profile = document.getElementById("tinygs-profile").value;
+        await api("tinygs", "POST", {action: "spoof", profile: profile});
     } else {
         await api("mode", "POST", {mode: m});
     }
