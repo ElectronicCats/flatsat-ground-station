@@ -1,7 +1,7 @@
 const socket = io();
 const MAX_ROWS = 200;
 const COLUMN_PREFS_KEY = "dashboardTelemetryColumnsV1";
-const DEFAULT_HIDDEN_COLUMNS = new Set(["difficulty", "frame_ts", "uptime", "tc_count", "error_count", "raw"]);
+const DEFAULT_HIDDEN_COLUMNS = new Set(["seq", "sc_id", "flight", "difficulty", "frame_ts", "uptime", "tc_count", "error_count", "raw"]);
 const FLIGHT_MODE_LABELS = {
     0: "IDLE",
     1: "NOMINAL",
