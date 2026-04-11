@@ -9,11 +9,17 @@
     .ind-sim { background:#ffaa00; animation: blink 2s infinite; }
     .ind-hw { background:#00ff41; animation: blink 1s infinite; }
     @keyframes blink { 50% { opacity:0.4; } }
-    #tm-column-controls { display:flex; flex-wrap:wrap; gap:10px 14px; margin:10px 0 12px; padding:10px; border:1px solid #333; background:#111; align-items:center; }
+    #tm-column-controls { display:flex; gap:10px; margin:10px 0 12px; padding:10px; border:1px solid #333; background:#111; align-items:center; }
     .tm-column-title { color:#888; font-size:0.9em; }
-    .tm-column-toggle { font-size:0.9em; color:#ddd; white-space:nowrap; }
-    .tm-column-toggle input { margin-right:4px; }
-    #tm-columns-reset { margin-left:auto; }
+    #tm-col-dropdown { position:relative; display:inline-block; }
+    #tm-col-btn { background:#1a1a1a; color:#00ff41; border:1px solid #333; padding:5px 10px; cursor:pointer; }
+    #tm-col-btn:hover { background:#333; }
+    #tm-col-menu { display:none; position:absolute; top:100%; left:0; background:#1a1a1a; border:1px solid #333; padding:8px; z-index:10; min-width:160px; max-height:50vh; overflow-y:auto; }
+    #tm-col-menu.open { display:block; }
+    #tm-col-menu label { display:block; color:#ddd; font-size:0.85em; padding:2px 0; white-space:nowrap; cursor:pointer; }
+    #tm-col-menu label:hover { color:#00ff41; }
+    #tm-col-menu label input { margin-right:6px; }
+    #tm-columns-reset { font-size:0.85em; }
     #tm-container { max-height:60vh; overflow:auto; border:1px solid #333; }
     #tm-container table { margin:0; }
     #telemetry-table { min-width: 1900px; font-size: 0.9em; }
@@ -49,27 +55,32 @@
 <h2>Live Telemetry</h2>
 <div id="telemetry-status">Connecting...</div>
 <div id="tm-column-controls">
-    <span class="tm-column-title">Visible columns:</span>
-    <label class="tm-column-toggle"><input type="checkbox" data-col-toggle="recv_time" checked>Recv Time</label>
-    <label class="tm-column-toggle"><input type="checkbox" data-col-toggle="frame_ts">Frame TS</label>
-    <label class="tm-column-toggle"><input type="checkbox" data-col-toggle="apid" checked>APID</label>
-    <label class="tm-column-toggle"><input type="checkbox" data-col-toggle="seq" checked>Seq</label>
-    <label class="tm-column-toggle"><input type="checkbox" data-col-toggle="sc_id" checked>SC ID</label>
-    <label class="tm-column-toggle"><input type="checkbox" data-col-toggle="flight" checked>Flight</label>
-    <label class="tm-column-toggle"><input type="checkbox" data-col-toggle="difficulty">Difficulty</label>
-    <label class="tm-column-toggle"><input type="checkbox" data-col-toggle="battery" checked>Battery</label>
-    <label class="tm-column-toggle"><input type="checkbox" data-col-toggle="uptime">Uptime</label>
-    <label class="tm-column-toggle"><input type="checkbox" data-col-toggle="tc_count">TC Count</label>
-    <label class="tm-column-toggle"><input type="checkbox" data-col-toggle="error_count">Error Count</label>
-    <label class="tm-column-toggle"><input type="checkbox" data-col-toggle="temp" checked>Temp</label>
-    <label class="tm-column-toggle"><input type="checkbox" data-col-toggle="pressure" checked>Pressure</label>
-    <label class="tm-column-toggle"><input type="checkbox" data-col-toggle="humidity" checked>Humidity</label>
-    <label class="tm-column-toggle"><input type="checkbox" data-col-toggle="accel_x" checked>Accel X</label>
-    <label class="tm-column-toggle"><input type="checkbox" data-col-toggle="accel_y" checked>Accel Y</label>
-    <label class="tm-column-toggle"><input type="checkbox" data-col-toggle="accel_z" checked>Accel Z</label>
-    <label class="tm-column-toggle"><input type="checkbox" data-col-toggle="rssi" checked>RSSI</label>
-    <label class="tm-column-toggle"><input type="checkbox" data-col-toggle="snr" checked>SNR</label>
-    <label class="tm-column-toggle"><input type="checkbox" data-col-toggle="raw">Raw</label>
+    <span class="tm-column-title">Columns:</span>
+    <div id="tm-col-dropdown">
+        <button id="tm-col-btn" type="button" onclick="document.getElementById('tm-col-menu').classList.toggle('open')">Select columns</button>
+        <div id="tm-col-menu">
+            <label><input type="checkbox" data-col-toggle="recv_time" checked>Recv Time</label>
+            <label><input type="checkbox" data-col-toggle="frame_ts">Frame TS</label>
+            <label><input type="checkbox" data-col-toggle="apid" checked>APID</label>
+            <label><input type="checkbox" data-col-toggle="seq" checked>Seq</label>
+            <label><input type="checkbox" data-col-toggle="sc_id" checked>SC ID</label>
+            <label><input type="checkbox" data-col-toggle="flight" checked>Flight</label>
+            <label><input type="checkbox" data-col-toggle="difficulty">Difficulty</label>
+            <label><input type="checkbox" data-col-toggle="battery" checked>Battery</label>
+            <label><input type="checkbox" data-col-toggle="uptime">Uptime</label>
+            <label><input type="checkbox" data-col-toggle="tc_count">TC Count</label>
+            <label><input type="checkbox" data-col-toggle="error_count">Error Count</label>
+            <label><input type="checkbox" data-col-toggle="temp" checked>Temp</label>
+            <label><input type="checkbox" data-col-toggle="pressure" checked>Pressure</label>
+            <label><input type="checkbox" data-col-toggle="humidity" checked>Humidity</label>
+            <label><input type="checkbox" data-col-toggle="accel_x" checked>Accel X</label>
+            <label><input type="checkbox" data-col-toggle="accel_y" checked>Accel Y</label>
+            <label><input type="checkbox" data-col-toggle="accel_z" checked>Accel Z</label>
+            <label><input type="checkbox" data-col-toggle="rssi" checked>RSSI</label>
+            <label><input type="checkbox" data-col-toggle="snr" checked>SNR</label>
+            <label><input type="checkbox" data-col-toggle="raw">Raw</label>
+        </div>
+    </div>
     <button id="tm-columns-reset" type="button">Default</button>
 </div>
 <div id="tm-container">
@@ -245,6 +256,15 @@ async function hwDisconnect() {
 }
 
 hwStatus();
+
+// Close column dropdown on outside click
+document.addEventListener("click", function(e) {
+    const menu = document.getElementById("tm-col-menu");
+    const btn = document.getElementById("tm-col-btn");
+    if (!menu.contains(e.target) && e.target !== btn) {
+        menu.classList.remove("open");
+    }
+});
 </script>
 
 <script src="/static/js/telemetry.js"></script>
