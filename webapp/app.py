@@ -416,6 +416,92 @@ def create_app(config_class=Config, db_path=None):
             return None, ({"error": "Satellite not connected"}, 400)
         return gs.device, None
 
+    def _local_mode_from_shell(mode_raw: str | None, status_raw: str | None = None) -> str:
+        mode = parse_mode(mode_raw)
+        if status_raw and "mode=command" in status_raw and mode == "raw":
+            return "ground_station"
+        return mode
+
+    def _local_role_from_mode(mode: str) -> str:
+        return "ground_station" if mode == "ground_station" else "satellite"
+
+    def _build_local_snapshot(
+        *,
+        fw_raw: str | None = None,
+        mode_raw: str | None = None,
+        flight_raw: str | None = None,
+        diff_raw: str | None = None,
+        scid_raw: str | None = None,
+        status_raw: str | None = None,
+    ) -> dict:
+        fw = parse_fw_version(fw_raw)
+        flight = parse_flight(flight_raw)
+        mode = _local_mode_from_shell(mode_raw, status_raw)
+        role = _local_role_from_mode(mode)
+        return {
+            **fw,
+            "mode": mode,
+            "flight": flight["flight"],
+            "battery_mv": flight["battery_mv"],
+            "tm_rate": flight["tm_rate"],
+            "difficulty": parse_difficulty(diff_raw),
+            "sc_id": parse_sc_id(scid_raw),
+            "role": role,
+            "role_label": "Ground Station" if role == "ground_station" else "Satellite",
+        }
+
+    def _build_satellite_snapshot(local: dict, remote: dict) -> dict:
+        if local["role"] == "ground_station":
+            return {
+                "available": remote.get("available", False),
+                "source": "remote",
+                "source_label": "Relayed Telemetry" if remote.get("available") else "Waiting for Telemetry",
+                "sc_id": remote.get("sc_id"),
+                "flight": remote.get("flight"),
+                "difficulty": remote.get("difficulty"),
+                "battery_mv": remote.get("battery_mv"),
+                "tm_rate": None,
+                "uptime": remote.get("uptime"),
+                "tc_count": remote.get("tc_count"),
+                "error_count": remote.get("error_count"),
+                "temperature": remote.get("temperature"),
+                "pressure": remote.get("pressure"),
+                "humidity": remote.get("humidity"),
+                "accel_x": remote.get("accel_x"),
+                "accel_y": remote.get("accel_y"),
+                "accel_z": remote.get("accel_z"),
+                "last_seen_ts": remote.get("last_seen_ts"),
+                "age_sec": remote.get("age_sec"),
+                "stale": remote.get("stale"),
+                "rssi": remote.get("rssi"),
+                "snr": remote.get("snr"),
+            }
+
+        return {
+            "available": True,
+            "source": "local",
+            "source_label": "Direct USB",
+            "sc_id": local.get("sc_id"),
+            "flight": local.get("flight"),
+            "difficulty": local.get("difficulty"),
+            "battery_mv": local.get("battery_mv"),
+            "tm_rate": local.get("tm_rate"),
+            "uptime": remote.get("uptime"),
+            "tc_count": remote.get("tc_count"),
+            "error_count": remote.get("error_count"),
+            "temperature": remote.get("temperature"),
+            "pressure": remote.get("pressure"),
+            "humidity": remote.get("humidity"),
+            "accel_x": remote.get("accel_x"),
+            "accel_y": remote.get("accel_y"),
+            "accel_z": remote.get("accel_z"),
+            "last_seen_ts": remote.get("last_seen_ts"),
+            "age_sec": remote.get("age_sec"),
+            "stale": remote.get("stale"),
+            "rssi": remote.get("rssi"),
+            "snr": remote.get("snr"),
+        }
+
     @app.route("/api/satellite/info")
     @login_required
     def api_satellite_info():
@@ -428,16 +514,32 @@ def create_app(config_class=Config, db_path=None):
         flight_raw = dev.send_shell_command_full("flight")
         diff_raw = dev.send_shell_command_full("difficulty")
         scid_raw = dev.send_shell_command_full("sc_id")
-        fw = parse_fw_version(fw_raw)
-        flight = parse_flight(flight_raw)
+        status_raw = dev.send_shell_command_full("status")
+        local = _build_local_snapshot(
+            fw_raw=fw_raw,
+            mode_raw=mode_raw,
+            flight_raw=flight_raw,
+            diff_raw=diff_raw,
+            scid_raw=scid_raw,
+            status_raw=status_raw,
+        )
+        remote = app.config["GS_STATE"].get_remote_satellite_snapshot()
+        satellite = _build_satellite_snapshot(local, remote)
         return {
-            **fw,
-            "mode": parse_mode(mode_raw),
-            "flight": flight["flight"],
-            "battery_mv": flight["battery_mv"],
-            "tm_rate": flight["tm_rate"],
-            "difficulty": parse_difficulty(diff_raw),
-            "sc_id": parse_sc_id(scid_raw),
+            "fw_version": local["fw_version"],
+            "git_sha": local["git_sha"],
+            "git_dirty": local["git_dirty"],
+            "build_date": local["build_date"],
+            "mode": local["mode"],
+            "flight": local["flight"],
+            "battery_mv": local["battery_mv"],
+            "tm_rate": local["tm_rate"],
+            "difficulty": local["difficulty"],
+            "sc_id": local["sc_id"],
+            "connection_role": local["role"],
+            "local": local,
+            "remote": remote,
+            "satellite": satellite,
         }
 
     @app.route("/api/satellite/status")
@@ -450,18 +552,25 @@ def create_app(config_class=Config, db_path=None):
         flight_raw = dev.send_shell_command_full("flight")
         mode_raw = dev.send_shell_command_full("mode")
         status_raw = dev.send_shell_command_full("status")
-        flight = parse_flight(flight_raw)
-
-        mode = parse_mode(mode_raw)
-        # Detect ground station: lora_mode=command means receiving
-        if status_raw and "mode=command" in status_raw and mode == "raw":
-            mode = "ground_station"
-
+        diff_raw = dev.send_shell_command_full("difficulty")
+        local = _build_local_snapshot(
+            mode_raw=mode_raw,
+            flight_raw=flight_raw,
+            diff_raw=diff_raw,
+            status_raw=status_raw,
+        )
+        remote = app.config["GS_STATE"].get_remote_satellite_snapshot()
+        satellite = _build_satellite_snapshot(local, remote)
         return {
-            "mode": mode,
-            "flight": flight["flight"],
-            "battery_mv": flight["battery_mv"],
-            "tm_rate": flight["tm_rate"],
+            "mode": local["mode"],
+            "flight": local["flight"],
+            "battery_mv": local["battery_mv"],
+            "tm_rate": local["tm_rate"],
+            "difficulty": local["difficulty"],
+            "connection_role": local["role"],
+            "local": local,
+            "remote": remote,
+            "satellite": satellite,
         }
 
     @app.route("/api/satellite/sensors")
@@ -470,8 +579,23 @@ def create_app(config_class=Config, db_path=None):
         dev, err = _require_hardware()
         if err:
             return err
+        mode_raw = dev.send_shell_command_full("mode")
+        status_raw = dev.send_shell_command_full("status")
+        local_mode = _local_mode_from_shell(mode_raw, status_raw)
+        if _local_role_from_mode(local_mode) == "ground_station":
+            remote = app.config["GS_STATE"].get_remote_satellite_snapshot()
+            return {
+                "source": "remote",
+                "available": remote.get("available", False),
+                "temperature": remote.get("temperature"),
+                "pressure": remote.get("pressure"),
+                "humidity": remote.get("humidity"),
+                "accel_x": remote.get("accel_x"),
+                "accel_y": remote.get("accel_y"),
+                "accel_z": remote.get("accel_z"),
+            }
         raw = dev.send_shell_command_full("sensors")
-        return parse_sensors(raw)
+        return {"source": "local", "available": True, **parse_sensors(raw)}
 
     @app.route("/api/satellite/lora_config", methods=["GET", "POST"])
     @login_required
@@ -678,6 +802,12 @@ def start_telemetry_thread(app):
                             if pkt:
                                 # Valid CCSDS frame with good CRC
                                 decoded = decode_tm_payload(pkt.apid, pkt.payload)
+                                gs.update_remote_satellite(
+                                    pkt.apid,
+                                    decoded,
+                                    rssi=parsed.get("rssi"),
+                                    snr=parsed.get("snr"),
+                                )
                                 from datetime import datetime
 
                                 with app.app_context():
@@ -707,6 +837,8 @@ def start_telemetry_thread(app):
                                     "telemetry_update",
                                     {
                                         "apid": pkt.apid,
+                                        "seq_count": pkt.seq_count,
+                                        "crc_valid": pkt.crc_valid,
                                         "raw_hex": parsed["data"],
                                         "decoded": decoded,
                                         "timestamp": pkt.timestamp,

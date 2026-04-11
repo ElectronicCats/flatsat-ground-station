@@ -29,6 +29,7 @@ def decode_heartbeat(payload: bytes) -> dict:
         "uptime": uptime,
         "battery_mv": battery_mv,
         "flight_mode": flight_mode,
+        "flight": flight_mode_name(flight_mode),
         "difficulty": difficulty,
         "tc_count": tc_count,
         "error_count": error_count,
@@ -61,12 +62,25 @@ _DECODERS = {
     APID_TM_LIS2DH: decode_lis2dh,
 }
 
+FLIGHT_MODE_LABELS = {
+    0: "IDLE",
+    1: "NOMINAL",
+    2: "SAFE",
+    3: "DEBUG",
+}
+
 
 def decode_tm_payload(apid: int, payload: bytes) -> dict:
     decoder = _DECODERS.get(apid)
     if decoder:
         return decoder(payload)
     return {"raw": payload}
+
+
+def flight_mode_name(mode: int | None) -> str:
+    if mode is None:
+        return "UNKNOWN"
+    return FLIGHT_MODE_LABELS.get(mode, "UNKNOWN")
 
 
 _mock_seq_count = 0

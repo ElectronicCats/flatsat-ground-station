@@ -59,6 +59,7 @@ def test_satellite_info_connected(app, auth_client):
         "flight": "flightflight: NOMINAL  battery: 3650 mV  tm_rate: 10 sec",
         "difficulty": "difficultydifficulty: 1 (normal)",
         "sc_id": "sc_idspacecraft_id: 0x02",
+        "status": "statusmode=stream",
     }.get(cmd)
 
     resp = auth_client.get("/api/satellite/info")
@@ -70,6 +71,61 @@ def test_satellite_info_connected(app, auth_client):
     assert data["battery_mv"] == 3650
     assert data["difficulty"] == 1
     assert data["sc_id"] == 2
+    assert data["local"]["role"] == "satellite"
+    assert data["satellite"]["source"] == "local"
+
+
+def test_satellite_status_ground_station_prefers_remote_tm(app, auth_client):
+    mock_dev = _setup_hardware(app)
+    gs = app.config["GS_STATE"]
+    gs.update_remote_satellite(
+        0x001,
+        {
+            "sc_id": 2,
+            "flight_mode": 2,
+            "difficulty": 3,
+            "battery_mv": 3410,
+            "uptime": 90,
+            "tc_count": 14,
+            "error_count": 2,
+        },
+        rssi=-71,
+        snr=8.0,
+    )
+    mock_dev.send_shell_command_full.side_effect = lambda cmd, **kw: {
+        "mode": "modemode: raw",
+        "flight": "flightflight: IDLE  battery: 0 mV  tm_rate: 10 sec",
+        "difficulty": "difficultydifficulty: 1 (normal)",
+        "status": "statusmode=command",
+    }.get(cmd)
+
+    resp = auth_client.get("/api/satellite/status")
+    assert resp.status_code == 200
+    data = resp.get_json()
+    assert data["connection_role"] == "ground_station"
+    assert data["local"]["mode"] == "ground_station"
+    assert data["satellite"]["source"] == "remote"
+    assert data["satellite"]["battery_mv"] == 3410
+    assert data["satellite"]["flight"] == "SAFE"
+    assert data["satellite"]["tc_count"] == 14
+
+
+def test_satellite_sensors_ground_station_use_remote_snapshot(app, auth_client):
+    mock_dev = _setup_hardware(app)
+    gs = app.config["GS_STATE"]
+    gs.update_remote_satellite(0x010, {"temperature": 22.75, "pressure": 101250.0, "humidity": 48}, rssi=-69, snr=7.5)
+    gs.update_remote_satellite(0x011, {"accel_x": 12, "accel_y": -4, "accel_z": 1003}, rssi=-69, snr=7.5)
+    mock_dev.send_shell_command_full.side_effect = lambda cmd, **kw: {
+        "mode": "modemode: raw",
+        "status": "statusmode=command",
+    }.get(cmd)
+
+    resp = auth_client.get("/api/satellite/sensors")
+    assert resp.status_code == 200
+    data = resp.get_json()
+    assert data["source"] == "remote"
+    assert data["temperature"] == 22.75
+    assert data["accel_z"] == 1003
 
 
 def test_satellite_sensors(app, auth_client):
