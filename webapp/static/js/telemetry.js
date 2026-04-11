@@ -111,7 +111,7 @@ socket.on("disconnect", function() {
     document.getElementById("telemetry-status").textContent = "WebSocket disconnected";
 });
 
-socket.on("telemetry_update", function(data) {
+function addTelemetryRow(data, recvTimeOverride) {
     const d = data.decoded || {};
 
     const hasDecodedData = d.temperature !== undefined
@@ -122,7 +122,7 @@ socket.on("telemetry_update", function(data) {
 
     const tbody = document.getElementById("telemetry-body");
     const row = document.createElement("tr");
-    const now = new Date().toLocaleTimeString();
+    const now = recvTimeOverride || new Date().toLocaleTimeString();
 
     if (hasDecodedData) {
         [
@@ -197,6 +197,52 @@ socket.on("telemetry_update", function(data) {
     while (tbody.children.length > MAX_ROWS) {
         tbody.removeChild(tbody.lastChild);
     }
+}
+
+socket.on("telemetry_update", function(data) {
+    addTelemetryRow(data);
 });
 
+async function loadHistory() {
+    try {
+        const resp = await fetch("/api/telemetry?limit=200");
+        if (!resp.ok) return;
+        const rows = await resp.json();
+        if (!Array.isArray(rows)) return;
+        rows.reverse().forEach(row => {
+            addTelemetryRow({
+                apid: row.apid,
+                seq_count: null,
+                raw_hex: row.raw_hex,
+                timestamp: null,
+                rssi: row.rssi,
+                snr: row.snr,
+                decoded: {
+                    temperature: row.temperature,
+                    pressure: row.pressure,
+                    humidity: row.humidity,
+                    accel_x: row.accel_x,
+                    accel_y: row.accel_y,
+                    accel_z: row.accel_z,
+                    sc_id: row.spacecraft_id,
+                },
+            }, row.timestamp);
+        });
+    } catch (e) {
+        console.error("[TM] Failed to load history:", e);
+    }
+}
+
+function clearTelemetry() {
+    document.getElementById("telemetry-body").innerHTML = "";
+    if (typeof pktCount !== "undefined") {
+        pktCount = 0;
+        const counter = document.getElementById("pkt-counter");
+        if (counter) counter.textContent = "";
+    }
+    const lastSeen = document.getElementById("last-seen");
+    if (lastSeen) lastSeen.textContent = "";
+}
+
+loadHistory();
 initializeColumnControls();
