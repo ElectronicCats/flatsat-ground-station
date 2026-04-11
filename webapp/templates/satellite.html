@@ -3,7 +3,7 @@
 {% block head %}
 <style>
     .panel { border:1px solid #333; padding:15px; margin-bottom:15px; background:#111; }
-    .panel h2 { margin-top:0; color:#00ccff; font-size:1.1em; }
+    .panel h2 { margin-top:0; color:#00ccff; font-size:1.1em; display:flex; align-items:center; justify-content:space-between; gap:10px; }
     .grid { display:grid; grid-template-columns:1fr 1fr; gap:15px; }
     .field { margin:5px 0; }
     .field label { display:inline-block; width:140px; color:#888; }
@@ -19,6 +19,17 @@
     .countdown-danger { color:#ff4444; animation: blink 1s infinite; }
     @keyframes blink { 50% { opacity:0.4; } }
     .toast { position:fixed; top:20px; right:20px; background:#ff4444; color:white; padding:15px; border-radius:5px; display:none; z-index:999; }
+    .sync-banner { margin-bottom:15px; padding:12px 15px; border:1px solid #2c4b59; background:linear-gradient(90deg, #10222a 0%, #0f171a 100%); color:#9fd9eb; }
+    .sync-banner.hidden { display:none; }
+    .panel-status { color:#6f9ead; font-size:0.8em; text-transform:uppercase; letter-spacing:0.08em; }
+    .panel-syncing { opacity:0.78; }
+    .panel-syncing .field span { color:#78a0aa; }
+    .panel-ready .panel-status { color:#00ff41; }
+    .panel-error .panel-status { color:#ff7777; }
+    .loading-value { color:#78a0aa !important; }
+    .controls-disabled button,
+    .controls-disabled select,
+    .controls-disabled input { opacity:0.6; pointer-events:none; }
 </style>
 {% endblock %}
 {% block content %}
@@ -28,26 +39,28 @@
     No satellite connected — <a href="/dashboard">connect from Dashboard</a>.
 </div>
 
-<div id="sat-content" style="display:none;">
+<div id="sat-sync-banner" class="sync-banner">Synchronizing with satellite...</div>
+
+<div id="sat-content">
 <div class="grid">
 
 <!-- Info Panel -->
-<div class="panel">
-    <h2>Satellite Info</h2>
-    <div class="field"><label>Firmware:</label> <span id="fw-version">-</span></div>
-    <div class="field"><label>Git:</label> <span id="fw-git">-</span></div>
-    <div class="field"><label>Build:</label> <span id="fw-build">-</span></div>
-    <div class="field"><label>Spacecraft ID:</label> <span id="sc-id">-</span></div>
-    <div class="field"><label>Mode:</label> <span id="cur-mode">-</span></div>
-    <div class="field"><label>Flight:</label> <span id="cur-flight">-</span></div>
-    <div class="field"><label>Difficulty:</label> <span id="cur-diff">-</span></div>
+<div class="panel panel-syncing" id="panel-info">
+    <h2>Satellite Info <span class="panel-status" id="panel-info-status">Syncing...</span></h2>
+    <div class="field"><label>Firmware:</label> <span id="fw-version" class="loading-value">Loading...</span></div>
+    <div class="field"><label>Git:</label> <span id="fw-git" class="loading-value">Loading...</span></div>
+    <div class="field"><label>Build:</label> <span id="fw-build" class="loading-value">Loading...</span></div>
+    <div class="field"><label>Spacecraft ID:</label> <span id="sc-id" class="loading-value">Loading...</span></div>
+    <div class="field"><label>Mode:</label> <span id="cur-mode" class="loading-value">Loading...</span></div>
+    <div class="field"><label>Flight:</label> <span id="cur-flight" class="loading-value">Loading...</span></div>
+    <div class="field"><label>Difficulty:</label> <span id="cur-diff" class="loading-value">Loading...</span></div>
 </div>
 
 <!-- Battery Panel -->
-<div class="panel">
-    <h2>Battery</h2>
+<div class="panel panel-syncing" id="panel-battery">
+    <h2>Battery <span class="panel-status" id="panel-battery-status">Syncing...</span></h2>
     <div class="field">
-        <label>Voltage:</label> <span id="batt-mv">-</span> mV
+        <label>Voltage:</label> <span id="batt-mv" class="loading-value">Loading...</span> mV
     </div>
     <div class="battery-bar"><div id="batt-fill" class="battery-fill batt-green" style="width:100%"></div></div>
     <div style="margin-top:10px;">
@@ -60,12 +73,12 @@
 </div>
 
 <!-- LoRa Config Panel — Radio 0 -->
-<div class="panel">
-    <h2>Radio 0 — Telemetry RX/TX</h2>
-    <div class="field"><label>Frequency:</label> <span id="lora-r0-freq">-</span> Hz</div>
-    <div class="field"><label>SF:</label> <span id="lora-r0-sf">-</span></div>
-    <div class="field"><label>BW:</label> <span id="lora-r0-bw">-</span> kHz</div>
-    <div class="field"><label>Power:</label> <span id="lora-r0-power">-</span> dBm</div>
+<div class="panel panel-syncing" id="panel-r0">
+    <h2>Radio 0 — Telemetry RX/TX <span class="panel-status" id="panel-r0-status">Syncing...</span></h2>
+    <div class="field"><label>Frequency:</label> <span id="lora-r0-freq" class="loading-value">Loading...</span> Hz</div>
+    <div class="field"><label>SF:</label> <span id="lora-r0-sf" class="loading-value">Loading...</span></div>
+    <div class="field"><label>BW:</label> <span id="lora-r0-bw" class="loading-value">Loading...</span> kHz</div>
+    <div class="field"><label>Power:</label> <span id="lora-r0-power" class="loading-value">Loading...</span> dBm</div>
     <hr style="border-color:#333;">
     <div class="field"><label>Set Freq (Hz):</label> <input id="set-r0-freq" type="number" value="915000000" style="width:130px;"></div>
     <div class="field"><label>Set SF:</label> <input id="set-r0-sf" type="number" min="7" max="12" value="7" style="width:60px;"></div>
@@ -75,12 +88,12 @@
 </div>
 
 <!-- LoRa Config Panel — Radio 1 -->
-<div class="panel">
-    <h2>Radio 1 — Telecommand TX/RX</h2>
-    <div class="field"><label>Frequency:</label> <span id="lora-r1-freq">-</span> Hz</div>
-    <div class="field"><label>SF:</label> <span id="lora-r1-sf">-</span></div>
-    <div class="field"><label>BW:</label> <span id="lora-r1-bw">-</span> kHz</div>
-    <div class="field"><label>Power:</label> <span id="lora-r1-power">-</span> dBm</div>
+<div class="panel panel-syncing" id="panel-r1">
+    <h2>Radio 1 — Telecommand TX/RX <span class="panel-status" id="panel-r1-status">Syncing...</span></h2>
+    <div class="field"><label>Frequency:</label> <span id="lora-r1-freq" class="loading-value">Loading...</span> Hz</div>
+    <div class="field"><label>SF:</label> <span id="lora-r1-sf" class="loading-value">Loading...</span></div>
+    <div class="field"><label>BW:</label> <span id="lora-r1-bw" class="loading-value">Loading...</span> kHz</div>
+    <div class="field"><label>Power:</label> <span id="lora-r1-power" class="loading-value">Loading...</span> dBm</div>
     <hr style="border-color:#333;">
     <div class="field"><label>Set Freq (Hz):</label> <input id="set-r1-freq" type="number" value="916000000" style="width:130px;"></div>
     <div class="field"><label>Set SF:</label> <input id="set-r1-sf" type="number" min="7" max="12" value="7" style="width:60px;"></div>
@@ -90,21 +103,21 @@
 </div>
 
 <!-- Sensors Panel -->
-<div class="panel">
-    <h2>Sensors</h2>
-    <div class="field"><label>Temperature:</label> <span id="sens-temp">-</span> C</div>
-    <div class="field"><label>Pressure:</label> <span id="sens-press">-</span> Pa</div>
-    <div class="field"><label>Humidity:</label> <span id="sens-humid">-</span>%</div>
-    <div class="field"><label>Accel X:</label> <span id="sens-ax">-</span> mg</div>
-    <div class="field"><label>Accel Y:</label> <span id="sens-ay">-</span> mg</div>
-    <div class="field"><label>Accel Z:</label> <span id="sens-az">-</span> mg</div>
+<div class="panel panel-syncing" id="panel-sensors">
+    <h2>Sensors <span class="panel-status" id="panel-sensors-status">Syncing...</span></h2>
+    <div class="field"><label>Temperature:</label> <span id="sens-temp" class="loading-value">Loading...</span> C</div>
+    <div class="field"><label>Pressure:</label> <span id="sens-press" class="loading-value">Loading...</span> Pa</div>
+    <div class="field"><label>Humidity:</label> <span id="sens-humid" class="loading-value">Loading...</span>%</div>
+    <div class="field"><label>Accel X:</label> <span id="sens-ax" class="loading-value">Loading...</span> mg</div>
+    <div class="field"><label>Accel Y:</label> <span id="sens-ay" class="loading-value">Loading...</span> mg</div>
+    <div class="field"><label>Accel Z:</label> <span id="sens-az" class="loading-value">Loading...</span> mg</div>
 </div>
 
 </div><!-- grid -->
 
 <!-- Controls Panel (full width) -->
-<div class="panel">
-    <h2>Controls</h2>
+<div class="panel panel-syncing controls-disabled" id="panel-controls">
+    <h2>Controls <span class="panel-status" id="panel-controls-status">Syncing...</span></h2>
 
     <div style="margin-bottom:10px;">
         <label style="color:#888;">Mode:</label>
@@ -185,6 +198,27 @@ function showToast(msg, duration) {
     setTimeout(() => t.style.display = "none", duration || 5000);
 }
 
+function setBanner(message, visible = true) {
+    const banner = document.getElementById("sat-sync-banner");
+    banner.textContent = message;
+    banner.classList.toggle("hidden", !visible);
+}
+
+function setPanelState(name, state, message) {
+    const panel = document.getElementById("panel-" + name);
+    const status = document.getElementById("panel-" + name + "-status");
+    if (!panel || !status) return;
+    panel.classList.remove("panel-syncing", "panel-ready", "panel-error");
+    if (state === "loading") panel.classList.add("panel-syncing");
+    if (state === "ready") panel.classList.add("panel-ready");
+    if (state === "error") panel.classList.add("panel-error");
+    status.textContent = message;
+}
+
+function setControlsEnabled(enabled) {
+    document.getElementById("panel-controls").classList.toggle("controls-disabled", !enabled);
+}
+
 // --- Polling ---
 async function pollInfo() {
     const data = await api("info");
@@ -192,6 +226,8 @@ async function pollInfo() {
         hwConnected = false;
         document.getElementById("no-hw").style.display = "block";
         document.getElementById("sat-content").style.display = "none";
+        setBanner("Satellite not connected.", false);
+        setControlsEnabled(false);
         return;
     }
     hwConnected = true;
@@ -213,6 +249,10 @@ async function pollInfo() {
 
     // Battery
     updateBattery(data.battery_mv, data.flight);
+    setPanelState("info", "ready", "Live");
+    setPanelState("battery", "ready", "Live");
+    setPanelState("controls", "ready", "Ready");
+    setControlsEnabled(true);
 }
 
 function highlightBtn(groupId, active) {
@@ -268,25 +308,33 @@ function toggleCountdown() {
 async function pollSensors() {
     if (!hwConnected) return;
     const data = await api("sensors");
-    if (data.error) return;
+    if (data.error) {
+        setPanelState("sensors", "error", "Unavailable");
+        return;
+    }
     document.getElementById("sens-temp").textContent = data.temperature;
     document.getElementById("sens-press").textContent = data.pressure;
     document.getElementById("sens-humid").textContent = data.humidity;
     document.getElementById("sens-ax").textContent = data.accel_x;
     document.getElementById("sens-ay").textContent = data.accel_y;
     document.getElementById("sens-az").textContent = data.accel_z;
+    setPanelState("sensors", "ready", "Live");
 }
 
 async function pollLora() {
     if (!hwConnected) return;
     for (const radio of ["R0", "R1"]) {
         const data = await api("lora_config?radio=" + radio);
-        if (data.error) continue;
+        if (data.error) {
+            setPanelState(radio.toLowerCase(), "error", "Unavailable");
+            continue;
+        }
         const r = radio.toLowerCase();
         document.getElementById("lora-" + r + "-freq").textContent = data.frequency;
         document.getElementById("lora-" + r + "-sf").textContent = data.sf;
         document.getElementById("lora-" + r + "-bw").textContent = data.bw;
         document.getElementById("lora-" + r + "-power").textContent = data.power;
+        setPanelState(r, "ready", "Live");
     }
 }
 
@@ -294,7 +342,13 @@ async function pollLora() {
 async function pollStatus() {
     if (!hwConnected) return;
     const data = await api("status");
-    if (data.error) { hwConnected = false; return; }
+    if (data.error) {
+        hwConnected = false;
+        setPanelState("controls", "error", "Unavailable");
+        setPanelState("battery", "error", "Unavailable");
+        setControlsEnabled(false);
+        return;
+    }
     document.getElementById("cur-mode").textContent = data.mode;
     document.getElementById("cur-flight").textContent = data.flight;
     highlightBtn("mode-btns", data.mode);
@@ -303,6 +357,8 @@ async function pollStatus() {
 
     // TinyGS spoof indicator
     document.getElementById("btn-spoof").className = data.mode === "tinygs" ? "btn-active" : "";
+    setPanelState("controls", "ready", "Live");
+    setPanelState("battery", "ready", "Live");
 }
 
 // --- Actions ---
@@ -379,12 +435,22 @@ async function pollLoop() {
 // Restore countdown state
 document.getElementById("countdown-toggle").checked = countdownEnabled;
 document.getElementById("countdown-display").style.display = countdownEnabled ? "block" : "none";
+setControlsEnabled(false);
 
 async function init() {
+    document.getElementById("sat-content").style.display = "block";
+    document.getElementById("no-hw").style.display = "none";
+    setBanner("Synchronizing with satellite...");
     await pollInfo();
     if (hwConnected) {
-        await pollLora();
-        await pollSensors();
+        setBanner("Refreshing live status...");
+        await pollStatus();
+        setBanner("Loading radio configuration and sensors...");
+        Promise.allSettled([pollLora(), pollSensors()]).finally(() => {
+            if (hwConnected) {
+                setBanner("Satellite synchronized.", false);
+            }
+        });
     }
     setTimeout(pollLoop, 3000);
 }
