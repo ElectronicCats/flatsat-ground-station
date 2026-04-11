@@ -46,14 +46,17 @@
 
 <!-- Info Panel -->
 <div class="panel panel-syncing" id="panel-info">
-    <h2>Satellite Info <span class="panel-status" id="panel-info-status">Syncing...</span></h2>
-    <div class="field"><label>Firmware:</label> <span id="fw-version" class="loading-value">Loading...</span></div>
-    <div class="field"><label>Git:</label> <span id="fw-git" class="loading-value">Loading...</span></div>
-    <div class="field"><label>Build:</label> <span id="fw-build" class="loading-value">Loading...</span></div>
+    <h2>Satellite Status <span class="panel-status" id="panel-info-status">Syncing...</span></h2>
+    <div class="field"><label>Data Source:</label> <span id="sat-source" class="loading-value">Loading...</span></div>
     <div class="field"><label>Spacecraft ID:</label> <span id="sc-id" class="loading-value">Loading...</span></div>
-    <div class="field"><label>Mode:</label> <span id="cur-mode" class="loading-value">Loading...</span></div>
     <div class="field"><label>Flight:</label> <span id="cur-flight" class="loading-value">Loading...</span></div>
     <div class="field"><label>Difficulty:</label> <span id="cur-diff" class="loading-value">Loading...</span></div>
+    <div class="field"><label>Last Seen:</label> <span id="sat-last-seen" class="loading-value">Loading...</span></div>
+    <div class="field"><label>Uptime:</label> <span id="sat-uptime" class="loading-value">Loading...</span></div>
+    <div class="field"><label>TC Count:</label> <span id="sat-tc-count" class="loading-value">Loading...</span></div>
+    <div class="field"><label>Error Count:</label> <span id="sat-error-count" class="loading-value">Loading...</span></div>
+    <div class="field"><label>Link RSSI:</label> <span id="sat-rssi" class="loading-value">Loading...</span></div>
+    <div class="field"><label>Link SNR:</label> <span id="sat-snr" class="loading-value">Loading...</span></div>
 </div>
 
 <!-- Battery Panel -->
@@ -74,7 +77,7 @@
 
 <!-- LoRa Config Panel — Radio 0 -->
 <div class="panel panel-syncing" id="panel-r0">
-    <h2>Radio 0 — Telemetry RX/TX <span class="panel-status" id="panel-r0-status">Syncing...</span></h2>
+    <h2>Local Radio 0 — Telemetry RX/TX <span class="panel-status" id="panel-r0-status">Syncing...</span></h2>
     <div class="field"><label>Frequency:</label> <span id="lora-r0-freq" class="loading-value">Loading...</span> Hz</div>
     <div class="field"><label>SF:</label> <span id="lora-r0-sf" class="loading-value">Loading...</span></div>
     <div class="field"><label>BW:</label> <span id="lora-r0-bw" class="loading-value">Loading...</span> kHz</div>
@@ -89,7 +92,7 @@
 
 <!-- LoRa Config Panel — Radio 1 -->
 <div class="panel panel-syncing" id="panel-r1">
-    <h2>Radio 1 — Telecommand TX/RX <span class="panel-status" id="panel-r1-status">Syncing...</span></h2>
+    <h2>Local Radio 1 — Telecommand TX/RX <span class="panel-status" id="panel-r1-status">Syncing...</span></h2>
     <div class="field"><label>Frequency:</label> <span id="lora-r1-freq" class="loading-value">Loading...</span> Hz</div>
     <div class="field"><label>SF:</label> <span id="lora-r1-sf" class="loading-value">Loading...</span></div>
     <div class="field"><label>BW:</label> <span id="lora-r1-bw" class="loading-value">Loading...</span> kHz</div>
@@ -104,7 +107,7 @@
 
 <!-- Sensors Panel -->
 <div class="panel panel-syncing" id="panel-sensors">
-    <h2>Sensors <span class="panel-status" id="panel-sensors-status">Syncing...</span></h2>
+    <h2>Satellite Sensors <span class="panel-status" id="panel-sensors-status">Syncing...</span></h2>
     <div class="field"><label>Temperature:</label> <span id="sens-temp" class="loading-value">Loading...</span> C</div>
     <div class="field"><label>Pressure:</label> <span id="sens-press" class="loading-value">Loading...</span> Pa</div>
     <div class="field"><label>Humidity:</label> <span id="sens-humid" class="loading-value">Loading...</span>%</div>
@@ -113,11 +116,25 @@
     <div class="field"><label>Accel Z:</label> <span id="sens-az" class="loading-value">Loading...</span> mg</div>
 </div>
 
+<!-- Local Device Panel -->
+<div class="panel panel-syncing" id="panel-local">
+    <h2>Connected Device <span class="panel-status" id="panel-local-status">Syncing...</span></h2>
+    <div class="field"><label>Role:</label> <span id="local-role" class="loading-value">Loading...</span></div>
+    <div class="field"><label>Firmware:</label> <span id="fw-version" class="loading-value">Loading...</span></div>
+    <div class="field"><label>Git:</label> <span id="fw-git" class="loading-value">Loading...</span></div>
+    <div class="field"><label>Build:</label> <span id="fw-build" class="loading-value">Loading...</span></div>
+    <div class="field"><label>Device Mode:</label> <span id="local-mode" class="loading-value">Loading...</span></div>
+    <div class="field"><label>Flight:</label> <span id="local-flight" class="loading-value">Loading...</span></div>
+    <div class="field"><label>Difficulty:</label> <span id="local-diff" class="loading-value">Loading...</span></div>
+    <div class="field"><label>Spacecraft ID:</label> <span id="local-sc-id" class="loading-value">Loading...</span></div>
+</div>
+
 </div><!-- grid -->
 
 <!-- Controls Panel (full width) -->
 <div class="panel panel-syncing controls-disabled" id="panel-controls">
-    <h2>Controls <span class="panel-status" id="panel-controls-status">Syncing...</span></h2>
+    <h2>Connected Device Controls <span class="panel-status" id="panel-controls-status">Syncing...</span></h2>
+    <div id="controls-note" style="margin-bottom:12px; color:#888;">Loading connected device context...</div>
 
     <div style="margin-bottom:10px;">
         <label style="color:#888;">Mode:</label>
@@ -173,6 +190,7 @@
 let countdownEnabled = localStorage.getItem("countdownEnabled") === "true";
 let lastNotifiedThreshold = 9999;
 let hwConnected = false;
+let latestContext = null;
 
 // --- API helpers ---
 async function api(path, method, body) {
@@ -219,6 +237,128 @@ function setControlsEnabled(enabled) {
     document.getElementById("panel-controls").classList.toggle("controls-disabled", !enabled);
 }
 
+function setText(id, value, fallback = "--") {
+    const el = document.getElementById(id);
+    el.textContent = value === null || value === undefined || value === "" ? fallback : value;
+}
+
+function formatHex(value) {
+    if (value === null || value === undefined) return "--";
+    return "0x" + Number(value).toString(16).padStart(2, "0");
+}
+
+function formatAge(ageSec, source) {
+    if (source === "local" && (ageSec === null || ageSec === undefined)) return "Direct USB";
+    if (ageSec === null || ageSec === undefined) return "Waiting for telemetry";
+    const secs = Math.max(0, Math.round(ageSec));
+    if (secs < 2) return "Just now";
+    if (secs < 60) return secs + "s ago";
+    const mins = Math.floor(secs / 60);
+    const rem = secs % 60;
+    return mins + "m " + String(rem).padStart(2, "0") + "s ago";
+}
+
+function formatUptime(seconds) {
+    if (seconds === null || seconds === undefined) return "--";
+    const total = Number(seconds);
+    const days = Math.floor(total / 86400);
+    const hours = Math.floor((total % 86400) / 3600);
+    const mins = Math.floor((total % 3600) / 60);
+    if (days > 0) return days + "d " + hours + "h";
+    if (hours > 0) return hours + "h " + mins + "m";
+    return mins + "m";
+}
+
+function applySatelliteSnapshot(satellite, role) {
+    const sat = satellite || {};
+    setText("sat-source", sat.source_label, role === "ground_station" ? "Waiting for telemetry" : "Direct USB");
+    setText("sc-id", sat.sc_id !== null && sat.sc_id !== undefined ? formatHex(sat.sc_id) : null, role === "ground_station" ? "Waiting..." : "--");
+    setText("cur-flight", sat.flight, role === "ground_station" ? "Waiting..." : "--");
+    setText("cur-diff", sat.difficulty, role === "ground_station" ? "Waiting..." : "--");
+    setText("sat-last-seen", formatAge(sat.age_sec, sat.source), role === "ground_station" ? "Waiting for telemetry" : "Direct USB");
+    setText("sat-uptime", formatUptime(sat.uptime));
+    setText("sat-tc-count", sat.tc_count, role === "ground_station" ? "Waiting..." : "--");
+    setText("sat-error-count", sat.error_count, role === "ground_station" ? "Waiting..." : "--");
+    setText("sat-rssi", sat.rssi !== null && sat.rssi !== undefined ? sat.rssi + " dBm" : null);
+    setText("sat-snr", sat.snr !== null && sat.snr !== undefined ? sat.snr + " dB" : null);
+    updateBattery(sat.battery_mv, sat.flight);
+
+    const infoMessage = sat.available || role === "satellite" ? (sat.source_label || "Live") : "Waiting for Telemetry";
+    const batteryMessage = sat.battery_mv !== null && sat.battery_mv !== undefined ? "Live" : "Waiting for Telemetry";
+    setPanelState("info", "ready", infoMessage);
+    setPanelState("battery", "ready", batteryMessage);
+}
+
+function applyLocalSnapshot(local) {
+    const info = local || {};
+    setText("local-role", info.role_label);
+    setText("fw-version", info.fw_version);
+    setText("fw-git", info.git_sha ? info.git_sha + (info.git_dirty ? " (dirty)" : "") : null);
+    setText("fw-build", info.build_date);
+    setText("local-mode", info.mode);
+    setText("local-flight", info.flight);
+    setText("local-diff", info.difficulty);
+    setText("local-sc-id", info.sc_id !== null && info.sc_id !== undefined ? formatHex(info.sc_id) : null);
+
+    if (info.difficulty !== null && info.difficulty !== undefined) {
+        document.getElementById("diff-select").value = info.difficulty;
+    }
+    highlightBtn("mode-btns", info.mode || "");
+    highlightBtn("flight-btns", info.flight ? info.flight.toLowerCase() : "");
+    document.getElementById("btn-spoof").className = info.mode === "tinygs" ? "btn-active" : "";
+    document.getElementById("controls-note").textContent = info.role === "ground_station"
+        ? "Connected device is the ground station. Battery, counters, and sensors above come from relayed satellite telemetry."
+        : "Connected device is the satellite. Controls below act directly on it.";
+
+    setPanelState("local", "ready", info.role_label || "Live");
+    setPanelState("controls", "ready", "Ready");
+    setControlsEnabled(true);
+}
+
+function mergeLocalSnapshot(previousLocal, nextLocal) {
+    const prev = previousLocal || {};
+    const next = nextLocal || {};
+    const merged = {...prev, ...next};
+
+    if (!next.fw_version || next.fw_version === "unknown") {
+        merged.fw_version = prev.fw_version;
+    }
+    if (!next.git_sha) {
+        merged.git_sha = prev.git_sha;
+        merged.git_dirty = prev.git_dirty;
+    }
+    if (!next.build_date) {
+        merged.build_date = prev.build_date;
+    }
+    if ((next.sc_id === null || next.sc_id === undefined || next.sc_id === 0) && prev.sc_id) {
+        merged.sc_id = prev.sc_id;
+    }
+
+    return merged;
+}
+
+function applyContext(data) {
+    const mergedLocal = mergeLocalSnapshot(latestContext && latestContext.local, data.local);
+    latestContext = {...data, local: mergedLocal};
+    const role = latestContext.connection_role || "satellite";
+    applySatelliteSnapshot(latestContext.satellite, role);
+    applyLocalSnapshot(mergedLocal);
+}
+
+function applySensorSnapshot(data, role) {
+    const source = (data && data.source) || (role === "ground_station" ? "remote" : "local");
+    setText("sens-temp", data && data.temperature, role === "ground_station" ? "Waiting..." : "--");
+    setText("sens-press", data && data.pressure, role === "ground_station" ? "Waiting..." : "--");
+    setText("sens-humid", data && data.humidity, role === "ground_station" ? "Waiting..." : "--");
+    setText("sens-ax", data && data.accel_x, role === "ground_station" ? "Waiting..." : "--");
+    setText("sens-ay", data && data.accel_y, role === "ground_station" ? "Waiting..." : "--");
+    setText("sens-az", data && data.accel_z, role === "ground_station" ? "Waiting..." : "--");
+    const hasData = ["temperature", "pressure", "humidity", "accel_x", "accel_y", "accel_z"]
+        .some((key) => data && data[key] !== null && data[key] !== undefined);
+    const message = hasData ? (source === "remote" ? "Relayed Telemetry" : "Live") : "Waiting for Telemetry";
+    setPanelState("sensors", "ready", message);
+}
+
 // --- Polling ---
 async function pollInfo() {
     const data = await api("info");
@@ -233,26 +373,7 @@ async function pollInfo() {
     hwConnected = true;
     document.getElementById("no-hw").style.display = "none";
     document.getElementById("sat-content").style.display = "block";
-
-    document.getElementById("fw-version").textContent = data.fw_version;
-    document.getElementById("fw-git").textContent = data.git_sha + (data.git_dirty ? " (dirty)" : "");
-    document.getElementById("fw-build").textContent = data.build_date;
-    document.getElementById("sc-id").textContent = "0x" + (data.sc_id || 0).toString(16).padStart(2, "0");
-    document.getElementById("cur-mode").textContent = data.mode;
-    document.getElementById("cur-flight").textContent = data.flight;
-    document.getElementById("cur-diff").textContent = data.difficulty;
-    document.getElementById("diff-select").value = data.difficulty;
-
-    // Highlight active mode/flight buttons
-    highlightBtn("mode-btns", data.mode);
-    highlightBtn("flight-btns", data.flight.toLowerCase());
-
-    // Battery
-    updateBattery(data.battery_mv, data.flight);
-    setPanelState("info", "ready", "Live");
-    setPanelState("battery", "ready", "Live");
-    setPanelState("controls", "ready", "Ready");
-    setControlsEnabled(true);
+    applyContext(data);
 }
 
 function highlightBtn(groupId, active) {
@@ -265,6 +386,14 @@ function highlightBtn(groupId, active) {
 }
 
 function updateBattery(mv, flight) {
+    if (mv === null || mv === undefined || mv === "") {
+        document.getElementById("batt-mv").textContent = "Waiting...";
+        document.getElementById("batt-fill").style.width = "0%";
+        document.getElementById("batt-fill").className = "battery-fill batt-red";
+        document.getElementById("countdown-timer").textContent = "--:--";
+        return;
+    }
+
     document.getElementById("batt-mv").textContent = mv;
     const pct = Math.max(0, Math.min(100, ((mv - 3000) / 700) * 100));
     const fill = document.getElementById("batt-fill");
@@ -307,18 +436,16 @@ function toggleCountdown() {
 
 async function pollSensors() {
     if (!hwConnected) return;
+    if (latestContext && latestContext.connection_role === "ground_station") {
+        applySensorSnapshot(latestContext.satellite, "ground_station");
+        return;
+    }
     const data = await api("sensors");
     if (data.error) {
         setPanelState("sensors", "error", "Unavailable");
         return;
     }
-    document.getElementById("sens-temp").textContent = data.temperature;
-    document.getElementById("sens-press").textContent = data.pressure;
-    document.getElementById("sens-humid").textContent = data.humidity;
-    document.getElementById("sens-ax").textContent = data.accel_x;
-    document.getElementById("sens-ay").textContent = data.accel_y;
-    document.getElementById("sens-az").textContent = data.accel_z;
-    setPanelState("sensors", "ready", "Live");
+    applySensorSnapshot(data, "satellite");
 }
 
 async function pollLora() {
@@ -344,21 +471,15 @@ async function pollStatus() {
     const data = await api("status");
     if (data.error) {
         hwConnected = false;
+        document.getElementById("no-hw").style.display = "block";
+        document.getElementById("sat-content").style.display = "none";
         setPanelState("controls", "error", "Unavailable");
         setPanelState("battery", "error", "Unavailable");
+        setPanelState("local", "error", "Unavailable");
         setControlsEnabled(false);
         return;
     }
-    document.getElementById("cur-mode").textContent = data.mode;
-    document.getElementById("cur-flight").textContent = data.flight;
-    highlightBtn("mode-btns", data.mode);
-    highlightBtn("flight-btns", data.flight.toLowerCase());
-    updateBattery(data.battery_mv, data.flight);
-
-    // TinyGS spoof indicator
-    document.getElementById("btn-spoof").className = data.mode === "tinygs" ? "btn-active" : "";
-    setPanelState("controls", "ready", "Live");
-    setPanelState("battery", "ready", "Live");
+    applyContext(data);
 }
 
 // --- Actions ---
@@ -374,11 +495,11 @@ async function setMode(m) {
     }
     await pollStatus();
 }
-async function setFlight(f) { await api("flight", "POST", {flight: f}); pollStatus(); }
+async function setFlight(f) { await api("flight", "POST", {flight: f}); await pollStatus(); }
 async function setDifficulty(l) {
     const data = await api("difficulty", "POST", {level: parseInt(l)});
     if (data.error) { alert("Failed: " + data.error); return; }
-    document.getElementById("cur-diff").textContent = l;
+    await pollStatus();
 }
 async function applyLora(radio) {
     const r = radio.toLowerCase();
@@ -407,8 +528,8 @@ async function tinygsStop() {
 async function resetDefaults() {
     if (!confirm("Reset RF config and mode to factory defaults?")) return;
     await api("reset", "POST");
-    pollStatus();
-    pollLora();
+    await pollStatus();
+    await pollLora();
     showToast("Defaults restored", 3000);
 }
 

@@ -9,8 +9,15 @@
     .ind-sim { background:#ffaa00; animation: blink 2s infinite; }
     .ind-hw { background:#00ff41; animation: blink 1s infinite; }
     @keyframes blink { 50% { opacity:0.4; } }
-    #tm-container { max-height:60vh; overflow-y:auto; border:1px solid #333; }
+    #tm-column-controls { display:flex; flex-wrap:wrap; gap:10px 14px; margin:10px 0 12px; padding:10px; border:1px solid #333; background:#111; align-items:center; }
+    .tm-column-title { color:#888; font-size:0.9em; }
+    .tm-column-toggle { font-size:0.9em; color:#ddd; white-space:nowrap; }
+    .tm-column-toggle input { margin-right:4px; }
+    #tm-columns-reset { margin-left:auto; }
+    #tm-container { max-height:60vh; overflow:auto; border:1px solid #333; }
     #tm-container table { margin:0; }
+    #telemetry-table { min-width: 1900px; font-size: 0.9em; }
+    #telemetry-table th, #telemetry-table td { white-space: nowrap; }
     #pkt-counter { color:#00ccff; margin-left:15px; }
     #last-seen { color:#888; margin-left:15px; font-size:0.9em; }
     .btn-active { background:#00ff41 !important; color:#0a0a0a !important; font-weight:bold; }
@@ -41,14 +48,40 @@
 
 <h2>Live Telemetry</h2>
 <div id="telemetry-status">Connecting...</div>
+<div id="tm-column-controls">
+    <span class="tm-column-title">Visible columns:</span>
+    <label class="tm-column-toggle"><input type="checkbox" data-col-toggle="recv_time" checked>Recv Time</label>
+    <label class="tm-column-toggle"><input type="checkbox" data-col-toggle="frame_ts">Frame TS</label>
+    <label class="tm-column-toggle"><input type="checkbox" data-col-toggle="apid" checked>APID</label>
+    <label class="tm-column-toggle"><input type="checkbox" data-col-toggle="seq" checked>Seq</label>
+    <label class="tm-column-toggle"><input type="checkbox" data-col-toggle="sc_id" checked>SC ID</label>
+    <label class="tm-column-toggle"><input type="checkbox" data-col-toggle="flight" checked>Flight</label>
+    <label class="tm-column-toggle"><input type="checkbox" data-col-toggle="difficulty">Difficulty</label>
+    <label class="tm-column-toggle"><input type="checkbox" data-col-toggle="battery" checked>Battery</label>
+    <label class="tm-column-toggle"><input type="checkbox" data-col-toggle="uptime">Uptime</label>
+    <label class="tm-column-toggle"><input type="checkbox" data-col-toggle="tc_count">TC Count</label>
+    <label class="tm-column-toggle"><input type="checkbox" data-col-toggle="error_count">Error Count</label>
+    <label class="tm-column-toggle"><input type="checkbox" data-col-toggle="temp" checked>Temp</label>
+    <label class="tm-column-toggle"><input type="checkbox" data-col-toggle="pressure" checked>Pressure</label>
+    <label class="tm-column-toggle"><input type="checkbox" data-col-toggle="humidity" checked>Humidity</label>
+    <label class="tm-column-toggle"><input type="checkbox" data-col-toggle="accel_x" checked>Accel X</label>
+    <label class="tm-column-toggle"><input type="checkbox" data-col-toggle="accel_y" checked>Accel Y</label>
+    <label class="tm-column-toggle"><input type="checkbox" data-col-toggle="accel_z" checked>Accel Z</label>
+    <label class="tm-column-toggle"><input type="checkbox" data-col-toggle="rssi" checked>RSSI</label>
+    <label class="tm-column-toggle"><input type="checkbox" data-col-toggle="snr" checked>SNR</label>
+    <label class="tm-column-toggle"><input type="checkbox" data-col-toggle="raw">Raw</label>
+    <button id="tm-columns-reset" type="button">Default</button>
+</div>
 <div id="tm-container">
 <table id="telemetry-table">
     <thead>
         <tr>
-            <th>Time</th><th>APID</th><th>Temp</th>
-            <th>Pressure</th><th>Humidity</th>
-            <th>Accel X</th><th>Accel Y</th><th>Accel Z</th>
-            <th>RSSI</th><th>SNR</th>
+            <th data-col="recv_time">Recv Time</th><th data-col="frame_ts">Frame TS</th><th data-col="apid">APID</th><th data-col="seq">Seq</th>
+            <th data-col="sc_id">SC ID</th><th data-col="flight">Flight</th><th data-col="difficulty">Difficulty</th><th data-col="battery">Battery</th>
+            <th data-col="uptime">Uptime</th><th data-col="tc_count">TC Count</th><th data-col="error_count">Error Count</th>
+            <th data-col="temp">Temp</th><th data-col="pressure">Pressure</th><th data-col="humidity">Humidity</th>
+            <th data-col="accel_x">Accel X</th><th data-col="accel_y">Accel Y</th><th data-col="accel_z">Accel Z</th>
+            <th data-col="rssi">RSSI</th><th data-col="snr">SNR</th><th data-col="raw">Raw</th>
         </tr>
     </thead>
     <tbody id="telemetry-body"></tbody>
