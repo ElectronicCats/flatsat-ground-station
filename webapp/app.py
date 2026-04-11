@@ -818,7 +818,8 @@ def start_telemetry_thread(app):
                                         "INSERT INTO telemetry "
                                         "(timestamp, apid, spacecraft_id, temperature, "
                                         "pressure, humidity, accel_x, accel_y, accel_z, "
-                                        "raw_hex) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                                        "raw_hex, rssi, snr) "
+                                        "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
                                         (
                                             datetime.now().isoformat(),
                                             pkt.apid,
@@ -830,6 +831,8 @@ def start_telemetry_thread(app):
                                             decoded.get("accel_y"),
                                             decoded.get("accel_z"),
                                             parsed["data"],
+                                            parsed.get("rssi"),
+                                            parsed.get("snr"),
                                         ),
                                     )
                                     db.commit()

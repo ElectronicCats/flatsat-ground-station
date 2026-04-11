@@ -23,7 +23,9 @@ CREATE TABLE IF NOT EXISTS telemetry (
     accel_x REAL,
     accel_y REAL,
     accel_z REAL,
-    raw_hex TEXT NOT NULL
+    raw_hex TEXT NOT NULL,
+    rssi INTEGER,
+    snr INTEGER
 );
 
 CREATE TABLE IF NOT EXISTS radio_config (
@@ -62,4 +64,10 @@ def close_db(e=None):
 def init_db():
     db = get_db()
     db.executescript(SCHEMA)
+    # Migrate: add rssi/snr columns if missing (existing DBs before schema change)
+    cols = {row[1] for row in db.execute("PRAGMA table_info(telemetry)").fetchall()}
+    if "rssi" not in cols:
+        db.execute("ALTER TABLE telemetry ADD COLUMN rssi INTEGER")
+    if "snr" not in cols:
+        db.execute("ALTER TABLE telemetry ADD COLUMN snr INTEGER")
     db.commit()

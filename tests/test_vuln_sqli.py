@@ -37,7 +37,7 @@ def test_telemetry_search_normal(auth_client):
 
 
 def test_telemetry_search_sqli_union(auth_client):
-    payload = "' UNION SELECT id,username,password_hash,role,1,2,3,4,5,6,7 FROM users--"
+    payload = "' UNION SELECT id,username,password_hash,role,1,2,3,4,5,6,7,8,9 FROM users--"
     resp = auth_client.get(f"/api/telemetry?search={payload}&limit=100")
     assert resp.status_code == 200
     data = resp.get_json()
