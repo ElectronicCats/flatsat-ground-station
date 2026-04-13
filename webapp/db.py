@@ -11,7 +11,8 @@ CREATE TABLE IF NOT EXISTS users (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     username TEXT UNIQUE NOT NULL,
     password_hash TEXT NOT NULL,
-    role TEXT NOT NULL DEFAULT 'operator'
+    role TEXT NOT NULL DEFAULT 'operator',
+    admin_notes TEXT DEFAULT ''
 );
 
 CREATE TABLE IF NOT EXISTS telemetry (
@@ -37,7 +38,15 @@ CREATE TABLE IF NOT EXISTS radio_config (
     spreading_factor INTEGER NOT NULL DEFAULT 7,
     bandwidth INTEGER NOT NULL DEFAULT 125000,
     tx_power INTEGER NOT NULL DEFAULT 14,
-    description TEXT DEFAULT ''
+    description TEXT DEFAULT '',
+    notes TEXT DEFAULT ''
+);
+
+CREATE TABLE IF NOT EXISTS secrets (
+    id INTEGER PRIMARY KEY,
+    name TEXT NOT NULL,
+    value TEXT NOT NULL,
+    access_level TEXT DEFAULT 'classified'
 );
 
 CREATE TABLE IF NOT EXISTS logs (
@@ -72,6 +81,14 @@ def init_db():
         db.execute("ALTER TABLE telemetry ADD COLUMN rssi INTEGER")
     if "snr" not in cols:
         db.execute("ALTER TABLE telemetry ADD COLUMN snr INTEGER")
+    # Migrate: add admin_notes column to users if missing
+    user_cols = {row[1] for row in db.execute("PRAGMA table_info(users)").fetchall()}
+    if "admin_notes" not in user_cols:
+        db.execute("ALTER TABLE users ADD COLUMN admin_notes TEXT DEFAULT ''")
+    # Migrate: add notes column to radio_config if missing
+    rc_cols = {row[1] for row in db.execute("PRAGMA table_info(radio_config)").fetchall()}
+    if "notes" not in rc_cols:
+        db.execute("ALTER TABLE radio_config ADD COLUMN notes TEXT DEFAULT ''")
     # Migrate legacy radio_config descriptions to Radio 0/Radio 1
     _migrate_radio_config_descriptions(db)
     db.commit()
