@@ -55,7 +55,9 @@ async function hwStatus() {
         if (data.mode === "hardware") {
             el.textContent = "HARDWARE";
             el.style.color = "#00ff41";
-            serial.textContent = " | SN: " + (data.serial_number || "");
+            const ports = data.ports || {};
+            const portInfo = ports.radio0 || ports.shell || "";
+            serial.textContent = " | SN: " + (data.serial_number || "") + (portInfo ? " | Port: " + portInfo : "");
             setButtons("hardware");
             setIndicator("hardware");
             document.getElementById("btn-connect").className = "btn-active";

@@ -339,9 +339,22 @@ def create_app(config_class=Config, db_path=None):
     def api_hardware_status():
         gs = app.config["GS_STATE"]
         if gs.is_hardware:
+            dev = gs.device
+            try:
+                disc = dev._discovered if dev else None
+                ports = {
+                    "radio0": getattr(disc, "radio0_port", None),
+                    "radio1": getattr(disc, "radio1_port", None),
+                    "shell": getattr(disc, "shell_port", None),
+                }
+                # Ensure port values are strings (not mock objects in tests)
+                ports = {k: str(v) if v else None for k, v in ports.items()}
+            except Exception:
+                ports = {"radio0": None, "radio1": None, "shell": None}
             return {
                 "mode": "hardware",
-                "serial_number": gs.device.serial_number if gs.device else None,
+                "serial_number": dev.serial_number if dev else None,
+                "ports": ports,
             }
         if gs.is_simulated:
             return {"mode": "simulated", "mock_running": gs.mock_running}

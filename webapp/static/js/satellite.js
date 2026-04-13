@@ -170,9 +170,12 @@ async function pollInfo() {
     document.getElementById("no-hw").style.display = "none";
     document.getElementById("sat-content").style.display = "block";
     applyContext(data);
-    // Show hardware serial number
+    // Show hardware serial number and port
     fetch("/api/hardware/status").then(r => r.json()).then(d => {
-        document.getElementById("hw-sn").textContent = d.serial_number || "-";
+        const ports = d.ports || {};
+        const port = ports.radio0 || ports.shell || "";
+        const label = (d.serial_number || "-") + (port ? " (" + port + ")" : "");
+        document.getElementById("hw-sn").textContent = label;
     }).catch(() => {});
 }
 
