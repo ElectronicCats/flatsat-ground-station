@@ -17,13 +17,15 @@ def seed_db():
 
     _seed_users(db)
     _seed_radio_config(db)
+    _seed_secrets(db)
+    _seed_logs(db)
     db.commit()
 
 
 def _seed_users(db):
     db.execute(
-        "INSERT INTO users (username, password_hash, role) VALUES (?, ?, ?)",
-        ("admin", "5f4dcc3b5aa765d61d8327deb882cf99", "admin"),
+        "INSERT INTO users (username, password_hash, role, admin_notes) VALUES (?, ?, ?, ?)",
+        ("admin", "5f4dcc3b5aa765d61d8327deb882cf99", "admin", "PWNSAT{XSS_IN_MISSION_LOGS}"),
     )
     db.execute(
         "INSERT INTO users (username, password_hash, role) VALUES (?, ?, ?)",
@@ -55,12 +57,21 @@ def _seed_telemetry(db):
 def _seed_radio_config(db):
     sql = (
         "INSERT INTO radio_config "
-        "(owner, frequency, spreading_factor, bandwidth, tx_power, description) "
-        "VALUES (?, ?, ?, ?, ?, ?)"
+        "(owner, frequency, spreading_factor, bandwidth, tx_power, description, notes) "
+        "VALUES (?, ?, ?, ?, ?, ?, ?)"
     )
-    db.execute(sql, ("admin", 436703000, 10, 125000, 22, "TinyGS Norbi downlink — CLASSIFIED"))
-    db.execute(sql, ("operator", 915000000, 7, 125000, 14, RADIO_LABELS[0]))
-    db.execute(sql, ("operator", 916000000, 7, 125000, 14, RADIO_LABELS[1]))
+    db.execute(
+        sql, ("admin", 436703000, 10, 125000, 22, "TinyGS Norbi downlink — CLASSIFIED", "PWNSAT{IDOR_ADMIN_CONFIG}")
+    )
+    db.execute(sql, ("operator", 915000000, 7, 125000, 14, RADIO_LABELS[0], ""))
+    db.execute(sql, ("operator", 916000000, 7, 125000, 14, RADIO_LABELS[1], ""))
+
+
+def _seed_secrets(db):
+    db.execute(
+        "INSERT INTO secrets (name, value, access_level) VALUES (?, ?, ?)",
+        ("satellite_master_key", "PWNSAT{TELEMETRY_DB_TAMPERED}", "classified"),
+    )
 
 
 def _seed_logs(db):
@@ -85,3 +96,8 @@ def _seed_logs(db):
             "INSERT INTO logs (timestamp, level, source, message) VALUES (?, ?, ?, ?)",
             (ts.isoformat(), level, source, message),
         )
+    # Hidden DEBUG flag entry (GS-11)
+    db.execute(
+        "INSERT INTO logs (timestamp, level, source, message) VALUES (?, ?, ?, ?)",
+        ("2026-01-01T00:00:00", "DEBUG", "flag-service", "PWNSAT{LOG_INJECTION_SUCCESS}"),
+    )

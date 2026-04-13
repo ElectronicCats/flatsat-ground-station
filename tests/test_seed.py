@@ -66,7 +66,7 @@ def test_seed_logs(app):
         seed_db()
         db = get_db()
         count = db.execute("SELECT COUNT(*) FROM logs").fetchone()[0]
-        assert count == 0  # logs are no longer seeded
+        assert count == 13  # 12 normal entries + 1 DEBUG flag entry
 
 
 def test_seed_idempotent(app):

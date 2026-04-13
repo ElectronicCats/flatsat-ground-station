@@ -61,3 +61,42 @@ def test_schema_has_secrets_table(app):
         db = get_db()
         tables = {row[0] for row in db.execute("SELECT name FROM sqlite_master WHERE type='table'").fetchall()}
         assert "secrets" in tables
+
+
+def test_seed_admin_notes_flag(app):
+    from webapp.db import get_db
+
+    with app.app_context():
+        db = get_db()
+        admin = db.execute("SELECT admin_notes FROM users WHERE username = 'admin'").fetchone()
+        assert admin["admin_notes"] == "PWNSAT{XSS_IN_MISSION_LOGS}"
+
+
+def test_seed_admin_radio_config_notes_flag(app):
+    from webapp.db import get_db
+
+    with app.app_context():
+        db = get_db()
+        config = db.execute("SELECT notes FROM radio_config WHERE owner = 'admin'").fetchone()
+        assert config["notes"] == "PWNSAT{IDOR_ADMIN_CONFIG}"
+
+
+def test_seed_secrets_flag(app):
+    from webapp.db import get_db
+
+    with app.app_context():
+        db = get_db()
+        secret = db.execute("SELECT * FROM secrets WHERE name = 'satellite_master_key'").fetchone()
+        assert secret["value"] == "PWNSAT{TELEMETRY_DB_TAMPERED}"
+        assert secret["access_level"] == "classified"
+
+
+def test_seed_debug_log_flag(app):
+    from webapp.db import get_db
+
+    with app.app_context():
+        db = get_db()
+        log = db.execute("SELECT * FROM logs WHERE level = 'DEBUG'").fetchone()
+        assert log is not None
+        assert log["message"] == "PWNSAT{LOG_INJECTION_SUCCESS}"
+        assert log["source"] == "flag-service"
