@@ -183,8 +183,11 @@ def create_app(config_class=Config, db_path=None):
         from webapp.db import get_db
 
         db = get_db()
-        config = db.execute("SELECT * FROM radio_config WHERE owner = ?", (g.username,)).fetchone()
-        return render_template("config.html", config=config)
+        configs = db.execute("SELECT * FROM radio_config WHERE owner = ? ORDER BY id", (g.username,)).fetchall()
+        config_map = {}
+        for c in configs:
+            config_map[c["description"]] = dict(c)
+        return render_template("config.html", configs=config_map)
 
     @app.route("/api/config/radio/<int:config_id>")
     @login_required
@@ -206,6 +209,7 @@ def create_app(config_class=Config, db_path=None):
         from webapp.db import get_db
 
         data = request.get_json(silent=True) or {}
+        radio = data.get("radio", "Radio 0")
         frequency = data.get("frequency", "915000000")
         spreading_factor = data.get("spreading_factor", "7")
         bandwidth = data.get("bandwidth", "125000")
@@ -226,7 +230,7 @@ def create_app(config_class=Config, db_path=None):
         db = get_db()
         existing = db.execute(
             "SELECT id FROM radio_config WHERE owner = ? AND description = ?",
-            (g.username, "Manual"),
+            (g.username, radio),
         ).fetchone()
 
         def safe_int(val, default):
@@ -249,13 +253,13 @@ def create_app(config_class=Config, db_path=None):
             db.execute(
                 "INSERT INTO radio_config (owner, frequency, spreading_factor, bandwidth, tx_power, description) "
                 "VALUES (?, ?, ?, ?, ?, ?)",
-                (g.username, freq_int, sf_int, bw_int, power_int, "Manual"),
+                (g.username, freq_int, sf_int, bw_int, power_int, radio),
             )
         db.commit()
 
         config = db.execute(
             "SELECT * FROM radio_config WHERE owner = ? AND description = ?",
-            (g.username, "Manual"),
+            (g.username, radio),
         ).fetchone()
 
         return {

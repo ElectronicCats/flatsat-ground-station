@@ -3,12 +3,21 @@
 {% block content %}
 <h1>Radio Configuration</h1>
 <form id="config-form">
-    <label>Frequency (Hz): <input name="frequency" id="frequency" type="number" value="{{ config.frequency if config else 915000000 }}"></label><br><br>
-    <label>Spreading Factor: <input name="spreading_factor" id="spreading_factor" type="number" min="7" max="12" value="{{ config.spreading_factor if config else 7 }}"></label><br><br>
-    <label>Bandwidth (Hz): <input name="bandwidth" id="bandwidth" type="number" value="{{ config.bandwidth if config else 125000 }}"></label><br><br>
-    <label>TX Power (dBm): <input name="tx_power" id="tx_power" type="number" value="{{ config.tx_power if config else 14 }}"></label><br><br>
+    <label>Radio:
+        <select id="radio" onchange="loadRadioConfig()">
+            <option value="Radio 0">Radio 0 — Telemetry RX/TX</option>
+            <option value="Radio 1">Radio 1 — Telecommand TX/RX</option>
+        </select>
+    </label><br><br>
+    <label>Frequency (Hz): <input name="frequency" id="frequency" type="number" value="915000000"></label><br><br>
+    <label>Spreading Factor: <input name="spreading_factor" id="spreading_factor" type="number" min="7" max="12" value="7"></label><br><br>
+    <label>Bandwidth (Hz): <input name="bandwidth" id="bandwidth" type="number" value="125000"></label><br><br>
+    <label>TX Power (dBm): <input name="tx_power" id="tx_power" type="number" value="14"></label><br><br>
     <button type="submit">Update Config</button>
 </form>
 <pre id="config-response"></pre>
+<script>
+const configs = {{ configs | tojson }};
+</script>
 <script src="/static/js/config.js"></script>
 {% endblock %}

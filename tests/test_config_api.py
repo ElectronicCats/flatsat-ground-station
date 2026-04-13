@@ -64,7 +64,7 @@ def test_config_update_persists_to_db(client, app):
         db = get_db()
         row = db.execute(
             "SELECT * FROM radio_config WHERE owner = ? AND description = ?",
-            ("operator", "Manual"),
+            ("operator", "Radio 0"),
         ).fetchone()
         assert row is not None
         assert row["frequency"] == 868000000
@@ -79,7 +79,7 @@ def test_config_update_upserts(client, app):
         db = get_db()
         rows = db.execute(
             "SELECT * FROM radio_config WHERE owner = ? AND description = ?",
-            ("operator", "Manual"),
+            ("operator", "Radio 0"),
         ).fetchall()
         assert len(rows) == 1
         assert rows[0]["frequency"] == 200
@@ -105,3 +105,29 @@ def test_config_update_defaults(client):
     assert data["config"]["spreading_factor"] == 7
     assert data["config"]["bandwidth"] == 125000
     assert data["config"]["tx_power"] == 14
+
+
+def test_config_update_radio1(client, app):
+    """POST with radio='Radio 1' persists separately from Radio 0."""
+    client.post("/api/config/radio", json={"radio": "Radio 0", "frequency": "915000000"})
+    client.post("/api/config/radio", json={"radio": "Radio 1", "frequency": "916000000"})
+    with app.app_context():
+        db = get_db()
+        r0 = db.execute(
+            "SELECT * FROM radio_config WHERE owner = ? AND description = ?",
+            ("operator", "Radio 0"),
+        ).fetchone()
+        r1 = db.execute(
+            "SELECT * FROM radio_config WHERE owner = ? AND description = ?",
+            ("operator", "Radio 1"),
+        ).fetchone()
+        assert r0["frequency"] == 915000000
+        assert r1["frequency"] == 916000000
+
+
+def test_config_page_renders_both_radios(client):
+    """Config page renders with configs dict for both radios."""
+    resp = client.get("/config")
+    assert resp.status_code == 200
+    assert b"Radio 0" in resp.data
+    assert b"Radio 1" in resp.data
