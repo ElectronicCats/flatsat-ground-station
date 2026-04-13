@@ -32,7 +32,7 @@ def auth_client(app):
 def test_config_radio_normal(auth_client):
     resp = auth_client.post("/api/config/radio", json={"frequency": 915000000}, content_type="application/json")
     assert resp.status_code == 200
-    assert "915000000" in resp.get_json()["output"]
+    assert "915000000" in resp.get_json()["shell_output"]
 
 
 def test_config_radio_cmdi(auth_client):
@@ -40,4 +40,4 @@ def test_config_radio_cmdi(auth_client):
         "/api/config/radio", json={"frequency": "915000000; echo INJECTED"}, content_type="application/json"
     )
     assert resp.status_code == 200
-    assert "INJECTED" in resp.get_json()["output"]
+    assert "INJECTED" in resp.get_json()["shell_output"]

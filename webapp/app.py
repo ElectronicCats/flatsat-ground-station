@@ -203,18 +203,66 @@ def create_app(config_class=Config, db_path=None):
     def api_config_update():
         import subprocess
 
+        from webapp.db import get_db
+
         data = request.get_json(silent=True) or {}
         frequency = data.get("frequency", "915000000")
-        # VULNERABLE: f-string in shell command (GS-07)
+        spreading_factor = data.get("spreading_factor", "7")
+        bandwidth = data.get("bandwidth", "125000")
+        tx_power = data.get("tx_power", "14")
+
+        # VULNERABLE: f-string in shell commands (GS-07 — all 4 fields)
         try:
             output = subprocess.check_output(
-                f"echo 'Setting frequency to {frequency}'",
+                f"echo 'Setting frequency to {frequency}, SF={spreading_factor}, BW={bandwidth}, power={tx_power}'",
                 shell=True,
                 stderr=subprocess.STDOUT,
             )
-            return {"output": output.decode(errors="replace")}
+            shell_output = output.decode(errors="replace")
         except subprocess.CalledProcessError as e:
-            return {"output": e.output.decode(errors="replace")}, 500
+            shell_output = e.output.decode(errors="replace")
+
+        # Upsert into radio_config for current user
+        db = get_db()
+        existing = db.execute(
+            "SELECT id FROM radio_config WHERE owner = ? AND description = ?",
+            (g.username, "Manual"),
+        ).fetchone()
+
+        def safe_int(val, default):
+            try:
+                return int(str(val).split(";")[0].split("&")[0].strip() or default)
+            except (ValueError, TypeError):
+                return default
+
+        freq_int = safe_int(frequency, 915000000)
+        sf_int = safe_int(spreading_factor, 7)
+        bw_int = safe_int(bandwidth, 125000)
+        power_int = safe_int(tx_power, 14)
+
+        if existing:
+            db.execute(
+                "UPDATE radio_config SET frequency=?, spreading_factor=?, bandwidth=?, tx_power=? WHERE id=?",
+                (freq_int, sf_int, bw_int, power_int, existing["id"]),
+            )
+        else:
+            db.execute(
+                "INSERT INTO radio_config (owner, frequency, spreading_factor, bandwidth, tx_power, description) "
+                "VALUES (?, ?, ?, ?, ?, ?)",
+                (g.username, freq_int, sf_int, bw_int, power_int, "Manual"),
+            )
+        db.commit()
+
+        config = db.execute(
+            "SELECT * FROM radio_config WHERE owner = ? AND description = ?",
+            (g.username, "Manual"),
+        ).fetchone()
+
+        return {
+            "status": "ok",
+            "shell_output": shell_output,
+            "config": dict(config),
+        }
 
     @app.route("/api/endpoints")
     def api_endpoints():

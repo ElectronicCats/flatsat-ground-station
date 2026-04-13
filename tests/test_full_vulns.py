@@ -88,7 +88,7 @@ class TestGS06_IDOR:
 class TestGS07_CMDI:
     def test_command_injection(self, operator):
         resp = operator.post("/api/config/radio", json={"frequency": "1; echo GS07"}, content_type="application/json")
-        assert "GS07" in resp.get_json()["output"]
+        assert "GS07" in resp.get_json()["shell_output"]
 
 
 class TestGS08_KillChain:
