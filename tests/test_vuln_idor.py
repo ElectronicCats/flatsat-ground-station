@@ -35,6 +35,7 @@ def test_idor_access_admin_config(operator_client):
     data = resp.get_json()
     assert data["owner"] == "admin"
     assert "CLASSIFIED" in data["description"]
+    assert data["notes"] == "PWNSAT{IDOR_ADMIN_CONFIG}"
 
 
 def test_idor_own_config(operator_client):

