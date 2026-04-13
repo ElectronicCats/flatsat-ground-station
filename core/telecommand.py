@@ -1,8 +1,11 @@
-"""Telecommand builder with AES-128-ECB encryption.
+"""Telecommand builder with AES encryption.
 
 Builds TC frames for the FlatSat. Supports plain commands and
 AES-encrypted privileged commands (TC_OP_PRIVILEGED 0xD0).
+SDLS Level 3 uses AES-128-CTR with IV derived from frame MET timestamp.
 """
+
+import time as _time
 
 from core.ccsds import build_tc
 from core.constants import (
@@ -47,14 +50,19 @@ xor_decrypt = xor_encrypt
 
 
 def build_command_tc(opcode: int, data: bytes = b"", seq_count: int | None = None) -> bytes:
-    """Build a telecommand frame with opcode + optional data."""
+    """Build a telecommand frame with opcode + optional data.
+
+    Timestamp is set to current epoch (truncated to uint32) so the SDLS
+    CTR IV is unique per frame.
+    """
     global _tc_seq_count
     if seq_count is None:
         seq_count = _tc_seq_count
         _tc_seq_count = (_tc_seq_count + 1) & 0x3FFF
 
     payload = bytes([opcode]) + data
-    return build_tc(APID_TC_COMMAND, payload, seq_count=seq_count)
+    timestamp = int(_time.time()) & 0xFFFFFFFF
+    return build_tc(APID_TC_COMMAND, payload, seq_count=seq_count, timestamp=timestamp)
 
 
 def build_privileged_tc(inner_opcode: int, inner_data: bytes = b"", seq_count: int | None = None) -> bytes:
@@ -73,4 +81,5 @@ def build_privileged_tc(inner_opcode: int, inner_data: bytes = b"", seq_count: i
 
     encrypted = _aes_ecb_encrypt(AES_KEY_HARDCODED, plaintext)
     payload = bytes([TC_OP_PRIVILEGED]) + encrypted
-    return build_tc(APID_TC_COMMAND, payload, seq_count=seq_count)
+    timestamp = int(_time.time()) & 0xFFFFFFFF
+    return build_tc(APID_TC_COMMAND, payload, seq_count=seq_count, timestamp=timestamp)

@@ -7,6 +7,8 @@ from core.ccsds import (
     parse_frame,
     parse_packet_id,
     parse_seq_ctrl,
+    sdls_protect_frame,
+    sdls_unprotect_frame,
 )
 from core.constants import (
     APID_TC_COMMAND,
@@ -110,3 +112,42 @@ def test_payload_too_large():
 
     with pytest.raises(ValueError, match="payload"):
         build_tm(APID_TM_HEARTBEAT, bytes(CCSDS_MAX_PAYLOAD + 1), seq_count=0, timestamp=0)
+
+
+def test_sdls_ctr_round_trip():
+    """Level 3 AES-CTR: protect then unprotect returns original frame."""
+    payload = bytes([0x10])  # PING opcode
+    frame = build_tc(APID_TC_COMMAND, payload, seq_count=1, timestamp=12345)
+    protected = sdls_protect_frame(frame, difficulty=3)
+    assert protected != frame, "CTR should change the frame"
+    recovered = sdls_unprotect_frame(protected, difficulty=3)
+    assert recovered == frame, "CTR round-trip must recover original"
+
+
+def test_sdls_ctr_different_timestamps_produce_different_ciphertext():
+    """Different MET timestamps must produce different ciphertext (CTR IV varies)."""
+    payload = bytes([0x10])
+    frame_a = build_tc(APID_TC_COMMAND, payload, seq_count=1, timestamp=100)
+    frame_b = build_tc(APID_TC_COMMAND, payload, seq_count=1, timestamp=200)
+    enc_a = sdls_protect_frame(frame_a, difficulty=3)
+    enc_b = sdls_protect_frame(frame_b, difficulty=3)
+    # Payloads should differ because IV (from timestamp) differs
+    assert enc_a[10:-2] != enc_b[10:-2]
+
+
+def test_sdls_xor_still_works():
+    """Level 2 XOR: protect then unprotect returns original frame."""
+    payload = bytes([0x10, 0x20, 0x30])
+    frame = build_tc(APID_TC_COMMAND, payload, seq_count=1, timestamp=0)
+    protected = sdls_protect_frame(frame, difficulty=2)
+    assert protected != frame
+    recovered = sdls_unprotect_frame(protected, difficulty=2)
+    assert recovered == frame
+
+
+def test_sdls_plaintext_passthrough():
+    """Level 0-1: no encryption applied."""
+    payload = bytes([0x10])
+    frame = build_tc(APID_TC_COMMAND, payload, seq_count=1, timestamp=0)
+    assert sdls_protect_frame(frame, difficulty=0) == frame
+    assert sdls_protect_frame(frame, difficulty=1) == frame

@@ -77,30 +77,46 @@ def _aes_ecb_decrypt(data: bytes) -> bytes:
     return dec.update(data) + dec.finalize()
 
 
-def _sdls_transform_payload(payload: bytearray, difficulty: int, decrypt: bool = False) -> bytearray:
+def _aes_ctr_transform(data: bytes, iv: bytes) -> bytes:
+    """AES-128-CTR encrypt/decrypt (same operation). IV must be 16 bytes."""
+    try:
+        from Crypto.Cipher import AES
+
+        cipher = AES.new(AES_KEY_HARDCODED, AES.MODE_CTR, nonce=b"", initial_value=iv)
+        return cipher.encrypt(data)
+    except ImportError:
+        pass
+    from cryptography.hazmat.primitives.ciphers import Cipher, algorithms, modes
+
+    cipher = Cipher(algorithms.AES(AES_KEY_HARDCODED), modes.CTR(iv))
+    enc = cipher.encryptor()
+    return enc.update(data) + enc.finalize()
+
+
+def _sdls_transform_payload(
+    payload: bytearray, difficulty: int, decrypt: bool = False, timestamp: int = 0
+) -> bytearray:
     """XOR or AES transform payload in-place, matching firmware block handling.
 
-    Firmware only processes payload_len // 16 full AES blocks; trailing
-    bytes are left untouched.  CRC is never recomputed — the firmware
-    validates CRC against the plaintext payload.
+    Difficulty 2: XOR with PWNSAT key (symmetric).
+    Difficulty 3+: AES-128-CTR with IV derived from MET timestamp.
     """
     if difficulty == 2:
         # XOR (symmetric — same op for encrypt and decrypt)
         for i in range(len(payload)):
             payload[i] ^= XOR_KEY[i % len(XOR_KEY)]
     else:
-        # AES-128-ECB: only full 16-byte blocks, trailing bytes unchanged
-        full_blocks = (len(payload) // 16) * 16
-        op = _aes_ecb_decrypt if decrypt else _aes_ecb_encrypt
-        for i in range(0, full_blocks, 16):
-            payload[i : i + 16] = op(bytes(payload[i : i + 16]))
+        # AES-128-CTR: IV derived from MET (first 4 bytes), rest zero
+        iv = timestamp.to_bytes(4, "big") + b"\x00" * 12
+        result = _aes_ctr_transform(bytes(payload), iv)
+        payload[:] = result
     return payload
 
 
 def sdls_protect_frame(frame: bytes, difficulty: int) -> bytes:
     """Encrypt outgoing TC payload to match firmware sdls_unprotect_frame().
 
-    Level 0-1: plaintext.  Level 2: XOR.  Level 3+: AES-128-ECB.
+    Level 0-1: plaintext.  Level 2: XOR.  Level 3+: AES-128-CTR.
     Only payload bytes are encrypted; header and CRC are untouched.
     Firmware decrypts before CRC check, so CRC must match plaintext.
     """
@@ -109,14 +125,16 @@ def sdls_protect_frame(frame: bytes, difficulty: int) -> bytes:
     payload_start = CCSDS_HDR_SIZE + CCSDS_SEC_HDR_SIZE
     payload_end = len(frame) - CCSDS_CRC_SIZE
     payload = bytearray(frame[payload_start:payload_end])
-    _sdls_transform_payload(payload, difficulty, decrypt=False)
+    # Extract timestamp from secondary header for CTR IV
+    timestamp = struct.unpack(">I", frame[CCSDS_HDR_SIZE : CCSDS_HDR_SIZE + 4])[0]
+    _sdls_transform_payload(payload, difficulty, decrypt=False, timestamp=timestamp)
     return frame[:payload_start] + bytes(payload) + frame[payload_end:]
 
 
 def sdls_unprotect_frame(frame: bytes, difficulty: int) -> bytes:
     """Decrypt incoming TM payload to match firmware sdls_protect_frame().
 
-    Level 0-1: plaintext.  Level 2: XOR.  Level 3+: AES-128-ECB.
+    Level 0-1: plaintext.  Level 2: XOR.  Level 3+: AES-128-CTR.
     Only payload bytes are decrypted; header and CRC are untouched.
     Firmware encrypts after CRC computation, so CRC matches plaintext.
     """
@@ -125,7 +143,8 @@ def sdls_unprotect_frame(frame: bytes, difficulty: int) -> bytes:
     payload_start = CCSDS_HDR_SIZE + CCSDS_SEC_HDR_SIZE
     payload_end = len(frame) - CCSDS_CRC_SIZE
     payload = bytearray(frame[payload_start:payload_end])
-    _sdls_transform_payload(payload, difficulty, decrypt=True)
+    timestamp = struct.unpack(">I", frame[CCSDS_HDR_SIZE : CCSDS_HDR_SIZE + 4])[0]
+    _sdls_transform_payload(payload, difficulty, decrypt=True, timestamp=timestamp)
     return frame[:payload_start] + bytes(payload) + frame[payload_end:]
 
 
