@@ -34,39 +34,49 @@ function setIndicator(mode) {
     ind.className = mode === "hardware" ? "ind-hw" : mode === "simulated" ? "ind-sim" : "ind-idle";
 }
 
+function showDashboardStatus(msg) {
+    const el = document.getElementById("telemetry-status");
+    if (el) el.textContent = msg;
+}
+
 // --- Status (polls every 5s when hardware) ---
 async function hwStatus() {
-    const resp = await fetch("/api/hardware/status");
-    const data = await resp.json();
-    const el = document.getElementById("hw-mode");
-    const serial = document.getElementById("hw-serial");
+    try {
+        const resp = await fetch("/api/hardware/status");
+        if (!resp.ok) { showDashboardStatus("Status check failed"); return; }
+        const data = await resp.json();
+        const el = document.getElementById("hw-mode");
+        const serial = document.getElementById("hw-serial");
 
-    // Clear all active states first
-    document.getElementById("btn-simulate").className = "";
-    document.getElementById("btn-connect").className = "";
+        // Clear all active states first
+        document.getElementById("btn-simulate").className = "";
+        document.getElementById("btn-connect").className = "";
 
-    if (data.mode === "hardware") {
-        el.textContent = "HARDWARE";
-        el.style.color = "#00ff41";
-        serial.textContent = " | SN: " + (data.serial_number || "");
-        setButtons("hardware");
-        setIndicator("hardware");
-        document.getElementById("btn-connect").className = "btn-active";
-    } else if (data.mode === "simulated") {
-        el.textContent = "SIMULATED";
-        el.style.color = "#ffaa00";
-        serial.textContent = "";
-        document.getElementById("hw-rssi").textContent = "";
-        setButtons("simulated");
-        setIndicator("simulated");
-        document.getElementById("btn-simulate").className = "btn-active";
-    } else {
-        el.textContent = "IDLE";
-        el.style.color = "#888";
-        serial.textContent = "";
-        document.getElementById("hw-rssi").textContent = "";
-        setButtons("idle");
-        setIndicator("idle");
+        if (data.mode === "hardware") {
+            el.textContent = "HARDWARE";
+            el.style.color = "#00ff41";
+            serial.textContent = " | SN: " + (data.serial_number || "");
+            setButtons("hardware");
+            setIndicator("hardware");
+            document.getElementById("btn-connect").className = "btn-active";
+        } else if (data.mode === "simulated") {
+            el.textContent = "SIMULATED";
+            el.style.color = "#ffaa00";
+            serial.textContent = "";
+            document.getElementById("hw-rssi").textContent = "";
+            setButtons("simulated");
+            setIndicator("simulated");
+            document.getElementById("btn-simulate").className = "btn-active";
+        } else {
+            el.textContent = "IDLE";
+            el.style.color = "#888";
+            serial.textContent = "";
+            document.getElementById("hw-rssi").textContent = "";
+            setButtons("idle");
+            setIndicator("idle");
+        }
+    } catch (e) {
+        console.error("[GS] Status error:", e);
     }
 }
 
@@ -75,43 +85,59 @@ setInterval(hwStatus, 5000);
 
 // --- Actions ---
 async function hwSimulate() {
-    await fetch("/api/hardware/simulate", {method: "POST"});
-    pktCount = 0;
-    hwStatus();
+    try {
+        const resp = await fetch("/api/hardware/simulate", {method: "POST"});
+        if (!resp.ok) { alert("Simulate failed"); return; }
+        pktCount = 0;
+        hwStatus();
+    } catch (e) {
+        alert("Simulate error: " + e.message);
+    }
 }
 
 async function hwStop() {
-    await fetch("/api/hardware/stop", {method: "POST"});
-    document.getElementById("telemetry-body").innerHTML = "";
-    pktCount = 0;
-    document.getElementById("pkt-counter").textContent = "";
-    document.getElementById("last-seen").textContent = "";
-    hwStatus();
+    try {
+        const resp = await fetch("/api/hardware/stop", {method: "POST"});
+        if (!resp.ok) { alert("Stop failed"); return; }
+        document.getElementById("telemetry-body").innerHTML = "";
+        pktCount = 0;
+        document.getElementById("pkt-counter").textContent = "";
+        document.getElementById("last-seen").textContent = "";
+        hwStatus();
+    } catch (e) {
+        alert("Stop error: " + e.message);
+    }
 }
 
 async function hwScan() {
     console.log("[GS] Scanning for devices...");
-    const resp = await fetch("/api/hardware/scan", {method: "POST"});
-    const data = await resp.json();
-    console.log("[GS] Scan result:", data);
-    const sel = document.getElementById("hw-devices");
-    sel.innerHTML = "";
+    try {
+        const resp = await fetch("/api/hardware/scan", {method: "POST"});
+        if (!resp.ok) { alert("Scan failed"); return; }
+        const data = await resp.json();
+        console.log("[GS] Scan result:", data);
+        const sel = document.getElementById("hw-devices");
+        sel.innerHTML = "";
 
-    if (data.devices.length > 0) {
-        sel.style.display = "inline";
-        hasScannedDevices = true;
-        data.devices.forEach(d => {
-            const opt = document.createElement("option");
-            opt.value = d.serial_number;
-            opt.textContent = d.serial_number + " (" + d.health + ")";
-            sel.appendChild(opt);
-        });
-        setButtons("scanned");
-    } else {
-        sel.style.display = "none";
-        hasScannedDevices = false;
-        alert("No FlatSat devices found");
-        setButtons("idle");
+        if (data.devices && data.devices.length > 0) {
+            sel.style.display = "inline";
+            hasScannedDevices = true;
+            data.devices.forEach(d => {
+                const opt = document.createElement("option");
+                opt.value = d.serial_number;
+                opt.textContent = d.serial_number + " (" + d.health + ")";
+                sel.appendChild(opt);
+            });
+            setButtons("scanned");
+        } else {
+            sel.style.display = "none";
+            hasScannedDevices = false;
+            alert("No FlatSat devices found");
+            setButtons("idle");
+        }
+    } catch (e) {
+        console.error("[GS] Scan error:", e);
+        alert("Scan error: " + e.message);
     }
 }
 
@@ -141,16 +167,22 @@ async function hwConnect() {
 
 async function hwDisconnect() {
     console.log("[GS] Disconnecting...");
-    const resp = await fetch("/api/hardware/disconnect", {method: "POST"});
-    const data = await resp.json();
-    console.log("[GS] Disconnect result:", data);
-    document.getElementById("hw-devices").style.display = "none";
-    hasScannedDevices = false;
-    document.getElementById("telemetry-body").innerHTML = "";
-    pktCount = 0;
-    document.getElementById("pkt-counter").textContent = "";
-    document.getElementById("last-seen").textContent = "";
-    hwStatus();
+    try {
+        const resp = await fetch("/api/hardware/disconnect", {method: "POST"});
+        if (!resp.ok) { alert("Disconnect failed"); return; }
+        const data = await resp.json();
+        console.log("[GS] Disconnect result:", data);
+        document.getElementById("hw-devices").style.display = "none";
+        hasScannedDevices = false;
+        document.getElementById("telemetry-body").innerHTML = "";
+        pktCount = 0;
+        document.getElementById("pkt-counter").textContent = "";
+        document.getElementById("last-seen").textContent = "";
+        hwStatus();
+    } catch (e) {
+        console.error("[GS] Disconnect error:", e);
+        alert("Disconnect error: " + e.message);
+    }
 }
 
 hwStatus();
@@ -170,18 +202,23 @@ document.getElementById("tc-form").addEventListener("submit", async function(e) 
     const opcode = document.getElementById("opcode").value;
     const cmdName = document.getElementById("opcode").selectedOptions[0].text;
     const data = document.getElementById("tc-data").value || "";
-    const resp = await fetch("/api/radio/send_tc", {
-        method: "POST",
-        headers: {"Content-Type": "application/json"},
-        body: JSON.stringify({opcode: opcode, data: data})
-    });
-    const result = await resp.json();
     const ts = new Date().toLocaleTimeString();
     const pre = document.getElementById("tc-response");
-    const entry = "[" + ts + "] " + cmdName + " → " + (result.status || "error")
-        + (result.frame_size ? " (" + result.frame_size + " bytes)" : "")
-        + (result.frame_hex ? " [" + result.frame_hex + "]" : "")
-        + (result.error ? " — " + result.error : "")
-        + "\n";
-    pre.textContent = entry + pre.textContent;
+    try {
+        const resp = await fetch("/api/radio/send_tc", {
+            method: "POST",
+            headers: {"Content-Type": "application/json"},
+            body: JSON.stringify({opcode: opcode, data: data})
+        });
+        const result = await resp.json();
+        const status = resp.ok ? (result.status || "ok") : "HTTP " + resp.status;
+        const entry = "[" + ts + "] " + cmdName + " → " + status
+            + (result.frame_size ? " (" + result.frame_size + " bytes)" : "")
+            + (result.frame_hex ? " [" + result.frame_hex + "]" : "")
+            + (result.error ? " — " + result.error : "")
+            + "\n";
+        pre.textContent = entry + pre.textContent;
+    } catch (e) {
+        pre.textContent = "[" + ts + "] " + cmdName + " → NETWORK ERROR — " + e.message + "\n" + pre.textContent;
+    }
 });
