@@ -64,7 +64,8 @@ def _seed_radio_config(db):
         "VALUES (?, ?, ?, ?, ?, ?)"
     )
     db.execute(sql, ("admin", 436703000, 10, 125000, 22, "TinyGS Norbi downlink — CLASSIFIED"))
-    db.execute(sql, ("operator", 915000000, 7, 125000, 14, "Default ISM 915 MHz"))
+    db.execute(sql, ("operator", 915000000, 7, 125000, 14, "Radio 0"))
+    db.execute(sql, ("operator", 916000000, 7, 125000, 14, "Radio 1"))
 
 
 def _seed_logs(db):

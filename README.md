@@ -83,7 +83,7 @@ SQLite with four tables: `users`, `telemetry`, `radio_config`, `logs`.
 pytest
 ```
 
-153 tests covering the core library, webapp routes, and vulnerability checks.
+155+ tests covering the core library, webapp routes, and vulnerability checks.
 
 ## Directory Structure
 

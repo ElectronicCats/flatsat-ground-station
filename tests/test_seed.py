@@ -54,7 +54,7 @@ def test_seed_radio_config(app):
         seed_db()
         db = get_db()
         configs = db.execute("SELECT * FROM radio_config").fetchall()
-        assert len(configs) == 2
+        assert len(configs) == 3
         admin_cfg = db.execute("SELECT * FROM radio_config WHERE id=1").fetchone()
         assert admin_cfg["owner"] == "admin"
 
