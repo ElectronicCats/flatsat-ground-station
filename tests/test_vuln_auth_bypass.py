@@ -42,9 +42,3 @@ def test_auth_bypass_operator_to_admin(client):
     client.set_cookie("session_token", forged)
     resp = client.get("/api/config/radio/1")
     assert resp.status_code == 200
-
-
-def test_commands_page(client):
-    client.post("/login", data={"username": "operator", "password": "operator123"})
-    resp = client.get("/commands")
-    assert resp.status_code == 200

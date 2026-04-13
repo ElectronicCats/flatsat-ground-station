@@ -281,11 +281,6 @@ def create_app(config_class=Config, db_path=None):
         log_activity("INFO", "telecommand", f"TC sent: opcode=0x{opcode_int:02X} ({len(frame)} bytes)")
         return result
 
-    @app.route("/commands")
-    @login_required
-    def commands_page():
-        return render_template("commands.html")
-
     @app.route("/api/hardware/status")
     @login_required
     def api_hardware_status():
@@ -375,6 +370,7 @@ def create_app(config_class=Config, db_path=None):
                 "hardware",
                 f"Connected to FlatSat ...{serial_number[-4:]} (difficulty={gs.difficulty}){warn_str}",
             )
+            _sync_radio_config_to_db(device)
             return {
                 "mode": "hardware",
                 "serial_number": serial_number,
@@ -415,6 +411,37 @@ def create_app(config_class=Config, db_path=None):
         if not gs.is_hardware or not gs.device:
             return None, ({"error": "Satellite not connected"}, 400)
         return gs.device, None
+
+    def _sync_radio_config_to_db(dev):
+        """Read LoRa config from hardware and upsert into radio_config for current user."""
+        try:
+            from webapp.db import get_db
+
+            db = get_db()
+            for radio, radio_label in [("R0", "Radio 0"), ("R1", "Radio 1")]:
+                raw = dev.send_shell_command_full(f"lora_config {radio}")
+                cfg = parse_lora_config(raw)
+                if cfg["frequency"] == 0:
+                    continue
+                existing = db.execute(
+                    "SELECT id FROM radio_config WHERE owner = ? AND description = ?",
+                    (g.username, radio_label),
+                ).fetchone()
+                if existing:
+                    db.execute(
+                        "UPDATE radio_config SET frequency=?, spreading_factor=?, bandwidth=?, tx_power=? WHERE id=?",
+                        (cfg["frequency"], cfg["sf"], cfg["bw"] * 1000, cfg["power"], existing["id"]),
+                    )
+                else:
+                    db.execute(
+                        "INSERT INTO radio_config "
+                        "(owner, frequency, spreading_factor, bandwidth, tx_power, description) "
+                        "VALUES (?, ?, ?, ?, ?, ?)",
+                        (g.username, cfg["frequency"], cfg["sf"], cfg["bw"] * 1000, cfg["power"], radio_label),
+                    )
+            db.commit()
+        except Exception:
+            pass
 
     def _local_mode_from_shell(mode_raw: str | None, status_raw: str | None = None) -> str:
         mode = parse_mode(mode_raw)
@@ -623,6 +650,7 @@ def create_app(config_class=Config, db_path=None):
         if power:
             results.append(dev.send_shell_command_full(f"lora_power {radio} {power}"))
         results.append(dev.send_shell_command_full(f"lora_apply {radio}"))
+        _sync_radio_config_to_db(dev)
         log_activity("INFO", "satellite", f"{radio} LoRa config updated: freq={freq} sf={sf} bw={bw} power={power}")
         return {"status": "ok", "responses": results}
 
