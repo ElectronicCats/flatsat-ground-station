@@ -6,7 +6,7 @@
 |-------|----------|---------|
 | **Base** | 2 FlatSats + laptop + webapp | 0, 2, 3, 6, 7, 8, 9, 12 |
 | **Recomendado** | + CatSniffer o SDR | 1, 4, 11 |
-| **Avanzado** | + SWD probe (Pico como debugger) | 5 |
+| **Avanzado** | + SWD probe (Pico como debugger) + soldar 3 cables a pads SWD (GPIO24/25/GND) | 5 |
 | **Especializado** | + Logic analyzer + osciloscopio | 10 |
 
 ---
