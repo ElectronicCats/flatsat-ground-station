@@ -49,6 +49,7 @@
     <h2>Satellite Status <span class="panel-status" id="panel-info-status">Syncing...</span></h2>
     <div class="field"><label>Data Source:</label> <span id="sat-source" class="loading-value">Loading...</span></div>
     <div class="field"><label>Spacecraft ID:</label> <span id="sc-id" class="loading-value">Loading...</span></div>
+    <div class="field"><label>Serial Number:</label> <span id="hw-sn" class="loading-value">Loading...</span></div>
     <div class="field"><label>Flight:</label> <span id="cur-flight" class="loading-value">Loading...</span></div>
     <div class="field"><label>Difficulty:</label> <span id="cur-diff" class="loading-value">Loading...</span></div>
     <div class="field"><label>Last Seen:</label> <span id="sat-last-seen" class="loading-value">Loading...</span></div>
@@ -374,6 +375,10 @@ async function pollInfo() {
     document.getElementById("no-hw").style.display = "none";
     document.getElementById("sat-content").style.display = "block";
     applyContext(data);
+    // Show hardware serial number
+    fetch("/api/hardware/status").then(r => r.json()).then(d => {
+        document.getElementById("hw-sn").textContent = d.serial_number || "-";
+    }).catch(() => {});
 }
 
 function highlightBtn(groupId, active) {
