@@ -1,3 +1,4 @@
+import base64
 import os
 import tempfile
 
@@ -121,3 +122,61 @@ def test_supply_chain_flag_in_requirements():
     with open(req_path) as f:
         content = f.read()
     assert "PWNSAT{SUPPLY_CHAIN_COMPROMISED}" in content
+
+
+def test_gs05_admin_panel_as_admin(admin_client):
+    resp = admin_client.get("/api/admin/panel")
+    assert resp.status_code == 200
+    data = resp.get_json()
+    assert data["flag"] == "PWNSAT{SESSION_TOKEN_FORGED}"
+
+
+def test_gs05_admin_panel_as_operator(operator_client):
+    resp = operator_client.get("/api/admin/panel")
+    assert resp.status_code == 403
+
+
+def test_gs05_admin_panel_forged_token(app):
+    client = app.test_client()
+    forged = base64.b64encode(b"admin:admin:0").decode()
+    client.set_cookie("session_token", forged)
+    resp = client.get("/api/admin/panel")
+    assert resp.status_code == 200
+    assert resp.get_json()["flag"] == "PWNSAT{SESSION_TOKEN_FORGED}"
+
+
+def test_gs02_users_me_as_admin(admin_client):
+    resp = admin_client.get("/api/users/me")
+    assert resp.status_code == 200
+    data = resp.get_json()
+    assert data["username"] == "admin"
+    assert data["admin_notes"] == "PWNSAT{XSS_IN_MISSION_LOGS}"
+
+
+def test_gs02_users_me_as_operator(operator_client):
+    resp = operator_client.get("/api/users/me")
+    assert resp.status_code == 200
+    data = resp.get_json()
+    assert data["username"] == "operator"
+    assert data["admin_notes"] == ""
+
+
+def test_gs08_radio_status(operator_client):
+    resp = operator_client.get("/api/radio/status")
+    assert resp.status_code == 200
+    data = resp.get_json()
+    assert data["bridge_key"] == "PWNSAT{WEB_TO_SPACE_LINK}"
+
+
+def test_gs12_debug_flags_no_auth(app):
+    client = app.test_client()
+    resp = client.get("/api/debug/flags")
+    assert resp.status_code == 200
+    assert resp.get_json()["flag"] == "PWNSAT{API_NO_RATE_LIMIT}"
+
+
+def test_gs12_debug_flags_listed_in_endpoints(app):
+    client = app.test_client()
+    resp = client.get("/api/endpoints")
+    rules = [r["rule"] for r in resp.get_json()]
+    assert "/api/debug/flags" in rules

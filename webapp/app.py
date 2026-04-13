@@ -285,6 +285,54 @@ def create_app(config_class=Config, db_path=None):
             )
         return routes
 
+    @app.route("/api/users/me")
+    @login_required
+    def api_users_me():
+        """Returns current user's profile. Flag in admin_notes (GS-02 XSS target)."""
+        from webapp.db import get_db
+
+        db = get_db()
+        user = db.execute(
+            "SELECT id, username, role, admin_notes FROM users WHERE username = ?",
+            (g.username,),
+        ).fetchone()
+        if user is None:
+            return {"error": "User not found"}, 404
+        return dict(user)
+
+    @app.route("/api/admin/panel")
+    @login_required
+    def api_admin_panel():
+        """Admin-only panel. Flag reward for auth bypass (GS-05)."""
+        if g.role != "admin":
+            return {"error": "Forbidden"}, 403
+        return {
+            "message": "Ground Station Admin Panel",
+            "flag": "PWNSAT{SESSION_TOKEN_FORGED}",
+            "connected_satellites": [],
+            "system_status": "operational",
+        }
+
+    @app.route("/api/radio/status")
+    @login_required
+    def api_radio_status():
+        """Radio bridge status. Flag for kill chain discovery (GS-08)."""
+        gs_state = app.config.get("GS_STATE")
+        connected = gs_state is not None and gs_state.connection_mode.name != "IDLE"
+        return {
+            "connected": connected,
+            "mode": gs_state.connection_mode.name if gs_state else "IDLE",
+            "bridge_key": "PWNSAT{WEB_TO_SPACE_LINK}",
+        }
+
+    @app.route("/api/debug/flags")
+    def api_debug_flags():
+        """Unprotected debug endpoint. Flag for API enumeration (GS-12)."""
+        return {
+            "flag": "PWNSAT{API_NO_RATE_LIMIT}",
+            "hint": "This endpoint should not be public",
+        }
+
     @app.route("/api/radio/send", methods=["POST"])
     @login_required
     def api_radio_send():
