@@ -10,9 +10,12 @@ import time
 
 from core.ccsds import build_tm
 from core.constants import (
+    APID_TM_ALL_SENSORS,
     APID_TM_BME280,
+    APID_TM_GPS,
     APID_TM_HEARTBEAT,
     APID_TM_LIS2DH,
+    APID_TM_POWER,
     CCSDS_SPACECRAFT_ID,
 )
 
@@ -56,10 +59,47 @@ def decode_lis2dh(payload: bytes) -> dict:
     }
 
 
+def decode_power(payload: bytes) -> dict:
+    """Decode Power TM payload (APID 0x012). Little-endian packed struct."""
+    battery_mv, solar_mv, current_ma = struct.unpack("<HHh", payload[:6])
+    return {
+        "battery_mv": battery_mv,
+        "solar_mv": solar_mv,
+        "current_ma": current_ma,
+    }
+
+
+def decode_gps_sim(payload: bytes) -> dict:
+    """Decode GPS Sim TM payload (APID 0x013). Little-endian packed struct."""
+    lat_x1e7, lon_x1e7, alt_mm = struct.unpack("<iii", payload[:12])
+    return {
+        "latitude": lat_x1e7 / 1e7,
+        "longitude": lon_x1e7 / 1e7,
+        "altitude_m": alt_mm / 1000.0,
+    }
+
+
+def decode_all_sensors(payload: bytes) -> dict:
+    """Decode All-Sensors TM payload (APID 0x01F). Little-endian packed struct."""
+    temp_x100, press_x10, humidity, ax, ay, az, battery_mv = struct.unpack("<hIBhhhH", payload[:15])
+    return {
+        "temperature": temp_x100 / 100.0,
+        "pressure": press_x10 / 10.0,
+        "humidity": humidity,
+        "accel_x": ax,
+        "accel_y": ay,
+        "accel_z": az,
+        "battery_mv": battery_mv,
+    }
+
+
 _DECODERS = {
     APID_TM_HEARTBEAT: decode_heartbeat,
     APID_TM_BME280: decode_bme280,
     APID_TM_LIS2DH: decode_lis2dh,
+    APID_TM_POWER: decode_power,
+    APID_TM_GPS: decode_gps_sim,
+    APID_TM_ALL_SENSORS: decode_all_sensors,
 }
 
 FLIGHT_MODE_LABELS = {

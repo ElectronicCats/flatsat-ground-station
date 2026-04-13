@@ -4,7 +4,7 @@ const ROWS_PER_PAGE = 50;
 const COLUMN_PREFS_KEY = "dashboardTelemetryColumnsV1";
 let currentPage = 1;
 let filterText = "";
-const DEFAULT_HIDDEN_COLUMNS = new Set(["seq", "sc_id", "flight", "difficulty", "frame_ts", "uptime", "tc_count", "error_count", "raw"]);
+const DEFAULT_HIDDEN_COLUMNS = new Set(["seq", "sc_id", "flight", "difficulty", "frame_ts", "uptime", "tc_count", "error_count", "solar", "current", "lat", "lon", "alt", "raw"]);
 const FLIGHT_MODE_LABELS = {
     0: "IDLE",
     1: "NOMINAL",
@@ -121,7 +121,9 @@ function addTelemetryRow(data, recvTimeOverride, skipPagination) {
         || d.pressure != null
         || d.humidity != null
         || d.accel_x != null
-        || d.sc_id != null;
+        || d.sc_id != null
+        || d.solar_mv != null
+        || d.latitude != null;
 
     const tbody = document.getElementById("telemetry-body");
     const row = document.createElement("tr");
@@ -146,6 +148,11 @@ function addTelemetryRow(data, recvTimeOverride, skipPagination) {
             ["accel_x", fmt(d.accel_x)],
             ["accel_y", fmt(d.accel_y)],
             ["accel_z", fmt(d.accel_z)],
+            ["solar", d.solar_mv != null ? d.solar_mv + " mV" : "-"],
+            ["current", d.current_ma != null ? d.current_ma + " mA" : "-"],
+            ["lat", d.latitude != null ? d.latitude.toFixed(6) : "-"],
+            ["lon", d.longitude != null ? d.longitude.toFixed(6) : "-"],
+            ["alt", d.altitude_m != null ? d.altitude_m.toFixed(1) + " m" : "-"],
             ["rssi", data.rssi != null ? data.rssi + " dBm" : "-"],
             ["snr", data.snr != null ? data.snr + " dB" : "-"],
             ["raw", fmtRaw(data.raw_hex), true],
@@ -170,6 +177,11 @@ function addTelemetryRow(data, recvTimeOverride, skipPagination) {
             ["accel_x", "-"],
             ["accel_y", "-"],
             ["accel_z", "-"],
+            ["solar", "-"],
+            ["current", "-"],
+            ["lat", "-"],
+            ["lon", "-"],
+            ["alt", "-"],
             ["rssi", data.rssi != null ? data.rssi + " dBm" : "-"],
             ["snr", data.snr != null ? data.snr + " dB" : "-"],
             ["raw", fmtRaw(data.raw_hex), true],

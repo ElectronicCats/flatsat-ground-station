@@ -32,7 +32,6 @@ def auth_client(app):
 def test_logs_page_renders(auth_client):
     resp = auth_client.get("/logs")
     assert resp.status_code == 200
-    assert b"Ground station initialized" in resp.data
 
 
 def test_logs_xss_stored(app, auth_client):

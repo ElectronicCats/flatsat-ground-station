@@ -44,7 +44,7 @@ def test_seed_telemetry(app):
         seed_db()
         db = get_db()
         count = db.execute("SELECT COUNT(*) FROM telemetry").fetchone()[0]
-        assert count >= 100
+        assert count == 0  # telemetry is no longer seeded — only real data
 
 
 def test_seed_radio_config(app):
@@ -66,7 +66,7 @@ def test_seed_logs(app):
         seed_db()
         db = get_db()
         count = db.execute("SELECT COUNT(*) FROM logs").fetchone()[0]
-        assert count >= 10
+        assert count == 0  # logs are no longer seeded
 
 
 def test_seed_idempotent(app):

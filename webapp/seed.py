@@ -16,9 +16,7 @@ def seed_db():
         return
 
     _seed_users(db)
-    _seed_telemetry(db)
     _seed_radio_config(db)
-    _seed_logs(db)
     db.commit()
 
 

@@ -891,15 +891,28 @@ def start_telemetry_thread(app):
                     try:
                         parsed = parse_lora_rx(line)
                         if parsed:
+                            hex_data = parsed["data"]
+                            print(
+                                f"[RADIO0 PARSED] hex={hex_data}"
+                                f" ({len(hex_data) // 2} bytes)"
+                                f" rssi={parsed.get('rssi')} snr={parsed.get('snr')}"
+                            )
                             raw_bytes = bytes.fromhex(parsed["data"])
                             # SDLS: decrypt TM payload based on difficulty
                             difficulty = getattr(gs, "difficulty", 0)
                             if difficulty >= 2:
                                 raw_bytes = sdls_unprotect_frame(raw_bytes, difficulty)
                             pkt = parse_frame(raw_bytes)
-                            if pkt and not pkt.crc_valid:
-                                print("[RADIO0 CRC] bad CRC, dropping frame")
+                            if pkt is None:
+                                print(f"[RADIO0 CCSDS] parse_frame returned None for {len(raw_bytes)} bytes")
+                            elif not pkt.crc_valid:
+                                print(f"[RADIO0 CRC] bad CRC, dropping frame (apid={pkt.apid})")
                                 pkt = None
+                            else:
+                                print(
+                                    f"[RADIO0 CCSDS] valid frame: apid=0x{pkt.apid:03X}"
+                                    f" seq={pkt.seq_count} payload={len(pkt.payload)} bytes"
+                                )
                             if pkt:
                                 # Valid CCSDS frame with good CRC
                                 decoded = decode_tm_payload(pkt.apid, pkt.payload)
