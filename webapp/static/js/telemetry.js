@@ -1,6 +1,9 @@
 const socket = io();
-const MAX_ROWS = 200;
+const MAX_ROWS = 500;
+const ROWS_PER_PAGE = 50;
 const COLUMN_PREFS_KEY = "dashboardTelemetryColumnsV1";
+let currentPage = 1;
+let filterText = "";
 const DEFAULT_HIDDEN_COLUMNS = new Set(["seq", "sc_id", "flight", "difficulty", "frame_ts", "uptime", "tc_count", "error_count", "raw"]);
 const FLIGHT_MODE_LABELS = {
     0: "IDLE",
@@ -111,14 +114,14 @@ socket.on("disconnect", function() {
     document.getElementById("telemetry-status").textContent = "WebSocket disconnected";
 });
 
-function addTelemetryRow(data, recvTimeOverride) {
+function addTelemetryRow(data, recvTimeOverride, skipPagination) {
     const d = data.decoded || {};
 
-    const hasDecodedData = d.temperature !== undefined
-        || d.pressure !== undefined
-        || d.humidity !== undefined
-        || d.accel_x !== undefined
-        || d.sc_id !== undefined;
+    const hasDecodedData = d.temperature != null
+        || d.pressure != null
+        || d.humidity != null
+        || d.accel_x != null
+        || d.sc_id != null;
 
     const tbody = document.getElementById("telemetry-body");
     const row = document.createElement("tr");
@@ -130,21 +133,21 @@ function addTelemetryRow(data, recvTimeOverride) {
             ["frame_ts", fmtFrameTime(data.timestamp)],
             ["apid", fmtHexApid(data.apid)],
             ["seq", fmt(data.seq_count)],
-            ["sc_id", d.sc_id !== undefined ? "0x" + Number(d.sc_id).toString(16).padStart(2, "0") : "-"],
+            ["sc_id", d.sc_id != null ? "0x" + Number(d.sc_id).toString(16).padStart(2, "0") : "-"],
             ["flight", fmtFlight(d)],
             ["difficulty", fmt(d.difficulty)],
-            ["battery", d.battery_mv !== undefined ? d.battery_mv + " mV" : "-"],
-            ["uptime", d.uptime !== undefined ? d.uptime + " s" : "-"],
+            ["battery", d.battery_mv != null ? d.battery_mv + " mV" : "-"],
+            ["uptime", d.uptime != null ? d.uptime + " s" : "-"],
             ["tc_count", fmt(d.tc_count)],
             ["error_count", fmt(d.error_count)],
-            ["temp", d.temperature !== undefined ? d.temperature.toFixed(2) + " C" : "-"],
-            ["pressure", d.pressure !== undefined ? d.pressure.toFixed(1) + " hPa" : "-"],
-            ["humidity", d.humidity !== undefined ? d.humidity + "%" : "-"],
+            ["temp", d.temperature != null ? d.temperature.toFixed(2) + " C" : "-"],
+            ["pressure", d.pressure != null ? d.pressure.toFixed(1) + " hPa" : "-"],
+            ["humidity", d.humidity != null ? d.humidity + "%" : "-"],
             ["accel_x", fmt(d.accel_x)],
             ["accel_y", fmt(d.accel_y)],
             ["accel_z", fmt(d.accel_z)],
-            ["rssi", data.rssi !== undefined ? data.rssi + " dBm" : "-"],
-            ["snr", data.snr !== undefined ? data.snr + " dB" : "-"],
+            ["rssi", data.rssi != null ? data.rssi + " dBm" : "-"],
+            ["snr", data.snr != null ? data.snr + " dB" : "-"],
             ["raw", fmtRaw(data.raw_hex), true],
         ].forEach(([col, value, asHtml]) => row.appendChild(buildCell(col, value, asHtml)));
     } else {
@@ -167,8 +170,8 @@ function addTelemetryRow(data, recvTimeOverride) {
             ["accel_x", "-"],
             ["accel_y", "-"],
             ["accel_z", "-"],
-            ["rssi", data.rssi !== undefined ? data.rssi + " dBm" : "-"],
-            ["snr", data.snr !== undefined ? data.snr + " dB" : "-"],
+            ["rssi", data.rssi != null ? data.rssi + " dBm" : "-"],
+            ["snr", data.snr != null ? data.snr + " dB" : "-"],
             ["raw", fmtRaw(data.raw_hex), true],
         ].forEach(([col, value, asHtml]) => row.appendChild(buildCell(col, value, asHtml)));
         row.style.color = "#888";
@@ -197,6 +200,8 @@ function addTelemetryRow(data, recvTimeOverride) {
     while (tbody.children.length > MAX_ROWS) {
         tbody.removeChild(tbody.lastChild);
     }
+
+    if (!skipPagination) applyFilterAndPagination();
 }
 
 socket.on("telemetry_update", function(data) {
@@ -226,8 +231,9 @@ async function loadHistory() {
                     accel_z: row.accel_z,
                     sc_id: row.spacecraft_id,
                 },
-            }, row.timestamp);
+            }, row.timestamp, true);
         });
+        applyFilterAndPagination();
     } catch (e) {
         console.error("[TM] Failed to load history:", e);
     }
@@ -242,7 +248,80 @@ function clearTelemetry() {
     }
     const lastSeen = document.getElementById("last-seen");
     if (lastSeen) lastSeen.textContent = "";
+    currentPage = 1;
+    updatePagination();
+}
+
+// --- Filter & Pagination ---
+
+function getFilteredRows() {
+    const tbody = document.getElementById("telemetry-body");
+    const allRows = Array.from(tbody.children);
+    if (!filterText) return allRows;
+    const lower = filterText.toLowerCase();
+    return allRows.filter(row => row.textContent.toLowerCase().includes(lower));
+}
+
+function applyFilterAndPagination() {
+    const tbody = document.getElementById("telemetry-body");
+    const allRows = Array.from(tbody.children);
+    const lower = filterText.toLowerCase();
+
+    // First pass: mark all rows hidden
+    allRows.forEach(row => row.style.display = "none");
+
+    // Get matching rows
+    const matched = filterText
+        ? allRows.filter(row => row.textContent.toLowerCase().includes(lower))
+        : allRows;
+
+    // Clamp page
+    const totalPages = Math.max(1, Math.ceil(matched.length / ROWS_PER_PAGE));
+    if (currentPage > totalPages) currentPage = totalPages;
+
+    // Show only current page
+    const start = (currentPage - 1) * ROWS_PER_PAGE;
+    const end = start + ROWS_PER_PAGE;
+    matched.slice(start, end).forEach(row => row.style.display = "");
+
+    updatePagination(matched.length, totalPages);
+}
+
+function updatePagination(totalMatched, totalPages) {
+    const info = document.getElementById("tm-page-info");
+    const prevBtn = document.getElementById("tm-page-prev");
+    const nextBtn = document.getElementById("tm-page-next");
+    if (!info) return;
+
+    const tbody = document.getElementById("telemetry-body");
+    const totalRows = tbody.children.length;
+    totalMatched = totalMatched !== undefined ? totalMatched : totalRows;
+    totalPages = totalPages !== undefined ? totalPages : Math.max(1, Math.ceil(totalMatched / ROWS_PER_PAGE));
+
+    const filterNote = filterText ? " (filtered from " + totalRows + ")" : "";
+    info.textContent = "Page " + currentPage + "/" + totalPages + " | " + totalMatched + " rows" + filterNote;
+    prevBtn.disabled = currentPage <= 1;
+    nextBtn.disabled = currentPage >= totalPages;
+}
+
+function tmPagePrev() {
+    if (currentPage > 1) {
+        currentPage--;
+        applyFilterAndPagination();
+    }
+}
+
+function tmPageNext() {
+    currentPage++;
+    applyFilterAndPagination();
+}
+
+function tmFilter(value) {
+    filterText = value;
+    currentPage = 1;
+    applyFilterAndPagination();
 }
 
 loadHistory();
 initializeColumnControls();
+applyFilterAndPagination();

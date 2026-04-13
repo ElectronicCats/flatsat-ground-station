@@ -48,6 +48,10 @@
     #pkt-counter { color:#00ccff; margin-left:15px; }
     #last-seen { color:#888; margin-left:15px; font-size:0.9em; }
     .btn-active { background:#00ff41 !important; color:#0a0a0a !important; font-weight:bold; }
+    #tm-filter:focus { outline:1px solid #00ff41; }
+    #tm-pagination button { background:#1a1a1a; color:#00ccff; border:1px solid #333; padding:4px 10px; cursor:pointer; }
+    #tm-pagination button:hover:not(:disabled) { background:#333; }
+    #tm-pagination button:disabled { color:#555; cursor:default; }
 </style>
 {% endblock %}
 {% block content %}
@@ -72,6 +76,26 @@
 </div>
 
 <p>Spacecraft ID: 0x02 | User: {{ g.username }} ({{ g.role }})</p>
+
+<details id="cmd-panel" style="margin-bottom:15px; border:1px solid #333; background:#111;">
+    <summary style="padding:10px; cursor:pointer; color:#00ccff; font-weight:bold;">Telecommand Panel</summary>
+    <div style="padding:10px;">
+        <form id="tc-form" style="display:flex; gap:10px; align-items:center; flex-wrap:wrap;">
+            <label>Command:
+                <select name="opcode" id="opcode">
+                    <option value="10">PING (0x10)</option>
+                    <option value="20">READ_SENSOR (0x20)</option>
+                    <option value="01">SET_SAFE_MODE (0x01)</option>
+                    <option value="02">SET_NOMINAL (0x02)</option>
+                    <option value="42">READ_FLAG (0x42)</option>
+                </select>
+            </label>
+            <label>Data (hex): <input name="data" id="tc-data" placeholder="optional" style="width:120px;"></label>
+            <button type="submit">Send TC</button>
+        </form>
+        <pre id="tc-response" style="margin-top:8px; max-height:150px; overflow-y:auto; font-size:0.85em;"></pre>
+    </div>
+</details>
 
 <h2>Live Telemetry <button onclick="clearTelemetry()" style="font-size:0.7em; margin-left:10px;">Clear</button></h2>
 <div id="telemetry-status">Connecting...</div>
@@ -103,6 +127,8 @@
         </div>
     </div>
     <button id="tm-columns-reset" type="button">Default</button>
+    <span style="margin-left:auto;"></span>
+    <input id="tm-filter" type="text" placeholder="Filter rows..." oninput="tmFilter(this.value)" style="background:#0a0a0a; color:#00ff41; border:1px solid #333; padding:4px 8px; width:180px;">
 </div>
 <div id="tm-container">
 <table id="telemetry-table">
@@ -118,6 +144,11 @@
     </thead>
     <tbody id="telemetry-body"></tbody>
 </table>
+</div>
+<div id="tm-pagination" style="display:flex; align-items:center; gap:10px; margin-top:8px; font-size:0.9em;">
+    <button id="tm-page-prev" onclick="tmPagePrev()" disabled>&laquo; Prev</button>
+    <span id="tm-page-info" style="color:#888;">Page 1/1 | 0 rows</span>
+    <button id="tm-page-next" onclick="tmPageNext()" disabled>Next &raquo;</button>
 </div>
 
 <script>
@@ -171,7 +202,7 @@ async function hwStatus() {
     if (data.mode === "hardware") {
         el.textContent = "HARDWARE";
         el.style.color = "#00ff41";
-        serial.textContent = " | SN: ..." + (data.serial_number || "").slice(-4);
+        serial.textContent = " | SN: " + (data.serial_number || "");
         setButtons("hardware");
         setIndicator("hardware");
         document.getElementById("btn-connect").className = "btn-active";
@@ -226,7 +257,7 @@ async function hwScan() {
         data.devices.forEach(d => {
             const opt = document.createElement("option");
             opt.value = d.serial_number;
-            opt.textContent = "..." + d.serial_number.slice(-4) + " (" + d.health + ")";
+            opt.textContent = d.serial_number + " (" + d.health + ")";
             sel.appendChild(opt);
         });
         setButtons("scanned");
@@ -285,6 +316,28 @@ document.addEventListener("click", function(e) {
     if (!menu.contains(e.target) && e.target !== btn) {
         menu.classList.remove("open");
     }
+});
+
+// --- Telecommand form handler ---
+document.getElementById("tc-form").addEventListener("submit", async function(e) {
+    e.preventDefault();
+    const opcode = document.getElementById("opcode").value;
+    const cmdName = document.getElementById("opcode").selectedOptions[0].text;
+    const data = document.getElementById("tc-data").value || "";
+    const resp = await fetch("/api/radio/send_tc", {
+        method: "POST",
+        headers: {"Content-Type": "application/json"},
+        body: JSON.stringify({opcode: opcode, data: data})
+    });
+    const result = await resp.json();
+    const ts = new Date().toLocaleTimeString();
+    const pre = document.getElementById("tc-response");
+    const entry = "[" + ts + "] " + cmdName + " → " + (result.status || "error")
+        + (result.frame_size ? " (" + result.frame_size + " bytes)" : "")
+        + (result.frame_hex ? " [" + result.frame_hex + "]" : "")
+        + (result.error ? " — " + result.error : "")
+        + "\n";
+    pre.textContent = entry + pre.textContent;
 });
 </script>
 
