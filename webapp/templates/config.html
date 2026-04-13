@@ -5,8 +5,9 @@
 <form id="config-form">
     <label>Radio:
         <select id="radio" onchange="loadRadioConfig()">
-            <option value="Radio 0">Radio 0 — Telemetry RX/TX</option>
-            <option value="Radio 1">Radio 1 — Telecommand TX/RX</option>
+            {% for label in radio_labels %}
+            <option value="{{ label }}">{{ label }}</option>
+            {% endfor %}
         </select>
     </label><br><br>
     <label>Frequency (Hz): <input name="frequency" id="frequency" type="number" value="915000000"></label><br><br>

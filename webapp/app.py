@@ -6,6 +6,7 @@ import time
 from flask import Flask, g, redirect, render_template, request, url_for
 from flask_socketio import SocketIO
 
+from core.constants import RADIO_LABELS
 from core.device import FlatSatDevice
 from core.serial_manager import discover_devices
 from core.shell_parser import (
@@ -187,7 +188,7 @@ def create_app(config_class=Config, db_path=None):
         config_map = {}
         for c in configs:
             config_map[c["description"]] = dict(c)
-        return render_template("config.html", configs=config_map)
+        return render_template("config.html", configs=config_map, radio_labels=RADIO_LABELS)
 
     @app.route("/api/config/radio/<int:config_id>")
     @login_required
@@ -209,7 +210,7 @@ def create_app(config_class=Config, db_path=None):
         from webapp.db import get_db
 
         data = request.get_json(silent=True) or {}
-        radio = data.get("radio", "Radio 0")
+        radio = data.get("radio", RADIO_LABELS[0])
         frequency = data.get("frequency", "915000000")
         spreading_factor = data.get("spreading_factor", "7")
         bandwidth = data.get("bandwidth", "125000")
@@ -470,7 +471,7 @@ def create_app(config_class=Config, db_path=None):
             from webapp.db import get_db
 
             db = get_db()
-            for radio, radio_label in [("R0", "Radio 0"), ("R1", "Radio 1")]:
+            for radio, radio_label in zip(("R0", "R1"), RADIO_LABELS, strict=False):
                 raw = dev.send_shell_command_full(f"lora_config {radio}")
                 cfg = parse_lora_config(raw)
                 if cfg["frequency"] == 0:
@@ -504,16 +505,23 @@ def create_app(config_class=Config, db_path=None):
     def _local_role_from_mode(mode: str) -> str:
         return "ground_station" if mode == "ground_station" else "satellite"
 
+    _SENTINEL = object()  # distinguishes "not fetched" from "fetched but None"
+
     def _build_local_snapshot(
         *,
-        fw_raw: str | None = None,
+        fw_raw: str | None | object = _SENTINEL,
         mode_raw: str | None = None,
         flight_raw: str | None = None,
         diff_raw: str | None = None,
-        scid_raw: str | None = None,
+        scid_raw: str | None | object = _SENTINEL,
         status_raw: str | None = None,
     ) -> dict:
-        fw = parse_fw_version(fw_raw)
+        # When fw_raw/_scid_raw are _SENTINEL, the caller didn't fetch them —
+        # return None so the frontend knows to keep its cached value.
+        if fw_raw is _SENTINEL:
+            fw = {"fw_version": None, "git_sha": None, "git_dirty": None, "build_date": None}
+        else:
+            fw = parse_fw_version(fw_raw)
         flight = parse_flight(flight_raw)
         mode = _local_mode_from_shell(mode_raw, status_raw)
         role = _local_role_from_mode(mode)
@@ -524,7 +532,7 @@ def create_app(config_class=Config, db_path=None):
             "battery_mv": flight["battery_mv"],
             "tm_rate": flight["tm_rate"],
             "difficulty": parse_difficulty(diff_raw),
-            "sc_id": parse_sc_id(scid_raw),
+            "sc_id": parse_sc_id(scid_raw) if scid_raw is not _SENTINEL else None,
             "role": role,
             "role_label": "Ground Station" if role == "ground_station" else "Satellite",
         }

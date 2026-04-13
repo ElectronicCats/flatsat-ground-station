@@ -16,6 +16,9 @@ ENDPOINT_RADIO0 = "Cat-Radio0"
 ENDPOINT_RADIO1 = "Cat-Radio1"
 ENDPOINT_SHELL = "Cat-Shell"
 
+# --- Radio config labels (canonical DB descriptions) ---
+RADIO_LABELS = ("Radio 0", "Radio 1")
+
 ENDPOINT_LABELS = {
     ENDPOINT_RADIO0: "Radio 0 (CDC0)",
     ENDPOINT_RADIO1: "Radio 1 (CDC1)",

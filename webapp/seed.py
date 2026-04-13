@@ -1,14 +1,11 @@
 """Database seed script. Populates users, telemetry, radio configs, and logs."""
 
-import hashlib
 import random
 from datetime import datetime, timedelta
 
+from core.constants import RADIO_LABELS
+from webapp.auth import _md5
 from webapp.db import get_db
-
-
-def _md5(text: str) -> str:
-    return hashlib.md5(text.encode()).hexdigest()
 
 
 def seed_db():
@@ -64,8 +61,8 @@ def _seed_radio_config(db):
         "VALUES (?, ?, ?, ?, ?, ?)"
     )
     db.execute(sql, ("admin", 436703000, 10, 125000, 22, "TinyGS Norbi downlink — CLASSIFIED"))
-    db.execute(sql, ("operator", 915000000, 7, 125000, 14, "Radio 0"))
-    db.execute(sql, ("operator", 916000000, 7, 125000, 14, "Radio 1"))
+    db.execute(sql, ("operator", 915000000, 7, 125000, 14, RADIO_LABELS[0]))
+    db.execute(sql, ("operator", 916000000, 7, 125000, 14, RADIO_LABELS[1]))
 
 
 def _seed_logs(db):

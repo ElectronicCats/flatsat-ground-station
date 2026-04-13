@@ -126,34 +126,19 @@ function applyLocalSnapshot(local) {
     setControlsEnabled(true);
 }
 
-function mergeLocalSnapshot(previousLocal, nextLocal) {
-    const prev = previousLocal || {};
-    const next = nextLocal || {};
-    const merged = {...prev, ...next};
-
-    if (!next.fw_version || next.fw_version === "unknown") {
-        merged.fw_version = prev.fw_version;
-    }
-    if (!next.git_sha) {
-        merged.git_sha = prev.git_sha;
-        merged.git_dirty = prev.git_dirty;
-    }
-    if (!next.build_date) {
-        merged.build_date = prev.build_date;
-    }
-    if ((next.sc_id === null || next.sc_id === undefined || next.sc_id === 0) && prev.sc_id) {
-        merged.sc_id = prev.sc_id;
-    }
-
-    return merged;
-}
-
 function applyContext(data) {
-    const mergedLocal = mergeLocalSnapshot(latestContext && latestContext.local, data.local);
-    latestContext = {...data, local: mergedLocal};
+    // Backend returns null for fields it didn't fetch (e.g. status skips fw_version).
+    // Keep the previous value when the new one is null.
+    const prev = (latestContext && latestContext.local) || {};
+    const next = data.local || {};
+    const merged = {};
+    for (const key of new Set([...Object.keys(prev), ...Object.keys(next)])) {
+        merged[key] = next[key] !== null && next[key] !== undefined ? next[key] : prev[key];
+    }
+    latestContext = {...data, local: merged};
     const role = latestContext.connection_role || "satellite";
     applySatelliteSnapshot(latestContext.satellite, role);
-    applyLocalSnapshot(mergedLocal);
+    applyLocalSnapshot(merged);
 }
 
 function applySensorSnapshot(data, role) {

@@ -4,6 +4,8 @@ import sqlite3
 
 from flask import current_app, g
 
+from core.constants import RADIO_LABELS
+
 SCHEMA = """
 CREATE TABLE IF NOT EXISTS users (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -82,10 +84,12 @@ def _migrate_radio_config_descriptions(db):
     used 'Manual'.  Both need to map to 'Radio 0' (or 'Radio 1' if a second
     legacy row exists for the same owner).
     """
+    placeholders = ",".join("?" for _ in RADIO_LABELS)
     legacy = db.execute(
-        "SELECT id, owner, description FROM radio_config "
-        "WHERE description NOT IN ('Radio 0', 'Radio 1') "
-        "  AND description NOT LIKE '%CLASSIFIED%'"
+        "SELECT id, owner, description FROM radio_config "  # noqa: S608
+        f"WHERE description NOT IN ({placeholders}) "
+        "  AND description NOT LIKE '%CLASSIFIED%'",
+        RADIO_LABELS,
     ).fetchall()
     # Group by owner so each owner's legacy rows get assigned R0 then R1
     per_owner: dict[str, list[int]] = {}
@@ -96,11 +100,11 @@ def _migrate_radio_config_descriptions(db):
         existing = {
             r["description"]
             for r in db.execute(
-                "SELECT description FROM radio_config WHERE owner = ? AND description IN ('Radio 0', 'Radio 1')",
-                (owner,),
+                f"SELECT description FROM radio_config WHERE owner = ? AND description IN ({placeholders})",  # noqa: S608
+                (owner, *RADIO_LABELS),
             ).fetchall()
         }
-        slots = [s for s in ("Radio 0", "Radio 1") if s not in existing]
+        slots = [s for s in RADIO_LABELS if s not in existing]
         for row_id in ids:
             if slots:
                 db.execute(
