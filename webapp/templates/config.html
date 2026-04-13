@@ -10,16 +10,5 @@
     <button type="submit">Update Config</button>
 </form>
 <pre id="config-response"></pre>
-<script>
-document.getElementById("config-form").addEventListener("submit", async function(e) {
-    e.preventDefault();
-    const resp = await fetch("/api/config/radio", {
-        method: "POST",
-        headers: {"Content-Type": "application/json"},
-        body: JSON.stringify({frequency: document.getElementById("frequency").value})
-    });
-    const result = await resp.json();
-    document.getElementById("config-response").textContent = JSON.stringify(result, null, 2);
-});
-</script>
+<script src="/static/js/config.js"></script>
 {% endblock %}
