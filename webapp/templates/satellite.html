@@ -1,36 +1,7 @@
 {% extends "base.html" %}
 {% block title %}Satellite{% endblock %}
 {% block head %}
-<style>
-    .panel { border:1px solid #333; padding:15px; margin-bottom:15px; background:#111; }
-    .panel h2 { margin-top:0; color:#00ccff; font-size:1.1em; display:flex; align-items:center; justify-content:space-between; gap:10px; }
-    .grid { display:grid; grid-template-columns:1fr 1fr; gap:15px; }
-    .field { margin:5px 0; }
-    .field label { display:inline-block; width:140px; color:#888; }
-    .field span { color:#00ff41; }
-    .btn-group button { margin-right:5px; margin-bottom:5px; }
-    .btn-active { background:#00ff41; color:#0a0a0a; font-weight:bold; }
-    .battery-bar { width:200px; height:20px; background:#333; border:1px solid #555; display:inline-block; vertical-align:middle; }
-    .battery-fill { height:100%; transition: width 0.5s; }
-    .batt-green { background:#00ff41; }
-    .batt-yellow { background:#ffaa00; }
-    .batt-red { background:#ff4444; }
-    .countdown { font-size:1.5em; font-weight:bold; margin:10px 0; }
-    .countdown-danger { color:#ff4444; animation: blink 1s infinite; }
-    @keyframes blink { 50% { opacity:0.4; } }
-    .toast { position:fixed; top:20px; right:20px; background:#ff4444; color:white; padding:15px; border-radius:5px; display:none; z-index:999; }
-    .sync-banner { margin-bottom:15px; padding:12px 15px; border:1px solid #2c4b59; background:linear-gradient(90deg, #10222a 0%, #0f171a 100%); color:#9fd9eb; }
-    .sync-banner.hidden { display:none; }
-    .panel-status { color:#6f9ead; font-size:0.8em; text-transform:uppercase; letter-spacing:0.08em; }
-    .panel-syncing { opacity:0.78; }
-    .panel-syncing .field span { color:#78a0aa; }
-    .panel-ready .panel-status { color:#00ff41; }
-    .panel-error .panel-status { color:#ff7777; }
-    .loading-value { color:#78a0aa !important; }
-    .controls-disabled button,
-    .controls-disabled select,
-    .controls-disabled input { opacity:0.6; pointer-events:none; }
-</style>
+<link rel="stylesheet" href="/static/css/satellite.css">
 {% endblock %}
 {% block content %}
 <h1>Satellite Control</h1>

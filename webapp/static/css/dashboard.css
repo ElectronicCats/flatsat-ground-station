@@ -1,0 +1,49 @@
+    #hw-status { padding:10px; margin-bottom:15px; border:1px solid #333; background:#111; }
+    #hw-indicator { display:inline-block; width:10px; height:10px; border-radius:50%; margin-right:8px; }
+    .ind-idle { background:#888; }
+    .ind-sim { background:#ffaa00; animation: blink 2s infinite; }
+    .ind-hw { background:#00ff41; animation: blink 1s infinite; }
+    @keyframes blink { 50% { opacity:0.4; } }
+    #tm-column-controls { display:flex; gap:10px; margin:10px 0 12px; padding:10px; border:1px solid #333; background:#111; align-items:center; }
+    .tm-column-title { color:#888; font-size:0.9em; }
+    #tm-col-dropdown { position:relative; display:inline-block; }
+    #tm-col-btn { background:#1a1a1a; color:#00ff41; border:1px solid #333; padding:5px 10px; cursor:pointer; }
+    #tm-col-btn:hover { background:#333; }
+    #tm-col-menu { display:none; position:absolute; top:100%; left:0; background:#1a1a1a; border:1px solid #333; padding:8px; z-index:10; min-width:160px; max-height:50vh; overflow-y:auto; }
+    #tm-col-menu.open { display:block; }
+    #tm-col-menu label { display:block; color:#ddd; font-size:0.85em; padding:2px 0; white-space:nowrap; cursor:pointer; }
+    #tm-col-menu label:hover { color:#00ff41; }
+    #tm-col-menu label input { margin-right:6px; }
+    #tm-columns-reset { font-size:0.85em; }
+    #tm-container { max-height:60vh; overflow:auto; border:1px solid #333; }
+    #tm-container table { margin:0; }
+    #telemetry-table { table-layout:fixed; font-size:0.9em; }
+    #telemetry-table th, #telemetry-table td { white-space:nowrap; overflow:hidden; text-overflow:ellipsis; padding:4px 6px; }
+    /* Column widths tuned to max content */
+    th[data-col="recv_time"],td[data-col="recv_time"] { width:80px; }    /* 12:34:56 */
+    th[data-col="frame_ts"],td[data-col="frame_ts"] { width:70px; }      /* 99999 s */
+    th[data-col="apid"],td[data-col="apid"] { width:55px; }              /* 0x01F */
+    th[data-col="seq"],td[data-col="seq"] { width:50px; }                /* 16383 */
+    th[data-col="sc_id"],td[data-col="sc_id"] { width:45px; }            /* 0x02 */
+    th[data-col="flight"],td[data-col="flight"] { width:70px; }          /* NOMINAL */
+    th[data-col="difficulty"],td[data-col="difficulty"] { width:35px; }   /* 3 */
+    th[data-col="battery"],td[data-col="battery"] { width:72px; }        /* 4200 mV */
+    th[data-col="uptime"],td[data-col="uptime"] { width:65px; }          /* 99999 s */
+    th[data-col="tc_count"],td[data-col="tc_count"] { width:40px; }      /* 999 */
+    th[data-col="error_count"],td[data-col="error_count"] { width:40px; }/* 999 */
+    th[data-col="temp"],td[data-col="temp"] { width:72px; }              /* 35.50 C */
+    th[data-col="pressure"],td[data-col="pressure"] { width:85px; }      /* 101300.0 hPa */
+    th[data-col="humidity"],td[data-col="humidity"] { width:40px; }       /* 99% */
+    th[data-col="accel_x"],td[data-col="accel_x"] { width:45px; }        /* -1050 */
+    th[data-col="accel_y"],td[data-col="accel_y"] { width:45px; }
+    th[data-col="accel_z"],td[data-col="accel_z"] { width:45px; }
+    th[data-col="rssi"],td[data-col="rssi"] { width:68px; }              /* -120 dBm */
+    th[data-col="snr"],td[data-col="snr"] { width:55px; }                /* -20 dB */
+    th[data-col="raw"],td[data-col="raw"] { width:280px; }               /* hex string */
+    #pkt-counter { color:#00ccff; margin-left:15px; }
+    #last-seen { color:#888; margin-left:15px; font-size:0.9em; }
+    .btn-active { background:#00ff41 !important; color:#0a0a0a !important; font-weight:bold; }
+    #tm-filter:focus { outline:1px solid #00ff41; }
+    #tm-pagination button { background:#1a1a1a; color:#00ccff; border:1px solid #333; padding:4px 10px; cursor:pointer; }
+    #tm-pagination button:hover:not(:disabled) { background:#333; }
+    #tm-pagination button:disabled { color:#555; cursor:default; }
