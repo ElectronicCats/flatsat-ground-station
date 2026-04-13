@@ -239,3 +239,28 @@ def test_gs11_debug_log_via_sqli(operator_client):
     data = resp.get_json()
     found = any("PWNSAT{LOG_INJECTION_SUCCESS}" in str(row.values()) for row in data)
     assert found, "SQLi UNION on logs should reveal GS-11 DEBUG flag"
+
+
+def test_404_page(app):
+    client = app.test_client()
+    resp = client.get("/nonexistent-route")
+    assert resp.status_code == 404
+    assert b"SATELLITE" in resp.data
+    assert b"NOT FOUND" in resp.data
+    assert b"/api/endpoints" in resp.data
+
+
+def test_500_page(app):
+    """Register a route that raises an exception to trigger 500."""
+    app.config["TESTING"] = False
+    app.config["PROPAGATE_EXCEPTIONS"] = False
+
+    @app.route("/trigger-500")
+    def boom():
+        raise RuntimeError("test explosion")
+
+    client = app.test_client()
+    resp = client.get("/trigger-500")
+    assert resp.status_code == 500
+    assert b"GROUND STATION FAULT" in resp.data
+    assert b"SAFE MODE" in resp.data

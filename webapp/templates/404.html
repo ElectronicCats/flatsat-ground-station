@@ -1,0 +1,45 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>PwnSat2 Ground Station — Signal Lost</title>
+    <link rel="stylesheet" href="/static/css/base.css">
+    <style>
+        .error-container { text-align: center; margin-top: 60px; }
+        .ascii-art { color: #555; font-size: 12px; line-height: 1.2; }
+        .error-code { font-size: 48px; color: #ff4444; margin: 20px 0 5px; }
+        .error-msg { color: #00ff41; font-size: 18px; margin-bottom: 30px; }
+        .terminal-log { text-align: left; display: inline-block; margin: 20px 0; }
+        .terminal-log span { color: #888; }
+        .terminal-log .warn { color: #ffaa00; }
+        .terminal-log .err { color: #ff4444; }
+        .back-link { font-size: 16px; margin-top: 20px; display: inline-block; }
+    </style>
+</head>
+<body>
+<div class="error-container">
+    <pre class="ascii-art">
+         .  *  .    *    .   *    .
+       *                           .
+          *   .        *       *
+      .       _______________
+         *   |  )) )))  (( ( |   .
+       .     |   SATELLITE   |  *
+         *   |   NOT FOUND   |
+      .      |_______________|    .
+                   | |
+          *    .   | |   *     .
+       .      *    | |      *
+         *         *       .    *
+    </pre>
+    <div class="error-code">404</div>
+    <div class="error-msg">No downlink at this frequency</div>
+    <pre class="terminal-log">
+<span>[T+00:04:04]</span> <span class="warn">WARN:</span> Telemetry route not found
+<span>[T+00:04:04]</span> <span class="err">ERR:</span>  Requested orbit does not exist
+<span>[T+00:04:04]</span> INFO: Adjust your antenna and try again
+    </pre>
+    <a class="back-link" href="/dashboard">&gt; Return to Mission Control</a>
+</div>
+<!-- maybe try /api/endpoints? -->
+</body>
+</html>
