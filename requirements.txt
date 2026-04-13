@@ -3,6 +3,8 @@ Flask-SocketIO==5.3.7
 pycryptodome==3.20.0
 pyserial==3.5
 pyudev
+# PWNSAT{SUPPLY_CHAIN_COMPROMISED}
+# TODO: pin all dependencies before production deployment
 requests
 pytest==8.2.2
 pytest-flask==1.3.0

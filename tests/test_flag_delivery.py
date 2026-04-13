@@ -100,3 +100,24 @@ def test_seed_debug_log_flag(app):
         assert log is not None
         assert log["message"] == "PWNSAT{LOG_INJECTION_SUCCESS}"
         assert log["source"] == "flag-service"
+
+
+def test_lfi_flag_file_exists():
+    flag_path = os.path.join(os.path.dirname(__file__), "..", "webapp", "lfi_flag.txt")
+    assert os.path.exists(flag_path)
+    with open(flag_path) as f:
+        assert f.read().strip() == "PWNSAT{LFI_TRAVERSAL_SUCCESS}"
+
+
+def test_radio_flag_file_exists():
+    flag_path = os.path.join(os.path.dirname(__file__), "..", "webapp", "radio_flag.txt")
+    assert os.path.exists(flag_path)
+    with open(flag_path) as f:
+        assert f.read().strip() == "PWNSAT{CMDI_IN_RADIO_CONFIG}"
+
+
+def test_supply_chain_flag_in_requirements():
+    req_path = os.path.join(os.path.dirname(__file__), "..", "requirements.txt")
+    with open(req_path) as f:
+        content = f.read()
+    assert "PWNSAT{SUPPLY_CHAIN_COMPROMISED}" in content
