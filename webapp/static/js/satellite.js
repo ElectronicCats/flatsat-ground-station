@@ -284,50 +284,59 @@ async function pollStatus() {
 
 // --- Actions ---
 async function setMode(m) {
+    let data;
     if (m === "ground_station") {
-        await api("mode", "POST", {mode: "ground_station"});
+        data = await api("mode", "POST", {mode: "ground_station"});
     } else if (m === "tinygs") {
-        // TinyGS immediately starts spoofing with selected profile
         const profile = document.getElementById("tinygs-profile").value;
-        await api("tinygs", "POST", {action: "spoof", profile: profile});
+        data = await api("tinygs", "POST", {action: "spoof", profile: profile});
     } else {
-        await api("mode", "POST", {mode: m});
+        data = await api("mode", "POST", {mode: m});
     }
+    if (data.error) { showToast("Mode failed: " + data.error, 5000); return; }
     await pollStatus();
 }
-async function setFlight(f) { await api("flight", "POST", {flight: f}); await pollStatus(); }
+async function setFlight(f) {
+    const data = await api("flight", "POST", {flight: f});
+    if (data.error) { showToast("Flight failed: " + data.error, 5000); return; }
+    await pollStatus();
+}
 async function setDifficulty(l) {
     const data = await api("difficulty", "POST", {level: parseInt(l)});
-    if (data.error) { alert("Failed: " + data.error); return; }
+    if (data.error) { showToast("Difficulty failed: " + data.error, 5000); return; }
     await pollStatus();
 }
 async function applyLora(radio) {
     const r = radio.toLowerCase();
-    await api("lora_config", "POST", {
+    const data = await api("lora_config", "POST", {
         radio: radio,
         frequency: parseInt(document.getElementById("set-" + r + "-freq").value),
         sf: parseInt(document.getElementById("set-" + r + "-sf").value),
         bw: parseInt(document.getElementById("set-" + r + "-bw").value),
         power: parseInt(document.getElementById("set-" + r + "-power").value),
     });
+    if (data.error) { showToast(radio + " LoRa config failed: " + data.error, 5000); return; }
     await pollLora();
     showToast(radio + " LoRa config applied", 3000);
 }
 async function tinygsSpoof() {
-    await api("tinygs", "POST", {action: "spoof", profile: document.getElementById("tinygs-profile").value});
+    const data = await api("tinygs", "POST", {action: "spoof", profile: document.getElementById("tinygs-profile").value});
+    if (data.error) { showToast("TinyGS spoof failed: " + data.error, 5000); return; }
     document.getElementById("btn-spoof").className = "btn-active";
     document.getElementById("btn-tinygs-stop").className = "";
     await pollStatus();
 }
 async function tinygsStop() {
-    await api("tinygs", "POST", {action: "stop"});
+    const data = await api("tinygs", "POST", {action: "stop"});
+    if (data.error) { showToast("TinyGS stop failed: " + data.error, 5000); return; }
     document.getElementById("btn-spoof").className = "";
     document.getElementById("btn-tinygs-stop").className = "";
     await pollStatus();
 }
 async function resetDefaults() {
     if (!confirm("Reset RF config and mode to factory defaults?")) return;
-    await api("reset", "POST");
+    const data = await api("reset", "POST");
+    if (data.error) { showToast("Reset failed: " + data.error, 5000); return; }
     await pollStatus();
     await pollLora();
     showToast("Defaults restored", 3000);
