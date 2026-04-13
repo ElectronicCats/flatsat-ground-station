@@ -175,6 +175,23 @@ def test_gs12_debug_flags_no_auth(app):
     assert resp.get_json()["flag"] == "PWNSAT{API_NO_RATE_LIMIT}"
 
 
+def test_gs11_logs_page_hides_debug(operator_client):
+    resp = operator_client.get("/logs")
+    assert resp.status_code == 200
+    assert b"PWNSAT{LOG_INJECTION_SUCCESS}" not in resp.data
+    assert b"flag-service" not in resp.data
+
+
+def test_gs11_debug_log_exists_in_db(app):
+    from webapp.db import get_db
+
+    with app.app_context():
+        db = get_db()
+        row = db.execute("SELECT * FROM logs WHERE level = 'DEBUG'").fetchone()
+        assert row is not None
+        assert row["message"] == "PWNSAT{LOG_INJECTION_SUCCESS}"
+
+
 def test_gs12_debug_flags_listed_in_endpoints(app):
     client = app.test_client()
     resp = client.get("/api/endpoints")

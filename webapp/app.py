@@ -120,7 +120,8 @@ def create_app(config_class=Config, db_path=None):
         from webapp.db import get_db
 
         db = get_db()
-        logs = db.execute("SELECT * FROM logs ORDER BY id DESC").fetchall()
+        # Filter out DEBUG entries (GS-11: hidden flag only reachable via injection/SQLi)
+        logs = db.execute("SELECT * FROM logs WHERE level != 'DEBUG' ORDER BY id DESC").fetchall()
         return render_template("logs.html", logs=logs)
 
     @app.route("/api/diagnostics", methods=["POST"])
