@@ -9,17 +9,48 @@ from webapp.db import get_db
 
 
 def seed_db():
-    """Seed the database with CTF data. Idempotent — skips if users exist."""
+    """Seed the database with CTF data. Each section is independently idempotent."""
     db = get_db()
-    existing = db.execute("SELECT COUNT(*) FROM users").fetchone()[0]
-    if existing > 0:
-        return
+    changed = False
 
-    _seed_users(db)
-    _seed_radio_config(db)
-    _seed_secrets(db)
-    _seed_logs(db)
-    db.commit()
+    if db.execute("SELECT COUNT(*) FROM users").fetchone()[0] == 0:
+        _seed_users(db)
+        changed = True
+
+    if db.execute("SELECT COUNT(*) FROM secrets").fetchone()[0] == 0:
+        _seed_secrets(db)
+        changed = True
+
+    if db.execute("SELECT COUNT(*) FROM radio_config").fetchone()[0] == 0:
+        _seed_radio_config(db)
+        changed = True
+
+    if db.execute("SELECT COUNT(*) FROM logs").fetchone()[0] == 0:
+        _seed_logs(db)
+        changed = True
+
+    # Backfill: ensure admin has admin_notes populated (migration from older DBs)
+    admin_notes = db.execute("SELECT admin_notes FROM users WHERE username = 'admin'").fetchone()
+    if admin_notes and not admin_notes[0]:
+        db.execute(
+            "UPDATE users SET admin_notes = ? WHERE username = 'admin'",
+            ("PWNSAT{XSS_IN_MISSION_LOGS}",),
+        )
+        changed = True
+
+    # Backfill: ensure admin radio_config has notes populated
+    admin_cfg = db.execute(
+        "SELECT id, notes FROM radio_config WHERE owner = 'admin' AND description LIKE '%CLASSIFIED%'"
+    ).fetchone()
+    if admin_cfg and not admin_cfg["notes"]:
+        db.execute(
+            "UPDATE radio_config SET notes = ? WHERE id = ?",
+            ("PWNSAT{IDOR_ADMIN_CONFIG}", admin_cfg["id"]),
+        )
+        changed = True
+
+    if changed:
+        db.commit()
 
 
 def _seed_users(db):

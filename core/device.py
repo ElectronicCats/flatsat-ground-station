@@ -101,8 +101,38 @@ class FlatSatDevice:
         # If any port failed, clean up the ones that opened
         if not all(result.values()):
             self.disconnect()
+        elif self._shell and self._shell.is_open:
+            self._drain_boot_banner()
 
         return result
+
+    def _drain_boot_banner(self):
+        """Drain firmware boot text from shell before sending real commands.
+
+        After USB CDC open, the firmware may still be printing its boot banner.
+        We wait for the boot output to settle, drain it, then send a no-op
+        command to confirm the shell is responsive before returning.
+        """
+        import time
+
+        with self._shell_lock:
+            try:
+                # Wait for firmware boot to complete
+                time.sleep(1.0)
+                # Drain all boot text
+                if self._shell.in_waiting:
+                    self._shell.read(self._shell.in_waiting)
+                self._shell.reset_input_buffer()
+                # Send bare newline to sync shell parser
+                self._shell.write(b"\r\n")
+                self._shell.flush()
+                time.sleep(0.3)
+                # Drain the shell's response to the empty line
+                if self._shell.in_waiting:
+                    self._shell.read(self._shell.in_waiting)
+                self._shell.reset_input_buffer()
+            except Exception:
+                pass
 
     def disconnect(self):
         """Close all serial ports, holding all locks to prevent races."""
