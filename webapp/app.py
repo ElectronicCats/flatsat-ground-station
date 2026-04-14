@@ -474,19 +474,14 @@ def create_app(config_class=Config, db_path=None):
 
         if device.is_connected:
             gs.set_hardware(device)
-            # Bootstrap: R1 command mode + sync difficulty (retry once on failure)
-            r1_resp = device.send_shell_command_full("lora_mode R1 command")
-            if r1_resp is None:
-                time.sleep(0.5)
-                r1_resp = device.send_shell_command_full("lora_mode R1 command")
+            # Bootstrap: sync difficulty (retry once on failure)
+            # Radio mode is set later by the user via /api/satellite/mode
             diff_raw = device.send_shell_command_full("difficulty")
             if diff_raw is None:
                 time.sleep(0.5)
                 diff_raw = device.send_shell_command_full("difficulty")
             gs.difficulty = parse_difficulty(diff_raw)
             warnings = []
-            if r1_resp is None or "error" in (r1_resp or "").lower() or "unknown" in (r1_resp or "").lower():
-                warnings.append(f"R1 command mode: {r1_resp!r}")
             if diff_raw is None or gs.difficulty == 0 and "difficulty" not in (diff_raw or ""):
                 warnings.append(f"difficulty sync: {diff_raw!r}")
             warn_str = f" [WARN: {', '.join(warnings)}]" if warnings else ""
