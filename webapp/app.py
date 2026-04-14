@@ -868,10 +868,7 @@ def create_app(config_class=Config, db_path=None):
         if err:
             return err
         resp = dev.send_shell_command_full("reset_defaults")
-        # Firmware reset_defaults sets both radios to 915 MHz — restore R1 uplink offset
-        dev.send_shell_command_full("lora_freq R1 916000000")
-        dev.send_shell_command_full("lora_apply R1")
-        log_activity("WARN", "satellite", "Factory defaults restored (R1 freq corrected)")
+        log_activity("WARN", "satellite", "Factory defaults restored")
         return {"status": "ok", "response": resp}
 
     @socketio.on("connect")
