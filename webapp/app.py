@@ -1,5 +1,6 @@
 """Flask application factory with WebSocket support."""
 
+import os
 import threading
 import time
 
@@ -32,6 +33,11 @@ def create_app(config_class=Config, db_path=None):
 
     if db_path:
         app.config["DATABASE"] = db_path
+
+    # Ensure the database directory exists (fresh clone won't have it)
+    db_dir = os.path.dirname(app.config["DATABASE"])
+    if db_dir:
+        os.makedirs(db_dir, exist_ok=True)
 
     app.teardown_appcontext(close_db)
 
@@ -1055,9 +1061,6 @@ def start_telemetry_thread(app):
 
 
 if __name__ == "__main__":
-    import os
-
-    os.makedirs("db", exist_ok=True)
-    app = create_app()  # DB init + seed + telemetry thread started inside
+    app = create_app()
     print("PwnSat2 Ground Station running on http://localhost:5000")
     socketio.run(app, host="0.0.0.0", port=5000, debug=True, allow_unsafe_werkzeug=True)

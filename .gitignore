@@ -16,3 +16,13 @@ db/*.db
 .ruff_cache/
 htmlcov/
 .coverage
+
+# Virtual environments
+.venv/
+venv/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo

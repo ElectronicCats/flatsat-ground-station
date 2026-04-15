@@ -1,0 +1,17 @@
+services:
+  ground-station:
+    build: .
+    ports:
+      - "5000:5000"
+    volumes:
+      - ./db:/app/db
+    # USB passthrough for FlatSat hardware (VID:PID 1209:babc)
+    # Comment out the 'devices' section to run in simulated mode only
+    devices:
+      - /dev/ttyACM0:/dev/ttyACM0
+      - /dev/ttyACM1:/dev/ttyACM1
+      - /dev/ttyACM2:/dev/ttyACM2
+    # Required for USB device discovery via pyudev
+    volumes_from: []
+    environment:
+      - PYTHONUNBUFFERED=1

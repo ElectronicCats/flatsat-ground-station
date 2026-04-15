@@ -1,0 +1,15 @@
+__pycache__/
+*.pyc
+.pytest_cache/
+.ruff_cache/
+.venv/
+venv/
+.git/
+.claude/
+db/*.db
+*.log
+htmlcov/
+.coverage
+.vscode/
+.idea/
+docs/superpowers/
