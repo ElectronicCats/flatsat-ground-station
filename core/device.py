@@ -67,8 +67,8 @@ class FlatSatDevice:
 
     @property
     def is_connected(self) -> bool:
-        """True only if all three endpoints (radio0, radio1, shell) are open."""
-        return all(s is not None and s.is_open for s in [self._radio0, self._radio1, self._shell])
+        """True only if radio0 and shell are open (radio1 is optional for GS-only boards)."""
+        return all(s is not None and s.is_open for s in [self._radio0, self._shell])
 
     def connect(self) -> dict[str, bool]:
         """Open all serial ports. Returns {endpoint: success}.
@@ -98,8 +98,8 @@ class FlatSatDevice:
             else:
                 result[name] = False
 
-        # If any port failed, clean up the ones that opened
-        if not all(result.values()):
+        # If mandatory ports failed, clean up the ones that opened
+        if not result.get("radio0") or not result.get("shell"):
             self.disconnect()
         elif self._shell and self._shell.is_open:
             self._drain_boot_banner()
@@ -197,6 +197,18 @@ class FlatSatDevice:
 
     def send_raw(self, data: bytes) -> bool:
         """Send raw bytes to Radio 0 (CDC0)."""
+        if not self._radio0 or not self._radio0.is_open:
+            return False
+        with self._radio0_lock:
+            try:
+                self._radio0.write(data)
+                self._radio0.flush()
+                return True
+            except Exception:
+                return False
+
+    def send_radio0_raw(self, data: bytes) -> bool:
+        """Send raw bytes to Radio 0 (CDC0 stream mode)."""
         if not self._radio0 or not self._radio0.is_open:
             return False
         with self._radio0_lock:

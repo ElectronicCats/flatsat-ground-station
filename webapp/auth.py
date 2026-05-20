@@ -5,7 +5,8 @@ import hashlib
 import time
 from functools import wraps
 
-from flask import g, redirect, request, url_for
+from flask import current_app, g, redirect, request, url_for
+import hmac
 
 from webapp.db import get_db
 
@@ -15,19 +16,48 @@ def _md5(text: str) -> str:
 
 
 def create_session_token(username: str, role: str) -> str:
-    """Create a base64 session token. DELIBERATELY INSECURE (GS-05)."""
+    """Create a session token. Insecure Base64 for Level 1/2, Signed for Level 3."""
     timestamp = str(int(time.time()))
     payload = f"{username}:{role}:{timestamp}"
-    return base64.b64encode(payload.encode()).decode()
+    
+    if current_app.config.get("CTF_LEVEL", 1) <= 2:
+        # DELIBERATELY INSECURE (GS-05) - Easy/Medium mode
+        return base64.b64encode(payload.encode()).decode()
+    else:
+        # SECURE: Signed token - Hard mode
+        signature = hmac.new(
+            current_app.config["SECRET_KEY"].encode(),
+            payload.encode(),
+            hashlib.sha256
+        ).hexdigest()
+        full_token = f"{payload}|{signature}"
+        return base64.b64encode(full_token.encode()).decode()
 
 
 def parse_session_token(token: str) -> tuple[str | None, str | None]:
     """Parse a session token. Returns (username, role) or (None, None)."""
     try:
         decoded = base64.b64decode(token).decode()
-        parts = decoded.split(":")
-        if len(parts) >= 2:
-            return parts[0], parts[1]
+        
+        if current_app.config.get("CTF_LEVEL", 1) <= 2:
+            parts = decoded.split(":")
+            if len(parts) >= 2:
+                return parts[0], parts[1]
+        else:
+            # SECURE: Verify signature - Hard mode
+            if "|" not in decoded:
+                return None, None
+            payload, signature = decoded.rsplit("|", 1)
+            expected_sig = hmac.new(
+                current_app.config["SECRET_KEY"].encode(),
+                payload.encode(),
+                hashlib.sha256
+            ).hexdigest()
+            
+            if hmac.compare_digest(signature, expected_sig):
+                parts = payload.split(":")
+                if len(parts) >= 2:
+                    return parts[0], parts[1]
     except Exception:
         pass
     return None, None

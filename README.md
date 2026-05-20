@@ -19,8 +19,19 @@ cd flatsat-ground-station
 python -m venv .venv
 source .venv/bin/activate   # Windows: .venv\Scripts\activate
 pip install -r requirements.txt
+export FLATSAT_LEVEL=1  # 1: Easy, 2: Medium, 3: Hard
 python -m webapp.app
 ```
+
+### CTF Difficulty Levels
+
+This ground station supports three difficulty levels that toggle security vulnerabilities and protocol complexity:
+
+- **Level 1 (Easy):** Web vulnerabilities (SQLi, Auth Bypass) are fully exploitable. Radio communication is in plaintext.
+- **Level 2 (Medium):** Web vulnerabilities are harder (LFI, RCE). Radio requires CCSDS Space Packets.
+- **Level 3 (Hard):** Web security is hardened (Signed tokens, input validation). Focus shifts to firmware exploitation (Buffer Overflows) and SDLS/AES crypto.
+
+Change the level using the `FLATSAT_LEVEL` environment variable before starting the app.
 
 Open `http://localhost:5000` in your browser.
 

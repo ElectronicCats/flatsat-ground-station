@@ -22,13 +22,33 @@ class RadioBridge:
         return "hardware" if self.is_connected else "simulated"
 
     def send_raw(self, data: bytes) -> dict:
-        """Send raw bytes to satellite via Radio 1 TX command."""
+        """Send raw bytes to satellite via Radio 1 TX command, or fallback to Radio 0 stream."""
         if self.is_connected and self._state.device:
+            # Check for CTF level win conditions to trigger LED feedback
+            diff = getattr(self._state, "difficulty", 1)
             try:
+                if diff == 1 and b"TEST" in data:
+                    self._state.device.send_shell_command("color 0 50 0") # Green
+                elif diff == 2 and b"\x08\x01\xc0" in data:
+                    self._state.device.send_shell_command("color 0 0 50") # Blue
+                elif diff == 3 and b"DIAG_MEM" in data:
+                    self._state.device.send_shell_command("color 50 0 50") # Purple
+            except Exception:
+                pass
+
+            try:
+                # Try Radio 1 (Command mode) first if available
                 resp = self._state.device.send_radio1_tx(data)
-                if resp and "Success" in resp:
-                    return {"status": "sent", "bytes": len(data), "response": resp}
-                return {"status": "error", "error": resp or "no response"}
+                if resp is not None:
+                    if "Success" in resp:
+                        return {"status": "sent", "bytes": len(data), "response": resp}
+                    return {"status": "error", "error": resp}
+                
+                # Fallback to Radio 0 (Stream mode) for GS-only boards
+                if hasattr(self._state.device, 'send_radio0_raw') and self._state.device.send_radio0_raw(data):
+                    return {"status": "sent", "bytes": len(data), "response": "Stream TX Success"}
+                
+                return {"status": "error", "error": "No radio available for TX"}
             except Exception as e:
                 return {"status": "error", "error": str(e)}
 

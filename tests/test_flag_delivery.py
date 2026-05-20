@@ -70,7 +70,8 @@ def test_seed_admin_notes_flag(app):
     with app.app_context():
         db = get_db()
         admin = db.execute("SELECT admin_notes FROM users WHERE username = 'admin'").fetchone()
-        assert admin["admin_notes"] == "PWNSAT{XSS_IN_MISSION_LOGS}"
+        level = app.config["CTF_LEVEL"]
+        assert admin["admin_notes"] == f"PWNSAT{{XSS_IN_MISSION_LOGS_LVL{level}}}"
 
 
 def test_seed_admin_radio_config_notes_flag(app):
@@ -79,7 +80,8 @@ def test_seed_admin_radio_config_notes_flag(app):
     with app.app_context():
         db = get_db()
         config = db.execute("SELECT notes FROM radio_config WHERE owner = 'admin'").fetchone()
-        assert config["notes"] == "PWNSAT{IDOR_ADMIN_CONFIG}"
+        level = app.config["CTF_LEVEL"]
+        assert config["notes"] == f"PWNSAT{{IDOR_ADMIN_CONFIG_LVL{level}}}"
 
 
 def test_seed_secrets_flag(app):
@@ -88,7 +90,8 @@ def test_seed_secrets_flag(app):
     with app.app_context():
         db = get_db()
         secret = db.execute("SELECT * FROM secrets WHERE name = 'satellite_master_key'").fetchone()
-        assert secret["value"] == "PWNSAT{TELEMETRY_DB_TAMPERED}"
+        level = app.config["CTF_LEVEL"]
+        assert secret["value"] == f"PWNSAT{{TELEMETRY_DB_TAMPERED_LVL{level}}}"
         assert secret["access_level"] == "classified"
 
 
@@ -99,7 +102,8 @@ def test_seed_debug_log_flag(app):
         db = get_db()
         log = db.execute("SELECT * FROM logs WHERE level = 'DEBUG'").fetchone()
         assert log is not None
-        assert log["message"] == "PWNSAT{LOG_INJECTION_SUCCESS}"
+        level = app.config["CTF_LEVEL"]
+        assert log["message"] == f"PWNSAT{{LOG_INJECTION_SUCCESS_LVL{level}}}"
         assert log["source"] == "flag-service"
 
 
@@ -124,11 +128,12 @@ def test_supply_chain_flag_in_requirements():
     assert "PWNSAT{SUPPLY_CHAIN_COMPROMISED}" in content
 
 
-def test_gs05_admin_panel_as_admin(admin_client):
+def test_gs05_admin_panel_as_admin(app, admin_client):
     resp = admin_client.get("/api/admin/panel")
     assert resp.status_code == 200
     data = resp.get_json()
-    assert data["flag"] == "PWNSAT{SESSION_TOKEN_FORGED}"
+    level = app.config["CTF_LEVEL"]
+    assert data["flag"] == f"PWNSAT{{SESSION_TOKEN_FORGED_LVL{level}}}"
 
 
 def test_gs05_admin_panel_as_operator(operator_client):
@@ -142,15 +147,17 @@ def test_gs05_admin_panel_forged_token(app):
     client.set_cookie("session_token", forged)
     resp = client.get("/api/admin/panel")
     assert resp.status_code == 200
-    assert resp.get_json()["flag"] == "PWNSAT{SESSION_TOKEN_FORGED}"
+    level = app.config["CTF_LEVEL"]
+    assert resp.get_json()["flag"] == f"PWNSAT{{SESSION_TOKEN_FORGED_LVL{level}}}"
 
 
-def test_gs02_users_me_as_admin(admin_client):
+def test_gs02_users_me_as_admin(app, admin_client):
     resp = admin_client.get("/api/users/me")
     assert resp.status_code == 200
     data = resp.get_json()
     assert data["username"] == "admin"
-    assert data["admin_notes"] == "PWNSAT{XSS_IN_MISSION_LOGS}"
+    level = app.config["CTF_LEVEL"]
+    assert data["admin_notes"] == f"PWNSAT{{XSS_IN_MISSION_LOGS_LVL{level}}}"
 
 
 def test_gs02_users_me_as_operator(operator_client):
@@ -161,18 +168,20 @@ def test_gs02_users_me_as_operator(operator_client):
     assert data["admin_notes"] == ""
 
 
-def test_gs08_radio_status(operator_client):
+def test_gs08_radio_status(app, operator_client):
     resp = operator_client.get("/api/radio/status")
     assert resp.status_code == 200
     data = resp.get_json()
-    assert data["bridge_key"] == "PWNSAT{WEB_TO_SPACE_LINK}"
+    level = app.config["CTF_LEVEL"]
+    assert data["bridge_key"] == f"PWNSAT{{WEB_TO_SPACE_LINK_LVL{level}}}"
 
 
 def test_gs12_debug_flags_no_auth(app):
     client = app.test_client()
     resp = client.get("/api/debug/flags")
     assert resp.status_code == 200
-    assert resp.get_json()["flag"] == "PWNSAT{API_NO_RATE_LIMIT}"
+    level = app.config["CTF_LEVEL"]
+    assert resp.get_json()["flag"] == f"PWNSAT{{API_NO_RATE_LIMIT_LVL{level}}}"
 
 
 def test_gs11_logs_page_hides_debug(operator_client):
@@ -189,7 +198,8 @@ def test_gs11_debug_log_exists_in_db(app):
         db = get_db()
         row = db.execute("SELECT * FROM logs WHERE level = 'DEBUG'").fetchone()
         assert row is not None
-        assert row["message"] == "PWNSAT{LOG_INJECTION_SUCCESS}"
+        level = app.config["CTF_LEVEL"]
+        assert row["message"] == f"PWNSAT{{LOG_INJECTION_SUCCESS_LVL{level}}}"
 
 
 def test_gs12_debug_flags_listed_in_endpoints(app):
@@ -213,31 +223,34 @@ def test_gs04_lfi_flag_via_traversal(auth_client):
     assert "PWNSAT{LFI_TRAVERSAL_SUCCESS}" in resp.get_json()["content"]
 
 
-def test_gs06_idor_flag_via_admin_config(operator_client):
+def test_gs06_idor_flag_via_admin_config(app, operator_client):
     """GS-06: Operator accesses admin's radio config and finds flag."""
     resp = operator_client.get("/api/config/radio/1")
     assert resp.status_code == 200
     data = resp.get_json()
-    assert data["notes"] == "PWNSAT{IDOR_ADMIN_CONFIG}"
+    level = app.config["CTF_LEVEL"]
+    assert data["notes"] == f"PWNSAT{{IDOR_ADMIN_CONFIG_LVL{level}}}"
 
 
-def test_gs09_secrets_via_sqli(operator_client):
+def test_gs09_secrets_via_sqli(app, operator_client):
     """GS-09: SQLi UNION SELECT on secrets table reveals flag."""
     payload = "' UNION SELECT name,value,access_level,1,2,3,4,5,6,7,8,9,10 FROM secrets--"
     resp = operator_client.get(f"/api/telemetry?search={payload}&limit=100")
     assert resp.status_code == 200
     data = resp.get_json()
-    found = any("PWNSAT{TELEMETRY_DB_TAMPERED}" in str(row.values()) for row in data)
+    level = app.config["CTF_LEVEL"]
+    found = any(f"PWNSAT{{TELEMETRY_DB_TAMPERED_LVL{level}}}" in str(row.values()) for row in data)
     assert found, "SQLi UNION on secrets should reveal GS-09 flag"
 
 
-def test_gs11_debug_log_via_sqli(operator_client):
+def test_gs11_debug_log_via_sqli(app, operator_client):
     """GS-11: SQLi UNION SELECT on logs table reveals hidden DEBUG flag."""
     payload = "' UNION SELECT id,timestamp,level,source,message,6,7,8,9,10,11,12,13 FROM logs WHERE level='DEBUG'--"
     resp = operator_client.get(f"/api/telemetry?search={payload}&limit=100")
     assert resp.status_code == 200
     data = resp.get_json()
-    found = any("PWNSAT{LOG_INJECTION_SUCCESS}" in str(row.values()) for row in data)
+    level = app.config["CTF_LEVEL"]
+    found = any(f"PWNSAT{{LOG_INJECTION_SUCCESS_LVL{level}}}" in str(row.values()) for row in data)
     assert found, "SQLi UNION on logs should reveal GS-11 DEBUG flag"
 
 
