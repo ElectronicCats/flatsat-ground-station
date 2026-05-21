@@ -250,14 +250,75 @@ class FlatSatDevice:
 
     def read_line(self, timeout: float = 1.0) -> str | None:
         """Read one line from Radio 0. Returns None on timeout."""
-        if not self._radio0 or not self._radio0.is_open:
+        return self.read_line_from_radio(0, timeout)
+
+    def read_line_from_radio(self, radio_idx: int, timeout: float = 1.0) -> str | None:
+        """Read one line from Radio 0 or Radio 1 depending on radio_idx."""
+        radio = self._radio1 if radio_idx == 1 else self._radio0
+        lock = self._radio1_lock if radio_idx == 1 else self._radio0_lock
+        if not radio or not radio.is_open:
             return None
-        with self._radio0_lock:
+        with lock:
             try:
-                self._radio0.timeout = timeout
-                line = self._radio0.readline()
+                radio.timeout = timeout
+                line = radio.readline()
                 if line:
                     return line.decode("ascii", errors="ignore").strip()
                 return None
             except Exception:
                 return None
+
+    def send_radio_tx(self, radio_idx: int, data: bytes) -> str | None:
+        """Send data via selected Radio using TX command (LoRa command mode)."""
+        radio = self._radio1 if radio_idx == 1 else self._radio0
+        lock = self._radio1_lock if radio_idx == 1 else self._radio0_lock
+        if not radio or not radio.is_open:
+            return None
+        with lock:
+            try:
+                import time
+                radio.timeout = 3.0
+                
+                # Send a newline to clear/terminate any garbage command in progress on the board
+                radio.write(b"\r\n")
+                radio.flush()
+                time.sleep(0.1)
+                
+                # Drain the response to the empty command/newline
+                if radio.in_waiting:
+                    radio.read(radio.in_waiting)
+                
+                # Send the real command
+                radio.reset_input_buffer()
+                radio.write(f"TX {data.hex()}\r\n".encode("ascii"))
+                radio.flush()
+                response = radio.readline()
+                if response:
+                    return response.decode("ascii", errors="ignore").strip()
+                return None
+            except Exception:
+                return None
+
+    def send_radio_raw(self, radio_idx: int, data: bytes) -> bool:
+        """Send raw bytes to selected Radio."""
+        radio = self._radio1 if radio_idx == 1 else self._radio0
+        lock = self._radio1_lock if radio_idx == 1 else self._radio0_lock
+        if not radio or not radio.is_open:
+            return False
+        with lock:
+            try:
+                radio.write(data)
+                radio.flush()
+                return True
+            except Exception:
+                return False
+
+    def reset_radio_input_buffers(self):
+        """Reset/drain input buffer for both radio ports to drop old messages."""
+        for ser, lock in [(self._radio0, self._radio0_lock), (self._radio1, self._radio1_lock)]:
+            if ser and ser.is_open:
+                with lock:
+                    try:
+                        ser.reset_input_buffer()
+                    except Exception:
+                        pass

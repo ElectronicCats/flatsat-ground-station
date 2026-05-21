@@ -116,6 +116,13 @@ function applyLocalSnapshot(local) {
     }
     highlightBtn("mode-btns", info.mode || "");
     highlightBtn("flight-btns", info.flight ? info.flight.toLowerCase() : "");
+    
+    const activeRadio = info.active_radio !== undefined ? info.active_radio : 0;
+    const radioBtns = document.getElementById("radio-btns").querySelectorAll("button");
+    radioBtns.forEach((btn, idx) => {
+        btn.className = idx === activeRadio ? "btn-active" : "";
+    });
+    
     document.getElementById("btn-spoof").className = info.mode === "tinygs" ? "btn-active" : "";
     document.getElementById("controls-note").textContent = info.role === "ground_station"
         ? "Connected device is the ground station. Battery, counters, and sensors above come from relayed satellite telemetry."
@@ -286,6 +293,22 @@ async function pollStatus() {
 }
 
 // --- Actions ---
+async function setActiveRadio(radioIdx) {
+    try {
+        const resp = await fetch("/api/hardware/active_radio", {
+            method: "POST",
+            headers: {"Content-Type": "application/json"},
+            body: JSON.stringify({active_radio: parseInt(radioIdx)})
+        });
+        if (!resp.ok) { showToast("Active radio change failed", 5000); return; }
+        const data = await resp.json();
+        console.log("[GS] Active radio switched:", data);
+        await pollStatus();
+    } catch (e) {
+        showToast("Active radio error: " + e.message, 5000);
+    }
+}
+
 async function setMode(m) {
     let data;
     if (m === "ground_station") {

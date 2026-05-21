@@ -61,6 +61,11 @@ async function hwStatus() {
             setButtons("hardware");
             setIndicator("hardware");
             document.getElementById("btn-connect").className = "btn-active";
+            
+            document.getElementById("hw-active-radio-container").style.display = "inline";
+            if (data.active_radio !== undefined) {
+                document.getElementById("hw-active-radio").value = data.active_radio;
+            }
         } else if (data.mode === "simulated") {
             el.textContent = "SIMULATED";
             el.style.color = "#ffaa00";
@@ -69,6 +74,7 @@ async function hwStatus() {
             setButtons("simulated");
             setIndicator("simulated");
             document.getElementById("btn-simulate").className = "btn-active";
+            document.getElementById("hw-active-radio-container").style.display = "none";
         } else {
             el.textContent = "IDLE";
             el.style.color = "#888";
@@ -76,9 +82,26 @@ async function hwStatus() {
             document.getElementById("hw-rssi").textContent = "";
             setButtons("idle");
             setIndicator("idle");
+            document.getElementById("hw-active-radio-container").style.display = "none";
         }
     } catch (e) {
         console.error("[GS] Status error:", e);
+    }
+}
+
+async function switchActiveRadio(radioIdx) {
+    try {
+        const resp = await fetch("/api/hardware/active_radio", {
+            method: "POST",
+            headers: {"Content-Type": "application/json"},
+            body: JSON.stringify({active_radio: parseInt(radioIdx)})
+        });
+        if (!resp.ok) { alert("Switch active radio failed"); return; }
+        const data = await resp.json();
+        console.log("[GS] Active radio switched:", data);
+        hwStatus();
+    } catch (e) {
+        alert("Switch active radio error: " + e.message);
     }
 }
 

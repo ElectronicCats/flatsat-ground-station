@@ -37,6 +37,7 @@ class GroundStationState:
         self.device: Any | None = None
         self.mock_running: bool = False
         self.difficulty: int = 0
+        self.active_radio: int = 0
         self.remote_satellite: dict = _empty_remote_satellite()
 
     @property
@@ -56,16 +57,19 @@ class GroundStationState:
         self.device = None
         self.mock_running = False
         self.difficulty = 0
+        self.active_radio = 0
         self.reset_remote_satellite()
 
     def set_simulated(self):
         self.connection_mode = ConnectionMode.SIMULATED
         self.device = None
+        self.active_radio = 0
         self.reset_remote_satellite()
 
     def set_hardware(self, device: Any):
         self.connection_mode = ConnectionMode.HARDWARE
         self.device = device
+        self.active_radio = 0
         self.reset_remote_satellite()
 
     def start_mock(self):

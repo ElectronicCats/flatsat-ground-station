@@ -468,10 +468,38 @@ def create_app(config_class=Config, db_path=None):
                 "mode": "hardware",
                 "serial_number": dev.serial_number if dev else None,
                 "ports": ports,
+                "active_radio": gs.active_radio,
             }
         if gs.is_simulated:
             return {"mode": "simulated", "mock_running": gs.mock_running}
         return {"mode": "idle"}
+
+    @app.route("/api/hardware/active_radio", methods=["GET", "POST"])
+    @login_required
+    def api_hardware_active_radio():
+        gs = app.config["GS_STATE"]
+        if request.method == "POST":
+            data = request.get_json(silent=True) or {}
+            radio_idx = data.get("active_radio")
+            if radio_idx is None or radio_idx not in (0, 1, "0", "1"):
+                return {"error": "Invalid or missing 'active_radio' (must be 0 or 1)"}, 400
+            
+            radio_idx = int(radio_idx)
+            gs.active_radio = radio_idx
+            
+            if gs.is_hardware and gs.device:
+                # Sync physical board antenna switch via CDC-Shell
+                cmd = "radio1" if radio_idx == 1 else "radio0"
+                gs.device.send_shell_command_full(cmd)
+                # Clear serial buffers
+                gs.device.reset_radio_input_buffers()
+                log_activity("INFO", "hardware", f"Active GS radio switched to Radio {radio_idx} on physical board")
+            else:
+                log_activity("INFO", "hardware", f"Active GS radio switched to Radio {radio_idx} (simulated)")
+                
+            return {"status": "ok", "active_radio": gs.active_radio}
+            
+        return {"active_radio": gs.active_radio}
 
     @app.route("/api/hardware/simulate", methods=["POST"])
     @login_required
@@ -663,6 +691,7 @@ def create_app(config_class=Config, db_path=None):
             "sc_id": parse_sc_id(scid_raw) if scid_raw is not _SENTINEL else None,
             "role": role,
             "role_label": "Ground Station" if role == "ground_station" else "Satellite",
+            "active_radio": app.config["GS_STATE"].active_radio,
         }
 
     def _build_satellite_snapshot(local: dict, remote: dict) -> dict:
@@ -883,6 +912,31 @@ def create_app(config_class=Config, db_path=None):
             return err
         data = request.get_json(silent=True) or {}
         flight = data.get("flight", "idle")
+
+        gs = app.config["GS_STATE"]
+        local_mode = _local_mode_from_shell(dev.send_shell_command_full("mode"))
+        if _local_role_from_mode(local_mode) == "ground_station":
+            from core.ccsds import sdls_protect_frame
+            from core.telecommand import build_command_tc
+            from webapp.radio_bridge import RadioBridge
+
+            opcode_map = {
+                "idle": 0x00,
+                "nominal": 0x02,
+                "safe": 0x01,
+                "debug": 0x03
+            }
+            opcode = opcode_map.get(flight, 0x00)
+            frame = build_command_tc(opcode)
+
+            difficulty = gs.difficulty
+            frame = sdls_protect_frame(frame, difficulty)
+
+            bridge = RadioBridge(gs)
+            result = bridge.send_raw(frame)
+            log_activity("INFO", "satellite", f"Flight state telecommand (set flight to {flight}) transmitted over RF")
+            return {"status": "ok", "response": "Telecommand sent", "result": result}
+
         resp = dev.send_shell_command_full(f"flight {flight}")
         log_activity("INFO", "satellite", f"Flight state changed to {flight}")
         return {"status": "ok", "response": resp}
@@ -895,6 +949,25 @@ def create_app(config_class=Config, db_path=None):
             return err
         data = request.get_json(silent=True) or {}
         level = data.get("level", 0)
+
+        gs = app.config["GS_STATE"]
+        local_mode = _local_mode_from_shell(dev.send_shell_command_full("mode"))
+        if _local_role_from_mode(local_mode) == "ground_station":
+            from core.ccsds import sdls_protect_frame
+            from core.telecommand import build_difficulty_tc
+            from webapp.radio_bridge import RadioBridge
+
+            frame = build_difficulty_tc(int(level))
+
+            difficulty = gs.difficulty
+            frame = sdls_protect_frame(frame, difficulty)
+
+            bridge = RadioBridge(gs)
+            result = bridge.send_raw(frame)
+            gs.difficulty = int(level)
+            log_activity("INFO", "satellite", f"Difficulty telecommand (set difficulty to {level}) transmitted over RF")
+            return {"status": "ok", "response": "Telecommand sent", "result": result}
+
         resp = dev.send_shell_command_full(f"difficulty {level}")
         gs = app.config["GS_STATE"]
         gs.difficulty = int(level)
@@ -927,6 +1000,17 @@ def create_app(config_class=Config, db_path=None):
         dev, err = _require_hardware()
         if err:
             return err
+
+        gs = app.config["GS_STATE"]
+        local_mode = _local_mode_from_shell(dev.send_shell_command_full("mode"))
+        if _local_role_from_mode(local_mode) == "ground_station":
+            resp = dev.send_shell_command_full("reset_defaults")
+            gs.active_radio = 0
+            dev.send_shell_command_full("radio0")
+            gs.difficulty = 0
+            log_activity("WARN", "satellite", "Local Ground Station defaults restored (Active radio set to 0, difficulty set to 0)")
+            return {"status": "ok", "response": resp}
+
         resp = dev.send_shell_command_full("reset_defaults")
         log_activity("WARN", "satellite", "Factory defaults restored")
         return {"status": "ok", "response": resp}
@@ -967,12 +1051,12 @@ def start_telemetry_thread(app):
                 continue
 
             if gs and gs.is_hardware and gs.device:
-                # HARDWARE MODE: read from Radio 0
+                # HARDWARE MODE: read from the active radio
                 # Step 1: Read line (connection-level — fallback on failure)
                 try:
                     if not gs.device.is_connected:
                         raise OSError("Device disconnected")
-                    line = gs.device.read_line(timeout=1.0)
+                    line = gs.device.read_line_from_radio(gs.active_radio, timeout=1.0)
                 except (OSError, serial.SerialException) as e:
                     # Connection lost — fall back to simulated
                     if gs.device:
@@ -1003,13 +1087,13 @@ def start_telemetry_thread(app):
 
                 # Step 2: Parse + store (data-level — skip bad frames, don't disconnect)
                 if line:
-                    print(f"[RADIO0 RAW] {line!r}")
+                    print(f"[RADIO{gs.active_radio} RAW] {line!r}")
                     try:
                         parsed = parse_lora_rx(line)
                         if parsed:
                             hex_data = parsed["data"]
                             print(
-                                f"[RADIO0 PARSED] hex={hex_data}"
+                                f"[RADIO{gs.active_radio} PARSED] hex={hex_data}"
                                 f" ({len(hex_data) // 2} bytes)"
                                 f" rssi={parsed.get('rssi')} snr={parsed.get('snr')}"
                             )
@@ -1020,13 +1104,13 @@ def start_telemetry_thread(app):
                                 raw_bytes = sdls_unprotect_frame(raw_bytes, difficulty)
                             pkt = parse_frame(raw_bytes)
                             if pkt is None:
-                                print(f"[RADIO0 CCSDS] parse_frame returned None for {len(raw_bytes)} bytes")
+                                print(f"[RADIO{gs.active_radio} CCSDS] parse_frame returned None for {len(raw_bytes)} bytes")
                             elif not pkt.crc_valid and raw_bytes[-2:] != b"\x00\x00":
-                                print(f"[RADIO0 CRC] bad CRC, dropping frame (apid={pkt.apid})")
+                                print(f"[RADIO{gs.active_radio} CRC] bad CRC, dropping frame (apid={pkt.apid})")
                                 pkt = None
                             else:
                                 print(
-                                    f"[RADIO0 CCSDS] valid frame: apid=0x{pkt.apid:03X}"
+                                    f"[RADIO{gs.active_radio} CCSDS] valid frame: apid=0x{pkt.apid:03X}"
                                     f" seq={pkt.seq_count} payload={len(pkt.payload)} bytes"
                                 )
                             if pkt:

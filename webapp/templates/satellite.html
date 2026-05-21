@@ -140,6 +140,14 @@
     </div>
 
     <div style="margin-bottom:10px;">
+        <label style="color:#888;">Active Radio:</label>
+        <div class="btn-group" id="radio-btns">
+            <button onclick="setActiveRadio(0)">Radio 0 (CDC0)</button>
+            <button onclick="setActiveRadio(1)">Radio 1 (CDC1)</button>
+        </div>
+    </div>
+
+    <div style="margin-bottom:10px;">
         <label style="color:#888;">Difficulty:</label>
         <select id="diff-select" onchange="setDifficulty(this.value)">
             <option value="0">0 — Training</option>

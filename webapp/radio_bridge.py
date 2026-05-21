@@ -36,21 +36,38 @@ class RadioBridge:
             except Exception:
                 pass
 
+            # AUTOMATIC SWITCHING LOGIC:
+            # 1. Always transmit on Radio 1 (Telecommand) as that is sintonized to 916 MHz where the satellite listens
+            tx_radio = 1
+            
             try:
-                # Try Radio 1 (Command mode) first if available
-                resp = self._state.device.send_radio1_tx(data)
+                # Switch physical board to radio1 antenna and clear buffers
+                self._state.active_radio = tx_radio
+                self._state.device.send_shell_command_full("radio1")
+                self._state.device.reset_radio_input_buffers()
+                
+                # Try sending using command mode TX first
+                resp = self._state.device.send_radio_tx(tx_radio, data)
                 if resp is not None:
                     if "Success" in resp:
-                        return {"status": "sent", "bytes": len(data), "response": resp}
-                    return {"status": "error", "error": resp}
-                
-                # Fallback to Radio 0 (Stream mode) for GS-only boards
-                if hasattr(self._state.device, 'send_radio0_raw') and self._state.device.send_radio0_raw(data):
-                    return {"status": "sent", "bytes": len(data), "response": "Stream TX Success"}
-                
-                return {"status": "error", "error": "No radio available for TX"}
+                        status_dict = {"status": "sent", "bytes": len(data), "response": resp}
+                    else:
+                        status_dict = {"status": "error", "error": resp}
+                else:
+                    # Fallback to stream/raw transmission on active radio
+                    if self._state.device.send_radio_raw(tx_radio, data):
+                        status_dict = {"status": "sent", "bytes": len(data), "response": "Stream TX Success"}
+                    else:
+                        status_dict = {"status": "error", "error": f"No radio available on Radio {tx_radio}"}
             except Exception as e:
-                return {"status": "error", "error": str(e)}
+                status_dict = {"status": "error", "error": str(e)}
+            finally:
+                # 2. Always revert back to Radio 0 (Telemetry RX) to listen for downlinks on 915 MHz
+                self._state.active_radio = 0
+                self._state.device.send_shell_command_full("radio0")
+                self._state.device.reset_radio_input_buffers()
+                
+            return status_dict
 
         return {"status": "sent_simulated", "bytes": len(data), "data_hex": data.hex()}
 

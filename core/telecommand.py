@@ -11,6 +11,7 @@ from core.ccsds import build_tc
 from core.constants import (
     AES_KEY_HARDCODED,
     APID_TC_COMMAND,
+    APID_TC_SET_DIFFICULTY,
     TC_OP_PRIVILEGED,
     XOR_KEY,
 )
@@ -83,3 +84,15 @@ def build_privileged_tc(inner_opcode: int, inner_data: bytes = b"", seq_count: i
     payload = bytes([TC_OP_PRIVILEGED]) + encrypted
     timestamp = int(_time.time()) & 0xFFFFFFFF
     return build_tc(APID_TC_COMMAND, payload, seq_count=seq_count, timestamp=timestamp)
+
+
+def build_difficulty_tc(level: int, seq_count: int | None = None) -> bytes:
+    """Build a difficulty telecommand frame (APID 0x027) with difficulty level."""
+    global _tc_seq_count
+    if seq_count is None:
+        seq_count = _tc_seq_count
+        _tc_seq_count = (_tc_seq_count + 1) & 0x3FFF
+
+    payload = bytes([level])
+    timestamp = int(_time.time()) & 0xFFFFFFFF
+    return build_tc(APID_TC_SET_DIFFICULTY, payload, seq_count=seq_count, timestamp=timestamp)

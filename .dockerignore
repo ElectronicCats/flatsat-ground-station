@@ -6,6 +6,7 @@ __pycache__/
 venv/
 .git/
 .claude/
+.gemini/
 db/*.db
 *.log
 htmlcov/
@@ -13,3 +14,11 @@ htmlcov/
 .vscode/
 .idea/
 docs/superpowers/
+
+# Archivos de sesión y cookies (no deben entrar a la imagen)
+cookies.txt
+admin_cookies.txt
+*.txt
+
+# Archivos creados por accidente
+:5000

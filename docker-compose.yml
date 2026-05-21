@@ -1,17 +1,47 @@
+# ──────────────────────────────────────────────────────────────────────────────
+# PwnSat2 Ground Station — Docker Compose
+# ──────────────────────────────────────────────────────────────────────────────
+# Uso:
+#   docker compose up            → Inicia en modo simulado
+#   docker compose up --build    → Reconstruye la imagen antes de iniciar
+#
+# Para modo hardware (FlatSat conectado por USB):
+#   Descomenta la sección 'devices' con los puertos correctos de tu sistema.
+#   Ejecuta primero: ls /dev/ttyACM* para identificar los puertos.
+# ──────────────────────────────────────────────────────────────────────────────
+
 services:
   ground-station:
     build: .
+    image: flatsat-gs:latest
+    container_name: flatsat-ground-station
     ports:
       - "5000:5000"
+
+    # Persistir la base de datos SQLite entre reinicios del contenedor
     volumes:
       - ./db:/app/db
-    # USB passthrough for FlatSat hardware (VID:PID 1209:babc)
-    # Comment out the 'devices' section to run in simulated mode only
-    devices:
-      - /dev/ttyACM0:/dev/ttyACM0
-      - /dev/ttyACM1:/dev/ttyACM1
-      - /dev/ttyACM2:/dev/ttyACM2
-    # Required for USB device discovery via pyudev
-    volumes_from: []
+
     environment:
       - PYTHONUNBUFFERED=1
+      - FLATSAT_LEVEL=3          # 1=Fácil  2=Medio  3=Difícil
+
+    # ── Modo Hardware (FlatSat conectado por USB) ──────────────────────────
+    # Descomenta las líneas siguientes si el FlatSat está conectado.
+    # Ajusta los puertos según tu sistema (usa: ls /dev/ttyACM*)
+    #
+    # Flat-Sat Ground Station (serial_number: 5033423532300010)
+    #   devices:
+    #     - /dev/ttyACM6:/dev/ttyACM6   # Radio 0 (RX telemetría del SAT)
+    #     - /dev/ttyACM7:/dev/ttyACM7   # Radio 1 (TX telecomandos al SAT)
+    #     - /dev/ttyACM8:/dev/ttyACM8   # Shell de configuración
+    #
+    # Flat-Sat Satellite (solo si también quieres acceso a su shell)
+    #   - /dev/ttyACM0:/dev/ttyACM0
+    #   - /dev/ttyACM1:/dev/ttyACM1
+    #   - /dev/ttyACM2:/dev/ttyACM2
+    #
+    # Nota: también se necesita acceso al subsistema udev para descubrimiento USB
+    # privileged: true   # Alternativa más permisiva (solo para desarrollo)
+
+    restart: unless-stopped
