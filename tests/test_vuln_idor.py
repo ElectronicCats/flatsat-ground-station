@@ -29,13 +29,14 @@ def operator_client(app):
     return client
 
 
-def test_idor_access_admin_config(operator_client):
+def test_idor_access_admin_config(app, operator_client):
     resp = operator_client.get("/api/config/radio/1")
     assert resp.status_code == 200
     data = resp.get_json()
     assert data["owner"] == "admin"
     assert "CLASSIFIED" in data["description"]
-    assert data["notes"] == "PWNSAT{IDOR_ADMIN_CONFIG}"
+    level = app.config["CTF_LEVEL"]
+    assert data["notes"] == f"PWNSAT{{IDOR_ADMIN_CONFIG_LVL{level}}}"
 
 
 def test_idor_own_config(operator_client):

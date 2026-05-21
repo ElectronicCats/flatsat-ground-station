@@ -3,7 +3,7 @@
 import time
 from typing import Any
 
-from core.constants import APID_TM_BME280, APID_TM_HEARTBEAT, APID_TM_LIS2DH, ConnectionMode
+from core.constants import APID_TM_ALL_SENSORS, APID_TM_BME280, APID_TM_HEARTBEAT, APID_TM_LIS2DH, ConnectionMode
 from core.telemetry import flight_mode_name
 
 
@@ -77,7 +77,7 @@ class GroundStationState:
     def reset_remote_satellite(self):
         self.remote_satellite = _empty_remote_satellite()
 
-    def update_remote_satellite(self, apid: int, decoded: dict, rssi=None, snr=None, source: str = "radio0"):
+    def update_remote_satellite(self, apid: int, decoded: dict, rssi=None, snr=None, source: str = "radio0", timestamp=None):
         snapshot = self.remote_satellite
         snapshot["available"] = True
         snapshot["source"] = source
@@ -88,6 +88,8 @@ class GroundStationState:
             snapshot["rssi"] = rssi
         if snr is not None:
             snapshot["snr"] = snr
+        if timestamp is not None:
+            snapshot["uptime"] = timestamp
 
         if apid == APID_TM_HEARTBEAT:
             snapshot["sc_id"] = decoded.get("sc_id")
@@ -105,6 +107,24 @@ class GroundStationState:
             snapshot["accel_x"] = decoded.get("accel_x")
             snapshot["accel_y"] = decoded.get("accel_y")
             snapshot["accel_z"] = decoded.get("accel_z")
+        elif apid == APID_TM_ALL_SENSORS:
+            snapshot["temperature"] = decoded.get("temperature")
+            snapshot["pressure"] = decoded.get("pressure")
+            snapshot["humidity"] = decoded.get("humidity")
+            snapshot["accel_x"] = decoded.get("accel_x")
+            snapshot["accel_y"] = decoded.get("accel_y")
+            snapshot["accel_z"] = decoded.get("accel_z")
+            snapshot["battery_mv"] = decoded.get("battery_mv")
+            if snapshot["sc_id"] is None:
+                snapshot["sc_id"] = 0x02
+            if snapshot["flight"] is None:
+                snapshot["flight"] = "NOMINAL"
+            if snapshot["difficulty"] is None:
+                snapshot["difficulty"] = self.difficulty
+            if snapshot["tc_count"] is None:
+                snapshot["tc_count"] = 0
+            if snapshot["error_count"] is None:
+                snapshot["error_count"] = 0
 
     def get_remote_satellite_snapshot(self, stale_after: float = 12.0) -> dict:
         snapshot = dict(self.remote_satellite)

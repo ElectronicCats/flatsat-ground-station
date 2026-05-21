@@ -115,20 +115,26 @@ def create_app(config_class=Config, db_path=None):
     # --- Vulnerability Routes ---
 
     @app.route("/api/telemetry")
-    @login_required
     def api_telemetry():
         from webapp.db import get_db
 
         search = request.args.get("search", "")
         limit = request.args.get("limit", "50")
         db = get_db()
-        # VULNERABLE: string concatenation (GS-01)
-        query = f"SELECT * FROM telemetry WHERE raw_hex LIKE '%{search}%' LIMIT {limit}"
-        try:
-            rows = db.execute(query).fetchall()
+        
+        if app.config["CTF_LEVEL"] == 1:
+            # VULNERABLE: string concatenation (GS-01) - Easy mode
+            query = f"SELECT * FROM telemetry WHERE raw_hex LIKE '%{search}%' LIMIT {limit}"
+            try:
+                rows = db.execute(query).fetchall()
+                return [dict(row) for row in rows]
+            except Exception as e:
+                return {"error": str(e)}, 500
+        else:
+            # SECURE: parameterized query - Medium/Hard mode
+            query = "SELECT * FROM telemetry WHERE raw_hex LIKE ? LIMIT ?"
+            rows = db.execute(query, (f"%{search}%", limit)).fetchall()
             return [dict(row) for row in rows]
-        except Exception as e:
-            return {"error": str(e)}, 500
 
     @app.route("/logs")
     @login_required
@@ -149,14 +155,26 @@ def create_app(config_class=Config, db_path=None):
         cmd = data.get("cmd")
         if not cmd:
             return {"error": "Missing 'cmd' parameter"}, 400
-        try:
-            # VULNERABLE: shell=True with user input (GS-03)
-            output = subprocess.check_output(cmd, shell=True, stderr=subprocess.STDOUT, timeout=10)
-            return {"output": output.decode(errors="replace")}
-        except subprocess.CalledProcessError as e:
-            return {"output": e.output.decode(errors="replace"), "returncode": e.returncode}
-        except subprocess.TimeoutExpired:
-            return {"error": "Command timed out"}, 408
+            
+        if app.config["CTF_LEVEL"] <= 2:
+            # VULNERABLE: shell=True with user input (GS-03) - Easy/Medium mode
+            try:
+                output = subprocess.check_output(cmd, shell=True, stderr=subprocess.STDOUT, timeout=10)
+                return {"output": output.decode(errors="replace")}
+            except subprocess.CalledProcessError as e:
+                return {"output": e.output.decode(errors="replace"), "returncode": e.returncode}
+            except subprocess.TimeoutExpired:
+                return {"error": "Command timed out"}, 408
+        else:
+            # SECURE: Restricted commands - Hard mode
+            allowed_cmds = ["uptime", "id", "whoami"]
+            if cmd not in allowed_cmds:
+                return {"error": "Command not allowed in high-security mode"}, 403
+            try:
+                output = subprocess.check_output([cmd], stderr=subprocess.STDOUT, timeout=5)
+                return {"output": output.decode(errors="replace")}
+            except Exception as e:
+                return {"error": str(e)}, 500
 
     @app.route("/api/logs", methods=["GET", "POST"])
     @login_required
@@ -164,9 +182,12 @@ def create_app(config_class=Config, db_path=None):
         from webapp.db import get_db
 
         if request.method == "POST":
-            # GS-11: Log injection (no newline sanitization)
+            # GS-11: Log injection (no newline sanitization in Easy/Medium)
             data = request.get_json(silent=True) or {}
             message = data.get("message", "")
+            if app.config["CTF_LEVEL"] == 3:
+                message = message.replace("\n", " ").replace("\r", " ")
+                
             level = data.get("level", "INFO")
             source = data.get("source", "user")
             from datetime import datetime
@@ -186,7 +207,15 @@ def create_app(config_class=Config, db_path=None):
         import os
 
         logs_dir = os.path.join(os.path.dirname(__file__), "logs")
-        filepath = os.path.join(logs_dir, filename)
+        
+        if app.config["CTF_LEVEL"] <= 2:
+            # VULNERABLE: No path validation - Easy/Medium mode
+            filepath = os.path.join(logs_dir, filename)
+        else:
+            # SECURE: Path validation - Hard mode
+            filename = os.path.basename(filename)
+            filepath = os.path.join(logs_dir, filename)
+
         try:
             with open(filepath) as f:
                 return {"content": f.read()}
@@ -213,8 +242,13 @@ def create_app(config_class=Config, db_path=None):
         from webapp.db import get_db
 
         db = get_db()
-        # VULNERABLE: no ownership check (GS-06 IDOR)
-        config = db.execute("SELECT * FROM radio_config WHERE id = ?", (config_id,)).fetchone()
+        if app.config["CTF_LEVEL"] <= 2:
+            # VULNERABLE: no ownership check (GS-06 IDOR) - Easy/Medium mode
+            config = db.execute("SELECT * FROM radio_config WHERE id = ?", (config_id,)).fetchone()
+        else:
+            # SECURE: ownership check - Hard mode
+            config = db.execute("SELECT * FROM radio_config WHERE id = ? AND owner = ?", (config_id, g.username)).fetchone()
+            
         if config is None:
             return {"error": "Config not found"}, 404
         return dict(config)
@@ -233,16 +267,20 @@ def create_app(config_class=Config, db_path=None):
         bandwidth = data.get("bandwidth", "125000")
         tx_power = data.get("tx_power", "14")
 
-        # VULNERABLE: f-string in shell commands (GS-07 — all 4 fields)
-        try:
-            output = subprocess.check_output(
-                f"echo 'Setting frequency to {frequency}, SF={spreading_factor}, BW={bandwidth}, power={tx_power}'",
-                shell=True,
-                stderr=subprocess.STDOUT,
-            )
-            shell_output = output.decode(errors="replace")
-        except subprocess.CalledProcessError as e:
-            shell_output = e.output.decode(errors="replace")
+        # VULNERABLE: f-string in shell commands (GS-07) - Easy/Medium mode
+        if app.config["CTF_LEVEL"] <= 2:
+            try:
+                output = subprocess.check_output(
+                    f"echo 'Setting frequency to {frequency}, SF={spreading_factor}, BW={bandwidth}, power={tx_power}'",
+                    shell=True,
+                    stderr=subprocess.STDOUT,
+                )
+                shell_output = output.decode(errors="replace")
+            except subprocess.CalledProcessError as e:
+                shell_output = e.output.decode(errors="replace")
+        else:
+            # SECURE: No shell echo - Hard mode
+            shell_output = f"Frequency set to {frequency} (secure mode)"
 
         # Upsert into radio_config for current user
         db = get_db()
@@ -323,9 +361,10 @@ def create_app(config_class=Config, db_path=None):
         """Admin-only panel. Flag reward for auth bypass (GS-05)."""
         if g.role != "admin":
             return {"error": "Forbidden"}, 403
+        level = app.config["CTF_LEVEL"]
         return {
             "message": "Ground Station Admin Panel",
-            "flag": "PWNSAT{SESSION_TOKEN_FORGED}",
+            "flag": f"PWNSAT{{SESSION_TOKEN_FORGED_LVL{level}}}",
             "connected_satellites": [],
             "system_status": "operational",
         }
@@ -336,17 +375,19 @@ def create_app(config_class=Config, db_path=None):
         """Radio bridge status. Flag for kill chain discovery (GS-08)."""
         gs_state = app.config.get("GS_STATE")
         connected = gs_state is not None and gs_state.connection_mode.name != "IDLE"
+        level = app.config["CTF_LEVEL"]
         return {
             "connected": connected,
             "mode": gs_state.connection_mode.name if gs_state else "IDLE",
-            "bridge_key": "PWNSAT{WEB_TO_SPACE_LINK}",
+            "bridge_key": f"PWNSAT{{WEB_TO_SPACE_LINK_LVL{level}}}",
         }
 
     @app.route("/api/debug/flags")
     def api_debug_flags():
         """Unprotected debug endpoint. Flag for API enumeration (GS-12)."""
+        level = app.config["CTF_LEVEL"]
         return {
-            "flag": "PWNSAT{API_NO_RATE_LIMIT}",
+            "flag": f"PWNSAT{{API_NO_RATE_LIMIT_LVL{level}}}",
             "hint": "This endpoint should not be public",
         }
 
@@ -385,7 +426,14 @@ def create_app(config_class=Config, db_path=None):
         except ValueError:
             return {"error": "Invalid opcode"}, 400
 
-        extra_bytes = bytes.fromhex(extra_hex) if extra_hex else b""
+        extra_hex = extra_hex.strip()
+        if extra_hex.lower().startswith("0x"):
+            extra_hex = extra_hex[2:]
+
+        try:
+            extra_bytes = bytes.fromhex(extra_hex) if extra_hex else b""
+        except ValueError:
+            return {"error": "Invalid hex string in Data field"}, 400
         frame = build_command_tc(opcode_int, data=extra_bytes)
 
         # SDLS: encrypt TC payload based on current difficulty
@@ -576,7 +624,9 @@ def create_app(config_class=Config, db_path=None):
 
     def _local_mode_from_shell(mode_raw: str | None, status_raw: str | None = None) -> str:
         mode = parse_mode(mode_raw)
-        if status_raw and "mode=command" in status_raw and mode == "raw":
+        if status_raw and "mode=command" in status_raw:
+            return "ground_station"
+        if mode == "raw":
             return "ground_station"
         return mode
 
@@ -609,7 +659,7 @@ def create_app(config_class=Config, db_path=None):
             "flight": flight["flight"],
             "battery_mv": flight["battery_mv"],
             "tm_rate": flight["tm_rate"],
-            "difficulty": parse_difficulty(diff_raw),
+            "difficulty": app.config["GS_STATE"].difficulty,
             "sc_id": parse_sc_id(scid_raw) if scid_raw is not _SENTINEL else None,
             "role": role,
             "role_label": "Ground Station" if role == "ground_station" else "Satellite",
@@ -678,6 +728,8 @@ def create_app(config_class=Config, db_path=None):
         mode_raw = dev.send_shell_command_full("mode")
         flight_raw = dev.send_shell_command_full("flight")
         diff_raw = dev.send_shell_command_full("difficulty")
+        if diff_raw:
+            app.config["GS_STATE"].difficulty = parse_difficulty(diff_raw)
         scid_raw = dev.send_shell_command_full("sc_id")
         status_raw = dev.send_shell_command_full("status")
         local = _build_local_snapshot(
@@ -718,6 +770,8 @@ def create_app(config_class=Config, db_path=None):
         mode_raw = dev.send_shell_command_full("mode")
         status_raw = dev.send_shell_command_full("status")
         diff_raw = dev.send_shell_command_full("difficulty")
+        if diff_raw:
+            app.config["GS_STATE"].difficulty = parse_difficulty(diff_raw)
         local = _build_local_snapshot(
             mode_raw=mode_raw,
             flight_raw=flight_raw,
@@ -967,7 +1021,7 @@ def start_telemetry_thread(app):
                             pkt = parse_frame(raw_bytes)
                             if pkt is None:
                                 print(f"[RADIO0 CCSDS] parse_frame returned None for {len(raw_bytes)} bytes")
-                            elif not pkt.crc_valid:
+                            elif not pkt.crc_valid and raw_bytes[-2:] != b"\x00\x00":
                                 print(f"[RADIO0 CRC] bad CRC, dropping frame (apid={pkt.apid})")
                                 pkt = None
                             else:
@@ -983,6 +1037,7 @@ def start_telemetry_thread(app):
                                     decoded,
                                     rssi=parsed.get("rssi"),
                                     snr=parsed.get("snr"),
+                                    timestamp=pkt.timestamp,
                                 )
                                 from datetime import datetime
 
