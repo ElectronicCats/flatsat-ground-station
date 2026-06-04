@@ -230,4 +230,4 @@ def test_satellite_reset(app, auth_client):
     assert resp.status_code == 200
     calls = [c[0][0] for c in mock_dev.send_shell_command_full.call_args_list]
     assert "reset_defaults" in calls
-    assert len(calls) == 1  # firmware handles freq defaults, no workaround needed
+    assert len(calls) == 2  # queries 'mode' then 'reset_defaults'

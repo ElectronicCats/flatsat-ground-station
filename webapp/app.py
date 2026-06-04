@@ -561,13 +561,15 @@ def create_app(config_class=Config, db_path=None):
             if r1_resp is None:
                 time.sleep(0.5)
                 r1_resp = device.send_shell_command_full("lora_mode R1 command")
+            if r1_resp and ("error" in r1_resp.lower() or "not supported" in r1_resp.lower()):
+                device.has_radio1 = False
             diff_raw = device.send_shell_command_full("difficulty")
             if diff_raw is None:
                 time.sleep(0.5)
                 diff_raw = device.send_shell_command_full("difficulty")
             gs.difficulty = parse_difficulty(diff_raw)
             warnings = []
-            if r1_resp is None or "error" in (r1_resp or "").lower() or "unknown" in (r1_resp or "").lower():
+            if device.has_radio1 and (r1_resp is None or "error" in (r1_resp or "").lower() or "unknown" in (r1_resp or "").lower()):
                 warnings.append(f"R1 command mode: {r1_resp!r}")
             if diff_raw is None or gs.difficulty == 0 and "difficulty" not in (diff_raw or ""):
                 warnings.append(f"difficulty sync: {diff_raw!r}")
@@ -625,7 +627,8 @@ def create_app(config_class=Config, db_path=None):
             from webapp.db import get_db
 
             db = get_db()
-            for radio, radio_label in zip(("R0", "R1"), RADIO_LABELS, strict=False):
+            radios = ("R0",) if not getattr(dev, "has_radio1", True) else ("R0", "R1")
+            for radio, radio_label in zip(radios, RADIO_LABELS, strict=False):
                 raw = dev.send_shell_command_full(f"lora_config {radio}")
                 cfg = parse_lora_config(raw)
                 if cfg["frequency"] == 0:

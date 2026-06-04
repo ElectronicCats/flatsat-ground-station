@@ -60,6 +60,7 @@ class FlatSatDevice:
         self._shell_lock = threading.Lock()
         self._radio0_lock = threading.Lock()
         self._radio1_lock = threading.Lock()
+        self.has_radio1 = True
 
     @property
     def serial_number(self) -> str:
