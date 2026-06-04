@@ -561,7 +561,7 @@ def create_app(config_class=Config, db_path=None):
             if r1_resp is None:
                 time.sleep(0.5)
                 r1_resp = device.send_shell_command_full("lora_mode R1 command")
-            if r1_resp and ("error" in r1_resp.lower() or "not supported" in r1_resp.lower()):
+            if r1_resp is None or "error" in r1_resp.lower() or "not supported" in r1_resp.lower():
                 device.has_radio1 = False
             diff_raw = device.send_shell_command_full("difficulty")
             if diff_raw is None:
