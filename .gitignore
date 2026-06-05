@@ -26,3 +26,7 @@ venv/
 .idea/
 *.swp
 *.swo
+
+# Temporary detailed problems document
+/problemas_detallados.md
+

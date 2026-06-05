@@ -114,8 +114,18 @@ function applyLocalSnapshot(local) {
     if (info.difficulty !== null && info.difficulty !== undefined) {
         document.getElementById("diff-select").value = info.difficulty;
     }
-    highlightBtn("mode-btns", info.mode || "");
-    highlightBtn("flight-btns", info.flight ? info.flight.toLowerCase() : "");
+    let modeHighlight = info.mode || "";
+    if (modeHighlight === "satellite") {
+        modeHighlight = "mission";
+    }
+    highlightBtn("mode-btns", modeHighlight);
+    let flightHighlight = "";
+    if (info.role === "ground_station") {
+        flightHighlight = (latestContext && latestContext.satellite && latestContext.satellite.flight) || "";
+    } else {
+        flightHighlight = info.flight || "";
+    }
+    highlightBtn("flight-btns", flightHighlight.toLowerCase());
     
     const activeRadio = info.active_radio !== undefined ? info.active_radio : 0;
     const radioBtns = document.getElementById("radio-btns").querySelectorAll("button");
@@ -310,6 +320,7 @@ async function setActiveRadio(radioIdx) {
 }
 
 async function setMode(m) {
+    highlightBtn("mode-btns", m === "satellite" || m === "mission" ? "mission" : m);
     let data;
     if (m === "ground_station") {
         data = await api("mode", "POST", {mode: "ground_station"});
@@ -323,8 +334,19 @@ async function setMode(m) {
     await pollStatus();
 }
 async function setFlight(f) {
+    highlightBtn("flight-btns", f.toLowerCase());
+    setPanelState("controls", "loading", "Sending TC...");
+    showToast("↑ Sending flight TC: " + f.toUpperCase() + "...", 4000);
     const data = await api("flight", "POST", {flight: f});
-    if (data.error) { showToast("Flight failed: " + data.error, 5000); return; }
+    if (data.error) {
+        setPanelState("controls", "error", "TC failed");
+        showToast("⚠ Flight TC failed: " + data.error, 6000);
+        return;
+    }
+    const result = data.result || {};
+    const detail = result.status === "sent" ? " (" + (result.bytes || 0) + " bytes, " + (result.response || "OK") + ")" : "";
+    setPanelState("controls", "ready", "TC sent");
+    showToast("✔ Flight TC sent: " + f.toUpperCase() + detail, 4000);
     await pollStatus();
 }
 async function setDifficulty(l) {

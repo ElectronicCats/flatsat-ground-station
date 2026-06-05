@@ -43,11 +43,41 @@ The database is created automatically on first run. No manual setup needed.
 
 Click **Simulate** on the dashboard to generate mock telemetry without hardware. Useful for development and CTF setup.
 
-### Hardware Mode
+### Hardware Mode (Two-Board Setup)
 
-1. Connect a FlatSat device via USB
-2. Click **Scan USB** on the dashboard
-3. Select the device and click **Connect**
+This system uses a **two-board setup** to simulate real-world space communication:
+*   **CatSniffer (`E661A897539C4732`)** acts as the **Ground Station** (connected to the PC).
+*   **FlatSat (`503342353230000E`)** acts as the **Satellite** (powered autonomously).
+
+#### Step 1: Flash CatSniffer with Ground Station Firmware
+The CatSniffer requires Ground Station firmware compiled with its specific SX1262 LoRa pin mapping (RESET=GP24, BUSY=GP4, DIO1=GP5):
+1. In `flat-sat-fw-interno/flatsat/boards/rpi_pico.overlay`, change the pins for `sx1262_0` to:
+   ```dts
+   reset-gpios = <&gpio0 24 GPIO_ACTIVE_LOW>;
+   busy-gpios  = <&gpio0 4  GPIO_ACTIVE_HIGH>;
+   dio1-gpios  = <&gpio0 5  GPIO_ACTIVE_HIGH>;
+   ```
+2. Build the Ground Station firmware (`FLATSAT_ROLE_GS` role):
+   ```bash
+   export ZEPHYR_BASE=/home/omaro/zephyr-workspace/zephyr
+   /home/omaro/zephyr-workspace/.venv/bin/west build -d build_gs -p always -b rpi_pico -- -DOVERLAY_CONFIG=prj_gs.conf
+   ```
+3. Restore the original FlatSat overlay configurations in `rpi_pico.overlay`.
+4. Put the CatSniffer in bootloader mode (e.g. by sending `reboot` via serial shell or holding its boot button) and copy `build_gs/zephyr/zephyr.uf2` to the mounted `RPI-RP2` drive.
+
+#### Step 2: Power up the FlatSat (Satellite)
+Power up the FlatSat board standalone (via a USB charger/power source or battery). It runs the default satellite firmware and automatically starts transmitting sensor/heartbeat telemetry over the air on 915 MHz.
+
+#### Step 3: Run the Webapp and Connect
+1. Connect the flashed CatSniffer to the PC via USB.
+2. Start the ground station webapp:
+   ```bash
+   source .venv/bin/activate
+   python -m webapp.app
+   ```
+3. Open `http://localhost:5000` in the browser, log in, and click **Scan USB** in the hardware panel.
+4. Select the CatSniffer device serial number (`E661A897539C4732`) and click **Connect**.
+5. Go to the dashboard/satellite views to see the over-the-air telemetry updates received from the FlatSat!
 
 > **Linux USB permissions:** If the device is not detected, you may need to add a udev rule or run with appropriate permissions. See [Troubleshooting](#troubleshooting).
 
@@ -218,6 +248,48 @@ pytest
 ├── docker-compose.yml
 └── requirements.txt
 ```
+
+## Flashing Firmware to Different Boards
+
+The firmware is built using **Zephyr RTOS**, which separates hardware definitions (Device Tree) from application logic. To port the firmware to a different hardware board, follow these three steps:
+
+### 1. Configure the Target Board
+When running the `west build` command, specify your target board using the `-b` flag:
+```bash
+# Example: Build for a Sparkfun Pro Micro RP2040
+west build -s . -b sparkfun_pro_micro_rp2040 -- -DOVERLAY_CONFIG=prj_gs.conf
+```
+Zephyr supports many boards out of the box (e.g., `rpi_pico`, `adafruit_kb2040`, etc.).
+
+### 2. Map Peripherals via Device Tree Overlay (`.overlay`)
+Each board has its own physical wiring. Create or modify the overlay file corresponding to your board in `boards/<target_board>.overlay` (e.g., `boards/sparkfun_pro_micro_rp2040.overlay`) to match its pin mapping.
+
+Make sure the following device tree aliases point to the correct radio node definitions:
+*   `lora0 = &sx1262_0;` (Mapped to the first physical radio chip)
+*   `lora1 = &sx1262_1;` (Mapped to the second radio chip, only needed for Dual-Radio role)
+
+Ensure the SPI nodes, Chip Select (CS) GPIOs, and radio control pins are mapped correctly for your board:
+```dts
+&spi0 {
+    status = "okay";
+    cs-gpios = <&gpio0 17 GPIO_ACTIVE_LOW>; // Match your CS pin
+
+    sx1262_0: sx1262@0 {
+        compatible = "semtech,sx1262";
+        reg = <0>;
+        spi-max-frequency = <1000000>;
+        reset-gpios = <&gpio0 24 GPIO_ACTIVE_LOW>; // Reset pin
+        busy-gpios  = <&gpio0 4  GPIO_ACTIVE_HIGH>; // Busy pin
+        dio1-gpios  = <&gpio0 5  GPIO_ACTIVE_HIGH>; // DIO1 pin
+    };
+};
+```
+
+### 3. Select the Role (Kconfig)
+Choose the appropriate role configuration by specifying the overlay config flag (`-DOVERLAY_CONFIG`):
+*   **Ground Station Only (`prj_gs.conf`):** Sets `CONFIG_FLATSAT_ROLE_GS=y`. Initializes only Radio 0 (CDC0) and Shell (CDC2). Best for boards with a single physical radio (like CatSniffer).
+*   **Satellite Only (`prj_sat.conf`):** Sets `CONFIG_FLATSAT_ROLE_SAT=y`. Initializes only Radio 0, reads sensors, and transmits telemetry autonomously.
+*   **Dual Radio (`prj.conf` / `prj_dual.conf`):** Sets `CONFIG_FLATSAT_ROLE_DUAL=y`. Mosaics both Radio 0 and Radio 1, and auto-detects Satellite/GS modes at boot based on the presence of onboard I2C sensors.
 
 ## Troubleshooting
 

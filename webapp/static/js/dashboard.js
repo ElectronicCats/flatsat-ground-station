@@ -229,6 +229,8 @@ document.getElementById("tc-form").addEventListener("submit", async function(e) 
     const data = document.getElementById("tc-data").value || "";
     const ts = new Date().toLocaleTimeString();
     const pre = document.getElementById("tc-response");
+    // Immediate feedback before waiting for server
+    pre.textContent = "[" + ts + "] \u2191 Sending " + cmdName + " (opcode " + opcode + ")...\n" + pre.textContent;
     try {
         const resp = await fetch("/api/radio/send_tc", {
             method: "POST",

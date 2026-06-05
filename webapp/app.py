@@ -27,6 +27,21 @@ from webapp.db import close_db, init_db
 socketio = SocketIO()
 
 
+def _local_mode_from_shell(mode_raw: str | None, status_raw: str | None = None) -> str:
+    mode = parse_mode(mode_raw)
+    if status_raw and "mode=command" in status_raw:
+        return "ground_station"
+    if mode == "raw":
+        if status_raw and "mode=stream" in status_raw:
+            return "raw"
+        return "ground_station"
+    return mode
+
+
+def _local_role_from_mode(mode: str) -> str:
+    return "ground_station" if mode == "ground_station" else "satellite"
+
+
 def create_app(config_class=Config, db_path=None):
     app = Flask(__name__)
     app.config.from_object(config_class)
@@ -652,17 +667,6 @@ def create_app(config_class=Config, db_path=None):
             db.commit()
         except Exception:
             pass
-
-    def _local_mode_from_shell(mode_raw: str | None, status_raw: str | None = None) -> str:
-        mode = parse_mode(mode_raw)
-        if status_raw and "mode=command" in status_raw:
-            return "ground_station"
-        if mode == "raw":
-            return "ground_station"
-        return mode
-
-    def _local_role_from_mode(mode: str) -> str:
-        return "ground_station" if mode == "ground_station" else "satellite"
 
     _SENTINEL = object()  # distinguishes "not fetched" from "fetched but None"
 

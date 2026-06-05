@@ -71,14 +71,15 @@ class RadioBridge:
                     self._state.device.reset_radio_input_buffers()
             else:
                 # SINGLE RADIO MODE (CatSniffer/GS-only):
-                # 1. Temporarily switch Radio 0 to 916 MHz and Command mode for transmission
+                # Use Radio 0 at 915 MHz (same frequency satellite listens on).
+                # Temporarily switch to command mode for TX, then restore stream mode for RX.
                 tx_radio = 0
                 try:
-                    self._state.device.send_shell_command_full("lora_freq R0 916000000")
+                    # Keep 915 MHz — satellite has one radio and listens here
                     self._state.device.send_shell_command_full("lora_mode R0 command")
                     self._state.device.send_shell_command_full("lora_apply R0")
                     self._state.device.reset_radio_input_buffers()
-                    
+
                     # Try sending using command mode TX first
                     resp = self._state.device.send_radio_tx(tx_radio, data)
                     if resp is not None:
@@ -95,8 +96,7 @@ class RadioBridge:
                 except Exception as e:
                     status_dict = {"status": "error", "error": str(e)}
                 finally:
-                    # 2. Always revert Radio 0 back to 915 MHz and Stream mode to listen for telemetry
-                    self._state.device.send_shell_command_full("lora_freq R0 915000000")
+                    # Always revert Radio 0 back to stream mode to listen for telemetry
                     self._state.device.send_shell_command_full("lora_mode R0 stream")
                     self._state.device.send_shell_command_full("lora_apply R0")
                     self._state.device.reset_radio_input_buffers()
