@@ -1275,7 +1275,7 @@ def start_telemetry_thread(app):
                             "timestamp": tm["timestamp"],
                         },
                     )
-                time.sleep(2)
+                time.sleep(5)
             else:
                 time.sleep(0.5)
 
