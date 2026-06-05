@@ -81,6 +81,37 @@ def _extract_serial_number(hwid: str) -> str | None:
     return match.group(1) if match else None
 
 
+def _extract_interface_number(port) -> int | None:
+    """Extract USB interface number from port attributes."""
+    hwid = getattr(port, "hwid", "") or ""
+    if not isinstance(hwid, str):
+        hwid = ""
+    hwid = hwid.upper()
+    
+    # Windows style: VID_1209&PID_BABC&MI_02
+    match = re.search(r"MI_(\d+)", hwid)
+    if match:
+        return int(match.group(1))
+        
+    # Alternate Windows / general style: MI=02
+    match = re.search(r"MI=(\d+)", hwid)
+    if match:
+        return int(match.group(1))
+
+    # Linux / macOS style in location or hwid: e.g. "1-7:1.2" or "LOCATION=1-7:1.2"
+    location = getattr(port, "location", "") or ""
+    if not isinstance(location, str):
+        location = ""
+    for string_to_check in [location, hwid]:
+        if string_to_check:
+            # Match :config.interface, e.g. :1.2 or :1.0
+            match = re.search(r":\d+\.(\d+)(?:$|\s)", string_to_check)
+            if match:
+                return int(match.group(1))
+                
+    return None
+
+
 def _group_ports_by_device(ports: list) -> dict[str, list]:
     """Group ports by device serial number."""
     groups: dict[str, list] = {}
@@ -95,7 +126,7 @@ def _group_ports_by_device(ports: list) -> dict[str, list]:
 
 
 def _map_endpoints_intelligent(ports: list) -> dict[str, str]:
-    """Map ports to endpoint names by description, with positional fallback."""
+    """Map ports to endpoint names using multiple strategies."""
     ports_dict: dict[str, str] = {}
     sorted_ports = sorted(ports, key=lambda p: p.device)
 
@@ -109,7 +140,50 @@ def _map_endpoints_intelligent(ports: list) -> dict[str, str]:
         elif "radio1" in desc or "radio 1" in desc:
             ports_dict[ENDPOINT_RADIO1] = port.device
 
-    # Strategy 2: positional fallback
+    # Strategy 2: match by USB interface number or interface/product strings
+    if len(ports_dict) < 3:
+        for port in sorted_ports:
+            if port.device in ports_dict.values():
+                continue
+            
+            # Check port interface attribute
+            if hasattr(port, "interface") and port.interface:
+                desc = port.interface.lower()
+                if "shell" in desc:
+                    ports_dict[ENDPOINT_SHELL] = port.device
+                    continue
+                elif "radio0" in desc or "radio 0" in desc:
+                    ports_dict[ENDPOINT_RADIO0] = port.device
+                    continue
+                elif "radio1" in desc or "radio 1" in desc:
+                    ports_dict[ENDPOINT_RADIO1] = port.device
+                    continue
+
+            # Check port product attribute
+            if hasattr(port, "product") and port.product:
+                desc = port.product.lower()
+                if "shell" in desc:
+                    ports_dict[ENDPOINT_SHELL] = port.device
+                    continue
+                elif "radio0" in desc or "radio 0" in desc:
+                    ports_dict[ENDPOINT_RADIO0] = port.device
+                    continue
+                elif "radio1" in desc or "radio 1" in desc:
+                    ports_dict[ENDPOINT_RADIO1] = port.device
+                    continue
+
+            # Check raw USB interface number
+            interface_num = _extract_interface_number(port)
+            if interface_num is not None:
+                # Interface 0/1 -> Radio 0, Interface 2/3 -> Radio 1, Interface 4/5 -> Shell
+                if interface_num in (0, 1):
+                    ports_dict[ENDPOINT_RADIO0] = port.device
+                elif interface_num in (2, 3):
+                    ports_dict[ENDPOINT_RADIO1] = port.device
+                elif interface_num in (4, 5):
+                    ports_dict[ENDPOINT_SHELL] = port.device
+
+    # Strategy 3: positional fallback
     if len(ports_dict) < 3:
         fallback = {0: ENDPOINT_RADIO0, 1: ENDPOINT_RADIO1, 2: ENDPOINT_SHELL}
         for i, port in enumerate(sorted_ports[:3]):

@@ -864,6 +864,28 @@ def create_app(config_class=Config, db_path=None):
         sf = data.get("sf")
         bw = data.get("bw")
         power = data.get("power")
+
+        # Check local role
+        gs = app.config["GS_STATE"]
+        local_mode = _local_mode_from_shell(dev.send_shell_command_full("mode"))
+        if _local_role_from_mode(local_mode) == "ground_station":
+            from core.ccsds import sdls_protect_frame
+            from core.telecommand import build_frequency_tc, build_power_tc
+            from webapp.radio_bridge import RadioBridge
+
+            radio_idx = 0 if radio == "R0" else 1
+            bridge = RadioBridge(gs)
+
+            # Send telecommands to remote satellite over RF first
+            if freq:
+                frame = build_frequency_tc(radio_idx, int(freq))
+                frame = sdls_protect_frame(frame, gs.difficulty)
+                bridge.send_raw(frame)
+            if power:
+                frame = build_power_tc(radio_idx, int(power))
+                frame = sdls_protect_frame(frame, gs.difficulty)
+                bridge.send_raw(frame)
+
         results = []
         if freq:
             results.append(dev.send_shell_command_full(f"lora_freq {radio} {freq}"))
@@ -1117,6 +1139,65 @@ def start_telemetry_thread(app):
                                     f" seq={pkt.seq_count} payload={len(pkt.payload)} bytes"
                                 )
                             if pkt:
+                                # Check if we are a satellite and received a telecommand
+                                local_mode_str = gs.device.send_shell_command_full("mode")
+                                local_mode = _local_mode_from_shell(local_mode_str)
+                                if _local_role_from_mode(local_mode) == "satellite" and (pkt.pkt_type == 1 or pkt.apid in [0x020, 0x021, 0x022, 0x027]):
+                                    import struct
+                                    from core.constants import (
+                                        APID_TC_COMMAND,
+                                        APID_TC_SET_DIFFICULTY,
+                                        APID_TC_SET_FREQ,
+                                        APID_TC_SET_POWER,
+                                        TC_OP_NOP,
+                                        TC_OP_SET_SAFE_MODE,
+                                        TC_OP_SET_NOMINAL,
+                                        TC_OP_SET_DEBUG,
+                                    )
+
+                                    if pkt.apid == APID_TC_COMMAND and len(pkt.payload) > 0:
+                                        opcode = pkt.payload[0]
+                                        flight_modes = {
+                                            TC_OP_NOP: "idle",
+                                            TC_OP_SET_SAFE_MODE: "safe",
+                                            TC_OP_SET_NOMINAL: "nominal",
+                                            TC_OP_SET_DEBUG: "debug",
+                                        }
+                                        flight_mode = flight_modes.get(opcode)
+                                        if flight_mode:
+                                            gs.device.send_shell_command_full(f"flight {flight_mode}")
+                                    elif pkt.apid == APID_TC_SET_DIFFICULTY and len(pkt.payload) > 0:
+                                        level = pkt.payload[0]
+                                        gs.device.send_shell_command_full(f"difficulty {level}")
+                                        gs.difficulty = level
+                                    elif pkt.apid == APID_TC_SET_FREQ and len(pkt.payload) >= 5:
+                                        radio_idx, freq = struct.unpack("<BI", pkt.payload[:5])
+                                        radio = f"R{radio_idx}"
+                                        gs.device.send_shell_command_full(f"lora_freq {radio} {freq}")
+                                        gs.device.send_shell_command_full(f"lora_apply {radio}")
+                                    elif pkt.apid == APID_TC_SET_POWER and len(pkt.payload) >= 2:
+                                        radio_idx, power = struct.unpack("<Bb", pkt.payload[:2])
+                                        radio = f"R{radio_idx}"
+                                        gs.device.send_shell_command_full(f"lora_power {radio} {power}")
+                                        gs.device.send_shell_command_full(f"lora_apply {radio}")
+
+                                    with app.app_context():
+                                        from webapp.db import get_db
+                                        try:
+                                            db = get_db()
+                                            db.execute(
+                                                "INSERT INTO logs (timestamp, level, source, message) VALUES (?, ?, ?, ?)",
+                                                (
+                                                    datetime.now().isoformat(),
+                                                    "INFO",
+                                                    "satellite",
+                                                    f"Telecommand APID 0x{pkt.apid:03X} processed: payload={pkt.payload.hex()}",
+                                                ),
+                                            )
+                                            db.commit()
+                                        except Exception:
+                                            pass
+
                                 # Valid CCSDS frame with good CRC
                                 decoded = decode_tm_payload(pkt.apid, pkt.payload)
                                 gs.update_remote_satellite(

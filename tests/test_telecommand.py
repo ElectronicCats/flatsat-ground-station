@@ -9,6 +9,8 @@ from core.constants import (
 from core.telecommand import (
     build_command_tc,
     build_privileged_tc,
+    build_frequency_tc,
+    build_power_tc,
     xor_decrypt,
     xor_encrypt,
 )
@@ -49,3 +51,28 @@ def test_xor_encrypt_known():
     data = b"PWNSAT"
     encrypted = xor_encrypt(data)
     assert encrypted == b"\x00" * 6
+
+
+def test_build_frequency_tc():
+    import struct
+    from core.constants import APID_TC_SET_FREQ
+    frame = build_frequency_tc(radio_idx=1, frequency_hz=916000000)
+    pkt = parse_frame(frame)
+    assert pkt.pkt_type == CCSDS_TYPE_TC
+    assert pkt.apid == APID_TC_SET_FREQ
+    radio_idx, freq = struct.unpack("<BI", pkt.payload)
+    assert radio_idx == 1
+    assert freq == 916000000
+
+
+def test_build_power_tc():
+    import struct
+    from core.constants import APID_TC_SET_POWER
+    frame = build_power_tc(radio_idx=0, power_dbm=14)
+    pkt = parse_frame(frame)
+    assert pkt.pkt_type == CCSDS_TYPE_TC
+    assert pkt.apid == APID_TC_SET_POWER
+    radio_idx, power = struct.unpack("<Bb", pkt.payload)
+    assert radio_idx == 0
+    assert power == 14
+

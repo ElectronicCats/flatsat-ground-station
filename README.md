@@ -104,6 +104,30 @@ SQLite with tables: `users`, `telemetry`, `radio_config`, `secrets`, `logs`. Cre
 - **Config** (`/config`) — Radio configuration with DB persistence
 - **Logs** (`/logs`) — System log viewer
 
+## Configuring the Satellite (Remote Radio Configuration)
+
+In hardware mode, you can update the LoRa parameters (frequency and power) of the remote satellite. The Ground Station transmits these configuration updates as CCSDS telecommand frames over RF first, and then applies the matching settings locally so the radio links remain synchronized.
+
+### API Commands to Configure the Satellite
+
+You can interact with these endpoints directly using a valid session cookie (e.g. from the Level 1 Session Forgery challenge):
+
+* **Get current radio configuration (GET):**
+  ```bash
+  curl -H "Cookie: session_token=YWRtaW46YWRtaW46MTcwMDAwMDAwMA==" \
+       "http://localhost:5000/api/satellite/lora_config?radio=R0"
+  ```
+
+* **Update remote satellite & local GS radio configuration (POST):**
+  Specify the radio identifier (`R0` or `R1`) and the parameters to update:
+  ```bash
+  curl -X POST \
+       -H "Content-Type: application/json" \
+       -H "Cookie: session_token=YWRtaW46YWRtaW46MTcwMDAwMDAwMA==" \
+       -d '{"radio": "R0", "frequency": 915500000, "sf": 8, "bw": 250, "power": 18}' \
+       http://localhost:5000/api/satellite/lora_config
+  ```
+
 ## Toolkit
 
 Standalone scripts for interacting with FlatSat from the command line. Located in `toolkit/`.

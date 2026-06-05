@@ -5,6 +5,7 @@ AES-encrypted privileged commands (TC_OP_PRIVILEGED 0xD0).
 SDLS Level 3 uses AES-128-CTR with IV derived from frame MET timestamp.
 """
 
+import struct
 import time as _time
 
 from core.ccsds import build_tc
@@ -12,6 +13,8 @@ from core.constants import (
     AES_KEY_HARDCODED,
     APID_TC_COMMAND,
     APID_TC_SET_DIFFICULTY,
+    APID_TC_SET_FREQ,
+    APID_TC_SET_POWER,
     TC_OP_PRIVILEGED,
     XOR_KEY,
 )
@@ -96,3 +99,30 @@ def build_difficulty_tc(level: int, seq_count: int | None = None) -> bytes:
     payload = bytes([level])
     timestamp = int(_time.time()) & 0xFFFFFFFF
     return build_tc(APID_TC_SET_DIFFICULTY, payload, seq_count=seq_count, timestamp=timestamp)
+
+
+def build_frequency_tc(radio_idx: int, frequency_hz: int, seq_count: int | None = None) -> bytes:
+    """Build a frequency setting telecommand frame (APID 0x021) with radio index and frequency."""
+    global _tc_seq_count
+    if seq_count is None:
+        seq_count = _tc_seq_count
+        _tc_seq_count = (_tc_seq_count + 1) & 0x3FFF
+
+    # Payload format: [radio_idx (1 byte)][frequency_hz (4 bytes, little-endian uint32)]
+    payload = struct.pack("<BI", radio_idx, frequency_hz)
+    timestamp = int(_time.time()) & 0xFFFFFFFF
+    return build_tc(APID_TC_SET_FREQ, payload, seq_count=seq_count, timestamp=timestamp)
+
+
+def build_power_tc(radio_idx: int, power_dbm: int, seq_count: int | None = None) -> bytes:
+    """Build a power setting telecommand frame (APID 0x022) with radio index and power."""
+    global _tc_seq_count
+    if seq_count is None:
+        seq_count = _tc_seq_count
+        _tc_seq_count = (_tc_seq_count + 1) & 0x3FFF
+
+    # Payload format: [radio_idx (1 byte)][power_dbm (1 byte, signed int8)]
+    payload = struct.pack("<Bb", radio_idx, power_dbm)
+    timestamp = int(_time.time()) & 0xFFFFFFFF
+    return build_tc(APID_TC_SET_POWER, payload, seq_count=seq_count, timestamp=timestamp)
+
