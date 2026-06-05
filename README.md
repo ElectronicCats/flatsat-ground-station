@@ -1,4 +1,4 @@
-# PwnSat2 Ground Station
+# PwnSat Ground Station
 
 A Flask-based ground station for communicating with PwnSat2 FlatSat hardware via LoRa radio. Designed for educational CTF (Capture The Flag) exercises where participants interact with real satellite hardware through a web dashboard.
 
@@ -8,7 +8,7 @@ A Flask-based ground station for communicating with PwnSat2 FlatSat hardware via
 - pip
 
 Optional for hardware mode:
-- PwnSat2 FlatSat device (USB VID:PID `0x1209:0xBABC`)
+- FlatSat device (USB VID:PID `0x1209:0xBABC`)
 - Linux recommended for USB device discovery (uses `pyudev`)
 
 ## Quick Start
