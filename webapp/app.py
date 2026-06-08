@@ -572,12 +572,16 @@ def create_app(config_class=Config, db_path=None):
         if device.is_connected:
             gs.set_hardware(device)
             # Bootstrap: R1 command mode + sync difficulty (retry once on failure)
-            r1_resp = device.send_shell_command_full("lora_mode R1 command")
-            if r1_resp is None:
-                time.sleep(0.5)
-                r1_resp = device.send_shell_command_full("lora_mode R1 command")
-            if r1_resp is None or "error" in r1_resp.lower() or "not supported" in r1_resp.lower():
+            if os.environ.get("FLATSAT_SINGLE_RADIO") == "1":
                 device.has_radio1 = False
+                r1_resp = "not supported"
+            else:
+                r1_resp = device.send_shell_command_full("lora_mode R1 command")
+                if r1_resp is None:
+                    time.sleep(0.5)
+                    r1_resp = device.send_shell_command_full("lora_mode R1 command")
+                if r1_resp is None or "error" in r1_resp.lower() or "not supported" in r1_resp.lower():
+                    device.has_radio1 = False
             diff_raw = device.send_shell_command_full("difficulty")
             if diff_raw is None:
                 time.sleep(0.5)
