@@ -21,6 +21,7 @@ python -m venv .venv
 source .venv/bin/activate
 pip install -r requirements.txt
 export FLATSAT_LEVEL=1  # 1: Easy, 2: Medium, 3: Hard
+# Optional (for single-radio hardware like CatSniffer): export FLATSAT_SINGLE_RADIO=1
 python -m webapp.app
 ```
 
@@ -33,6 +34,7 @@ python -m venv .venv
 .venv\Scripts\Activate.ps1
 pip install -r requirements.txt
 $env:FLATSAT_LEVEL="1"  # 1: Easy, 2: Medium, 3: Hard
+# Optional (for single-radio hardware like CatSniffer): $env:FLATSAT_SINGLE_RADIO="1"
 python -m webapp.app
 ```
 
@@ -44,6 +46,7 @@ python -m venv .venv
 .venv\Scripts\activate.bat
 pip install -r requirements.txt
 set FLATSAT_LEVEL=1  # 1: Easy, 2: Medium, 3: Hard
+# Optional (for single-radio hardware like CatSniffer): set FLATSAT_SINGLE_RADIO=1
 python -m webapp.app
 ```
 
