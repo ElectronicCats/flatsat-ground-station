@@ -1,3 +1,4 @@
+[README.md](https://github.com/user-attachments/files/28727725/README.md)
 # PwnSat Ground Station
 
 A Flask-based ground station for communicating with PwnSat2 FlatSat hardware via LoRa radio. Designed for educational CTF (Capture The Flag) exercises where participants interact with real satellite hardware through a web dashboard.
