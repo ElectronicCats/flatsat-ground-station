@@ -30,3 +30,5 @@ venv/
 # Temporary detailed problems document
 /problemas_detallados.md
 
+# Exploits
+exploit_*.py
