@@ -58,6 +58,8 @@ This ground station supports three difficulty levels that toggle security vulner
 
 Change the level using the `FLATSAT_LEVEL` environment variable before starting the app.
 
+If using a single-radio board like the **CatSniffer** as the Ground Station, you must also set the `FLATSAT_SINGLE_RADIO` environment variable to `1` (e.g., `export FLATSAT_SINGLE_RADIO=1` or `$env:FLATSAT_SINGLE_RADIO="1"`) to prevent the webapp/microcontroller from freezing during telecommand transmission.
+
 Open `http://localhost:5000` in your browser.
 
 The database is created automatically on first run. No manual setup needed.
@@ -357,4 +359,15 @@ Or use a standard Command Prompt (CMD) and activate using:
 ### Database issues
 
 Delete `db/telemetry.db` and restart — it will be recreated with seed data automatically.
+
+### Webapp hangs during telecommand transmission (Single-Radio hardware like CatSniffer)
+
+If the web application hangs in a `pending` state when sending a telecommand (like a PING or a command via the API), and your board physically only has one radio chip:
+1. **Unplug and replug the USB cable** of the board to reset the hung virtual COM port driver in your OS.
+2. Set the `FLATSAT_SINGLE_RADIO` environment variable to `1` before starting the application:
+   * **Linux/macOS:** `export FLATSAT_SINGLE_RADIO=1`
+   * **Windows (PowerShell):** `$env:FLATSAT_SINGLE_RADIO="1"`
+   * **Windows (CMD):** `set FLATSAT_SINGLE_RADIO=1`
+3. Restart the webapp.
+
 
