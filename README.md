@@ -13,15 +13,40 @@ Optional for hardware mode:
 
 ## Quick Start
 
+### Linux / macOS
 ```bash
 git clone <repo-url>
 cd flatsat-ground-station
 python -m venv .venv
-source .venv/bin/activate   # Windows: .venv\Scripts\activate
+source .venv/bin/activate
 pip install -r requirements.txt
 export FLATSAT_LEVEL=1  # 1: Easy, 2: Medium, 3: Hard
 python -m webapp.app
 ```
+
+### Windows (PowerShell)
+```powershell
+git clone <repo-url>
+cd flatsat-ground-station
+# If PowerShell script execution is disabled, run: Set-ExecutionPolicy -ExecutionPolicy RemoteSigned -Scope Process
+python -m venv .venv
+.venv\Scripts\Activate.ps1
+pip install -r requirements.txt
+$env:FLATSAT_LEVEL="1"  # 1: Easy, 2: Medium, 3: Hard
+python -m webapp.app
+```
+
+### Windows (Command Prompt - CMD)
+```cmd
+git clone <repo-url>
+cd flatsat-ground-station
+python -m venv .venv
+.venv\Scripts\activate.bat
+pip install -r requirements.txt
+set FLATSAT_LEVEL=1  # 1: Easy, 2: Medium, 3: Hard
+python -m webapp.app
+```
+
 
 ### CTF Difficulty Levels
 
@@ -304,14 +329,32 @@ sudo udevadm control --reload-rules && sudo udevadm trigger
 
 Reconnect the FlatSat after applying the rule.
 
-### Port 5000 already in use
+### FlatSat not detected on Windows
+*   **Driver Issue:** Windows normally loads the default USB CDC Virtual Serial Port driver automatically. If not detected, check Device Manager to see if the device shows up under "Ports (COM & LPT)".
+*   **No udev rule needed:** You do not need any special udev rules on Windows.
 
-```bash
-python -m webapp.app  # defaults to port 5000
+### Script Execution Policy in PowerShell (Windows)
+If activating the virtual environment via `.venv\Scripts\Activate.ps1` fails with an execution policy error:
+```powershell
+Set-ExecutionPolicy -ExecutionPolicy RemoteSigned -Scope Process
+```
+Or use a standard Command Prompt (CMD) and activate using:
+```cmd
+.venv\Scripts\activate.bat
 ```
 
-Kill the existing process or change the port in `webapp/app.py`.
+### Port 5000 already in use
+
+*   **Linux:** Kill the existing process or change the port in `webapp/app.py`.
+*   **Windows:**
+    ```cmd
+    # Find the PID using port 5000:
+    netstat -ano | findstr :5000
+    # Taskkill the process:
+    taskkill /PID <PID> /F
+    ```
 
 ### Database issues
 
 Delete `db/telemetry.db` and restart — it will be recreated with seed data automatically.
+
