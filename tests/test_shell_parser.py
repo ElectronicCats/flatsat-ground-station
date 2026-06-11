@@ -47,9 +47,15 @@ def test_parse_flight_safe():
 
 
 def test_parse_mode():
-    assert parse_mode("modemode: mission") == "mission"
+    assert parse_mode("modemode: mission") == "satellite"
     assert parse_mode("modemode: raw") == "raw"
     assert parse_mode("modemode: tinygs") == "tinygs"
+    assert parse_mode("role: ground_station") == "ground_station"
+    assert parse_mode("role: satellite") == "satellite"
+    assert parse_mode("role: gs") == "ground_station"
+    assert parse_mode("role: sat") == "satellite"
+    assert parse_mode("mode: gs") == "ground_station"
+    assert parse_mode("mode: sat") == "satellite"
 
 
 def test_parse_difficulty():
@@ -101,7 +107,26 @@ def test_parse_lora_config():
 
 
 def test_parse_flight_none():
-    assert parse_flight(None) == {"flight": "unknown", "battery_mv": 0, "tm_rate": 0}
+    assert parse_flight(None) == {
+        "flight": "unknown",
+        "battery_mv": 0,
+        "tm_rate": 0,
+        "uptime": None,
+        "tc_count": None,
+        "error_count": None,
+    }
+
+
+def test_parse_flight_with_counters():
+    raw = "flightflight: NOMINAL  battery: 3694 mV  tm_rate: 10 sec\nuptime: 1234 sec\ntc_count: 5\nerror_count: 2\n"
+    result = parse_flight(raw)
+    assert result["flight"] == "NOMINAL"
+    assert result["battery_mv"] == 3694
+    assert result["tm_rate"] == 10
+    assert result["uptime"] == 1234
+    assert result["tc_count"] == 5
+    assert result["error_count"] == 2
+
 
 
 def test_parse_sensors_none():

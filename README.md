@@ -164,6 +164,42 @@ SQLite with tables: `users`, `telemetry`, `radio_config`, `secrets`, `logs`. Cre
 - **Config** (`/config`) — Radio configuration with DB persistence
 - **Logs** (`/logs`) — System log viewer
 
+## Configuring the Device via the Satellite Menu
+
+The **Satellite** page (`/satellite`) is the central control hub for the connected hardware. It dynamically adapts based on whether the connected device is acting as a **Ground Station** or a **Satellite** (highlighted by the neon role badge next to the page heading).
+
+### 1. Flight States (Flight Panel)
+Controls the operational/vessel state of the satellite:
+* **Idle:** Suspends all telemetry and heartbeat transmissions. **Always set the flight state to Idle before reconfiguring radios** to prevent RF transmission collision or interference during commands.
+* **Nominal:** Standard operational state. The satellite periodically reads sensor data and transmits telemetry packets over RF.
+* **Safe:** Low-power safety state. Automatically entered if battery drops below `3000mV`. Telemetry rates are reduced.
+* **Debug:** High-speed development/testing state. Telemetry is sent at an accelerated rate.
+
+### 2. Device Modes (Mode Panel)
+Sets the operating mode/role of the connected board:
+* **Mission:** Configures the local board to act as the **Satellite**. The Neopixel heartbeat blinks **Green** (slow blink in stream mode).
+* **Ground Station:** Configures the local board to act as the **Ground Station**. The Neopixel heartbeat blinks **Blue** (fast blink in command/listen mode).
+* **TinyGS:** Switches the board to TinyGS receiver mode to spoof/intercept satellite downlinks.
+
+### 3. Active Radio Selector
+Configures how the board uses its physical LoRa transceivers (on 2-radio FlatSat boards):
+* **Dual (TX: R1, RX: R0) [Default]:** Operates in full duplex loopback on a single board (transmitting commands on Radio 1 and receiving telemetry on Radio 0).
+* **Radio 0 (CDC0):** Forces all operations onto the primary transceiver (Radio 0).
+* **Radio 1 (CDC1):** Forces all operations onto the secondary transceiver (Radio 1).
+
+### 4. Dynamic Radio Configuration
+Depending on the role of the connected board and the active radio selection, the page dynamically displays only the relevant radio panel:
+* **Ground Station Mode / Radio 0:** Displays **Local Radio 0** configuration (for tuning the telemetry receiver frequency, SF, BW, and power).
+* **Satellite Mode / Radio 1:** Displays **Local Radio 1** configuration (for tuning the telemetry transmitter frequency, SF, BW, and power).
+Click **Apply** to transmit configuration changes to the device.
+
+### 5. TinyGS Spoofing Profiles
+Emulates downlinks from real satellites in orbit. Select a profile in the dropdown and click **Spoof**:
+* **Norbi:** Configures the radio to `436.703 MHz` (UHF).
+* **FossaSat-2:** Configures the radio to `436.7 MHz` (UHF).
+* **VR3X:** Configures the radio to `915.6 MHz` (ISM).
+Click **Stop** to return to standard Mission mode.
+
 ## Configuring the Satellite (Remote Radio Configuration)
 
 In hardware mode, you can update the LoRa parameters (frequency and power) of the remote satellite. The Ground Station transmits these configuration updates as CCSDS telecommand frames over RF first, and then applies the matching settings locally so the radio links remain synchronized.
@@ -358,6 +394,31 @@ Or use a standard Command Prompt (CMD) and activate using:
     # Taskkill the process:
     taskkill /PID <PID> /F
     ```
+*   **macOS (AirPlay Receiver Conflict):** By default, macOS Monterey and later uses port 5000 for the AirPlay Receiver service. You can disable this conflict in *System Settings -> General -> AirDrop & AirPlay -> Turn off "AirPlay Receiver"*, or change the listening port to `5001` in `webapp/app.py`.
+
+### Python/Pip Commands Not Recognized (macOS)
+If the terminal indicates that `python` or `pip` is not recognized after installing Python on macOS, you should use `python3` and `pip3` instead.
+To create permanent shortcuts/aliases in your shell:
+```bash
+echo 'alias python="python3"' >> ~/.zshrc
+echo 'alias pip="pip3"' >> ~/.zshrc
+source ~/.zshrc
+```
+
+### Virtual Environment (.venv) Creation Fails (macOS)
+If running `python3 -m venv .venv` executes without error but doesn't correctly create the activation script (e.g. `.venv/bin/activate` is missing, which is a known issue on some macOS setups or newer Python versions), use `virtualenv` instead:
+1. Install `virtualenv` globally:
+   ```bash
+   pip3 install virtualenv
+   ```
+2. Create the environment:
+   ```bash
+   virtualenv .venv
+   ```
+3. Activate it:
+   ```bash
+   source .venv/bin/activate
+   ```
 
 ### Database issues
 
@@ -372,5 +433,6 @@ If the web application hangs in a `pending` state when sending a telecommand (li
    * **Windows (PowerShell):** `$env:FLATSAT_SINGLE_RADIO="1"`
    * **Windows (CMD):** `set FLATSAT_SINGLE_RADIO=1`
 3. Restart the webapp.
+
 
 

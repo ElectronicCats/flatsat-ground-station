@@ -62,9 +62,12 @@ async function hwStatus() {
             setIndicator("hardware");
             document.getElementById("btn-connect").className = "btn-active";
             
-            document.getElementById("hw-active-radio-container").style.display = "inline";
-            if (data.active_radio !== undefined) {
-                document.getElementById("hw-active-radio").value = data.active_radio;
+            const activeRadioContainer = document.getElementById("hw-active-radio-container");
+            if (activeRadioContainer) {
+                activeRadioContainer.style.display = "inline";
+                if (data.active_radio !== undefined) {
+                    document.getElementById("hw-active-radio").value = data.active_radio;
+                }
             }
         } else if (data.mode === "simulated") {
             el.textContent = "SIMULATED";
@@ -74,7 +77,8 @@ async function hwStatus() {
             setButtons("simulated");
             setIndicator("simulated");
             document.getElementById("btn-simulate").className = "btn-active";
-            document.getElementById("hw-active-radio-container").style.display = "none";
+            const activeRadioContainer = document.getElementById("hw-active-radio-container");
+            if (activeRadioContainer) activeRadioContainer.style.display = "none";
         } else {
             el.textContent = "IDLE";
             el.style.color = "#888";
@@ -82,7 +86,8 @@ async function hwStatus() {
             document.getElementById("hw-rssi").textContent = "";
             setButtons("idle");
             setIndicator("idle");
-            document.getElementById("hw-active-radio-container").style.display = "none";
+            const activeRadioContainer = document.getElementById("hw-active-radio-container");
+            if (activeRadioContainer) activeRadioContainer.style.display = "none";
         }
     } catch (e) {
         console.error("[GS] Status error:", e);
@@ -146,6 +151,8 @@ async function hwScan() {
 
         if (data.devices && data.devices.length > 0) {
             sel.style.display = "inline";
+            const configOpts = document.getElementById("hw-config-options");
+            if (configOpts) configOpts.style.display = "flex";
             hasScannedDevices = true;
             data.devices.forEach(d => {
                 const opt = document.createElement("option");
@@ -156,6 +163,8 @@ async function hwScan() {
             setButtons("scanned");
         } else {
             sel.style.display = "none";
+            const configOpts = document.getElementById("hw-config-options");
+            if (configOpts) configOpts.style.display = "none";
             hasScannedDevices = false;
             alert("No FlatSat devices found");
             setButtons("idle");
@@ -168,13 +177,19 @@ async function hwScan() {
 
 async function hwConnect() {
     const sn = document.getElementById("hw-devices").value;
-    console.log("[GS] Connecting to:", sn);
+    const radioMode = "auto";
+    const deviceRole = "auto";
+    console.log("[GS] Connecting to:", sn, "with radio_mode:", radioMode, "and device_role:", deviceRole);
     if (!sn) { console.log("[GS] No device selected"); return; }
     try {
         const resp = await fetch("/api/hardware/connect", {
             method: "POST",
             headers: {"Content-Type": "application/json"},
-            body: JSON.stringify({serial_number: sn})
+            body: JSON.stringify({
+                serial_number: sn,
+                radio_mode: radioMode,
+                device_role: deviceRole
+            })
         });
         const data = await resp.json();
         console.log("[GS] Connect result:", data);
@@ -198,6 +213,8 @@ async function hwDisconnect() {
         const data = await resp.json();
         console.log("[GS] Disconnect result:", data);
         document.getElementById("hw-devices").style.display = "none";
+        const configOpts = document.getElementById("hw-config-options");
+        if (configOpts) configOpts.style.display = "none";
         hasScannedDevices = false;
         document.getElementById("telemetry-body").innerHTML = "";
         pktCount = 0;

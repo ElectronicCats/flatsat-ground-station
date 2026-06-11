@@ -38,11 +38,16 @@ class RadioBridge:
 
             # AUTOMATIC SWITCHING LOGIC:
             has_radio1 = getattr(self._state.device, "has_radio1", True)
+            active_radio = getattr(self._state, "active_radio", 2)
 
-            if has_radio1:
+            # Use dual mode if active_radio is 2 (Dual), or if the device has radio1 and the active_radio is not forced to 0 or 1.
+            use_dual = (active_radio == 2) or (has_radio1 and active_radio not in (0, 1))
+
+            if use_dual:
                 # DUAL RADIO MODE:
                 # 1. Always transmit on Radio 1 (Telecommand) sintonized to 916 MHz where the satellite listens
                 tx_radio = 1
+                orig_active_radio = self._state.active_radio
                 try:
                     # Switch physical board to radio1 antenna and clear buffers
                     self._state.active_radio = tx_radio
@@ -52,6 +57,8 @@ class RadioBridge:
                     # Try sending using command mode TX first
                     resp = self._state.device.send_radio_tx(tx_radio, data)
                     if resp is not None:
+                        if not isinstance(resp, str):
+                            resp = str(resp)
                         if "Success" in resp:
                             status_dict = {"status": "sent", "bytes": len(data), "response": resp}
                         else:
@@ -66,23 +73,26 @@ class RadioBridge:
                     status_dict = {"status": "error", "error": str(e)}
                 finally:
                     # 2. Always revert back to Radio 0 (Telemetry RX) to listen for downlinks on 915 MHz
-                    self._state.active_radio = 0
+                    self._state.active_radio = orig_active_radio
                     self._state.device.send_shell_command_full("radio0")
                     self._state.device.reset_radio_input_buffers()
             else:
-                # SINGLE RADIO MODE (CatSniffer/GS-only):
-                # Use Radio 0 at 915 MHz (same frequency satellite listens on).
-                # Temporarily switch to command mode for TX, then restore stream mode for RX.
-                tx_radio = 0
+                # SINGLE RADIO MODE (CatSniffer/GS-only or manual override of specific radio):
+                tx_radio = 1 if active_radio == 1 else 0
+                orig_active_radio = self._state.active_radio
                 try:
-                    # Keep 915 MHz — satellite has one radio and listens here
-                    self._state.device.send_shell_command_full("lora_mode R0 command")
-                    self._state.device.send_shell_command_full("lora_apply R0")
+                    # Keep selected radio and switch to it physically
+                    r_str = f"R{tx_radio}"
+                    self._state.device.send_shell_command_full(f"radio{tx_radio}")
+                    self._state.device.send_shell_command_full(f"lora_mode {r_str} command")
+                    self._state.device.send_shell_command_full(f"lora_apply {r_str}")
                     self._state.device.reset_radio_input_buffers()
 
                     # Try sending using command mode TX first
                     resp = self._state.device.send_radio_tx(tx_radio, data)
                     if resp is not None:
+                        if not isinstance(resp, str):
+                            resp = str(resp)
                         if "Success" in resp:
                             status_dict = {"status": "sent", "bytes": len(data), "response": resp}
                         else:
@@ -96,9 +106,11 @@ class RadioBridge:
                 except Exception as e:
                     status_dict = {"status": "error", "error": str(e)}
                 finally:
-                    # Always revert Radio 0 back to stream mode to listen for telemetry
-                    self._state.device.send_shell_command_full("lora_mode R0 stream")
-                    self._state.device.send_shell_command_full("lora_apply R0")
+                    # Always revert selected Radio back to stream mode to listen for telemetry
+                    r_str = f"R{tx_radio}"
+                    self._state.active_radio = orig_active_radio
+                    self._state.device.send_shell_command_full(f"lora_mode {r_str} stream")
+                    self._state.device.send_shell_command_full(f"lora_apply {r_str}")
                     self._state.device.reset_radio_input_buffers()
                 
             return status_dict

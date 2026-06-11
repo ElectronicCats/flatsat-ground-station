@@ -111,6 +111,22 @@ function applyLocalSnapshot(local) {
     setText("local-diff", info.difficulty);
     setText("local-sc-id", info.sc_id !== null && info.sc_id !== undefined ? formatHex(info.sc_id) : null);
 
+    // Update heading role badge
+    const badge = document.getElementById("local-role-badge");
+    if (badge) {
+        if (info.role === "ground_station") {
+            badge.textContent = "Ground Station Mode";
+            badge.className = "role-badge badge-gs";
+            badge.style.display = "inline-block";
+        } else if (info.role === "satellite") {
+            badge.textContent = "Satellite Mode";
+            badge.className = "role-badge badge-sat";
+            badge.style.display = "inline-block";
+        } else {
+            badge.style.display = "none";
+        }
+    }
+
     if (info.difficulty !== null && info.difficulty !== undefined) {
         document.getElementById("diff-select").value = info.difficulty;
     }
@@ -129,9 +145,40 @@ function applyLocalSnapshot(local) {
     
     const activeRadio = info.active_radio !== undefined ? info.active_radio : 0;
     const radioBtns = document.getElementById("radio-btns").querySelectorAll("button");
-    radioBtns.forEach((btn, idx) => {
-        btn.className = idx === activeRadio ? "btn-active" : "";
+    radioBtns.forEach((btn) => {
+        const isMatched = btn.getAttribute("onclick").includes("(" + activeRadio + ")");
+        btn.className = isMatched ? "btn-active" : "";
     });
+
+    // Show/hide R0 and R1 configuration panels dynamically
+    const hasRadio1 = info.has_radio1 !== false;
+    const panelR0 = document.getElementById("panel-r0");
+    const panelR1 = document.getElementById("panel-r1");
+    if (panelR0 && panelR1) {
+        if (!hasRadio1) {
+            panelR0.style.display = "block";
+            panelR1.style.display = "none";
+        } else {
+            if (activeRadio === 0) {
+                panelR0.style.display = "block";
+                panelR1.style.display = "none";
+            } else if (activeRadio === 1) {
+                panelR0.style.display = "none";
+                panelR1.style.display = "block";
+            } else {
+                // Dual mode (activeRadio === 2)
+                if (info.role === "ground_station") {
+                    // Ground Station: receives telemetry on R0
+                    panelR0.style.display = "block";
+                    panelR1.style.display = "none";
+                } else {
+                    // Satellite: transmits telemetry on R1
+                    panelR0.style.display = "none";
+                    panelR1.style.display = "block";
+                }
+            }
+        }
+    }
     
     document.getElementById("btn-spoof").className = info.mode === "tinygs" ? "btn-active" : "";
     document.getElementById("controls-note").textContent = info.role === "ground_station"
@@ -168,7 +215,7 @@ function applySensorSnapshot(data, role) {
     setText("sens-az", data && data.accel_z, role === "ground_station" ? "Waiting..." : "--");
     const hasData = ["temperature", "pressure", "humidity", "accel_x", "accel_y", "accel_z"]
         .some((key) => data && data[key] !== null && data[key] !== undefined);
-    const message = hasData ? (source === "remote" ? "Relayed Telemetry" : "Live") : "Waiting for Telemetry";
+    const message = hasData ? (source === "remote" ? "LoRa Telemetry" : "Live") : "Waiting for Telemetry";
     setPanelState("sensors", "ready", message);
 }
 

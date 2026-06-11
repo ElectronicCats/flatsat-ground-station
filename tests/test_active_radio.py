@@ -50,7 +50,7 @@ def test_active_radio_get(app, auth_client):
 def test_active_radio_switch(app, auth_client):
     mock_dev = _setup_hardware(app)
     gs = app.config["GS_STATE"]
-    assert gs.active_radio == 0
+    assert gs.active_radio == 2
 
     # Switch to Radio 1
     resp = auth_client.post("/api/hardware/active_radio", json={"active_radio": 1}, content_type="application/json")
@@ -63,6 +63,12 @@ def test_active_radio_switch(app, auth_client):
     resp = auth_client.post("/api/hardware/active_radio", json={"active_radio": 0}, content_type="application/json")
     assert resp.status_code == 200
     assert gs.active_radio == 0
+    mock_dev.send_shell_command_full.assert_any_call("radio0")
+
+    # Switch back to Dual (2)
+    resp = auth_client.post("/api/hardware/active_radio", json={"active_radio": 2}, content_type="application/json")
+    assert resp.status_code == 200
+    assert gs.active_radio == 2
     mock_dev.send_shell_command_full.assert_any_call("radio0")
 
 

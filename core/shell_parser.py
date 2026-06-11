@@ -30,9 +30,9 @@ def parse_fw_version(raw: str | None) -> dict:
 
 def parse_flight(raw: str | None) -> dict:
     if not raw:
-        return {"flight": "unknown", "battery_mv": 0, "tm_rate": 0}
+        return {"flight": "unknown", "battery_mv": 0, "tm_rate": 0, "uptime": None, "tc_count": None, "error_count": None}
 
-    result = {"flight": "unknown", "battery_mv": 0, "tm_rate": 0}
+    result = {"flight": "unknown", "battery_mv": 0, "tm_rate": 0, "uptime": None, "tc_count": None, "error_count": None}
 
     flight_match = re.search(r"flight:\s*(\w+)", raw)
     if flight_match:
@@ -46,14 +46,33 @@ def parse_flight(raw: str | None) -> dict:
     if rate_match:
         result["tm_rate"] = int(rate_match.group(1))
 
+    uptime_match = re.search(r"uptime:\s*(\d+)\s*sec", raw)
+    if uptime_match:
+        result["uptime"] = int(uptime_match.group(1))
+
+    tc_match = re.search(r"tc_count:\s*(\d+)", raw)
+    if tc_match:
+        result["tc_count"] = int(tc_match.group(1))
+
+    err_match = re.search(r"error_count:\s*(\d+)", raw)
+    if err_match:
+        result["error_count"] = int(err_match.group(1))
+
     return result
 
 
 def parse_mode(raw: str | None) -> str:
     if not raw:
         return "unknown"
-    match = re.search(r"mode:\s*(\w+)", raw)
-    return match.group(1) if match else "unknown"
+    match = re.search(r"(?:mode|role):\s*(\w+)", raw)
+    if match:
+        val = match.group(1)
+        if val in ("gs", "ground_station"):
+            return "ground_station"
+        if val in ("sat", "satellite", "mission"):
+            return "satellite"
+        return val
+    return "unknown"
 
 
 def parse_difficulty(raw: str | None) -> int:

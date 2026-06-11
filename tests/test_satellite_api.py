@@ -47,6 +47,7 @@ def _setup_hardware(app):
     mock_dev = MagicMock()
     mock_dev.serial_number = "TEST123"
     mock_dev.is_connected = True
+    mock_dev.has_radio1 = False
     gs.set_hardware(mock_dev)
     return mock_dev
 
@@ -55,7 +56,7 @@ def test_satellite_info_connected(app, auth_client):
     mock_dev = _setup_hardware(app)
     mock_dev.send_shell_command_full.side_effect = lambda cmd, **kw: {
         "fw_version": "fw_versionFW: dev-test\nGit: abc1234 (dirty)\nBuilt: 2026-01-01\nCompiler: GNU",
-        "mode": "modemode: mission",
+        "mode": "role: satellite",
         "flight": "flightflight: NOMINAL  battery: 3650 mV  tm_rate: 10 sec",
         "difficulty": "difficultydifficulty: 1 (normal)",
         "sc_id": "sc_idspacecraft_id: 0x02",
@@ -66,7 +67,7 @@ def test_satellite_info_connected(app, auth_client):
     assert resp.status_code == 200
     data = resp.get_json()
     assert data["fw_version"] == "dev-test"
-    assert data["mode"] == "mission"
+    assert data["mode"] == "satellite"
     assert data["flight"] == "NOMINAL"
     assert data["battery_mv"] == 3650
     assert data["difficulty"] == 1
@@ -175,7 +176,7 @@ def test_satellite_mode_mission(app, auth_client):
     resp = auth_client.post("/api/satellite/mode", json={"mode": "mission"}, content_type="application/json")
     assert resp.status_code == 200
     calls = [c[0][0] for c in mock_dev.send_shell_command_full.call_args_list]
-    assert "mode mission" in calls
+    assert "mode sat" in calls
     assert "lora_mode ALL stream" in calls
 
 
@@ -185,7 +186,7 @@ def test_satellite_mode_ground_station(app, auth_client):
     resp = auth_client.post("/api/satellite/mode", json={"mode": "ground_station"}, content_type="application/json")
     assert resp.status_code == 200
     calls = [c[0][0] for c in mock_dev.send_shell_command_full.call_args_list]
-    assert "mode raw" in calls
+    assert "mode gs" in calls
     assert "lora_mode ALL command" in calls
 
 

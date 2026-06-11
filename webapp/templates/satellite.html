@@ -4,7 +4,7 @@
 <link rel="stylesheet" href="/static/css/satellite.css">
 {% endblock %}
 {% block content %}
-<h1>Satellite Control</h1>
+<h1>Satellite Control <span id="local-role-badge" class="role-badge" style="display:none;"></span></h1>
 
 <div id="no-hw" style="display:none; color:#ff4444; font-size:1.2em; padding:20px;">
     No satellite connected — <a href="/dashboard">connect from Dashboard</a>.
@@ -142,6 +142,7 @@
     <div style="margin-bottom:10px;">
         <label style="color:#888;">Active Radio:</label>
         <div class="btn-group" id="radio-btns">
+            <button onclick="setActiveRadio(2)">Dual (TX: R1, RX: R0)</button>
             <button onclick="setActiveRadio(0)">Radio 0 (CDC0)</button>
             <button onclick="setActiveRadio(1)">Radio 1 (CDC1)</button>
         </div>

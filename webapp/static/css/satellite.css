@@ -26,3 +26,7 @@
     .controls-disabled button,
     .controls-disabled select,
     .controls-disabled input { opacity:0.6; pointer-events:none; }
+
+    .role-badge { display:inline-block; margin-left:15px; font-size:0.6em; padding:4px 10px; border-radius:12px; font-weight:bold; text-transform:uppercase; vertical-align:middle; border:1px solid; }
+    .badge-gs { color:#00ccff; border-color:#00ccff; background:rgba(0, 204, 255, 0.1); }
+    .badge-sat { color:#00ff41; border-color:#00ff41; background:rgba(0, 255, 65, 0.1); }

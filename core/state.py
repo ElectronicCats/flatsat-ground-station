@@ -39,6 +39,22 @@ class GroundStationState:
         self.difficulty: int = 0
         self.active_radio: int = 0
         self.remote_satellite: dict = _empty_remote_satellite()
+        self.forced_radio_mode: str = "auto"
+        self.forced_device_role: str = "auto"
+        self.local_device_info: dict = {
+            "fw_version": None,
+            "git_sha": None,
+            "git_dirty": None,
+            "build_date": None,
+            "sc_id": None,
+            "mode": None,
+            "flight": None,
+            "difficulty": 0,
+            "radio_configs": {
+                "R0": {"frequency": 0, "sf": 0, "bw": 0, "power": 0},
+                "R1": {"frequency": 0, "sf": 0, "bw": 0, "power": 0},
+            }
+        }
 
     @property
     def is_idle(self) -> bool:
@@ -59,18 +75,63 @@ class GroundStationState:
         self.difficulty = 0
         self.active_radio = 0
         self.reset_remote_satellite()
+        self.forced_radio_mode = "auto"
+        self.forced_device_role = "auto"
+        self.local_device_info = {
+            "fw_version": None,
+            "git_sha": None,
+            "git_dirty": None,
+            "build_date": None,
+            "sc_id": None,
+            "mode": None,
+            "flight": None,
+            "difficulty": 0,
+            "radio_configs": {
+                "R0": {"frequency": 0, "sf": 0, "bw": 0, "power": 0},
+                "R1": {"frequency": 0, "sf": 0, "bw": 0, "power": 0},
+            }
+        }
 
     def set_simulated(self):
         self.connection_mode = ConnectionMode.SIMULATED
         self.device = None
         self.active_radio = 0
         self.reset_remote_satellite()
+        self.local_device_info = {
+            "fw_version": None,
+            "git_sha": None,
+            "git_dirty": None,
+            "build_date": None,
+            "sc_id": None,
+            "mode": None,
+            "flight": None,
+            "difficulty": 0,
+            "radio_configs": {
+                "R0": {"frequency": 0, "sf": 0, "bw": 0, "power": 0},
+                "R1": {"frequency": 0, "sf": 0, "bw": 0, "power": 0},
+            }
+        }
 
     def set_hardware(self, device: Any):
         self.connection_mode = ConnectionMode.HARDWARE
         self.device = device
-        self.active_radio = 0
+        # Default to Dual (2) if device has radio1, otherwise Radio 0 (0)
+        self.active_radio = 2 if getattr(device, "has_radio1", True) else 0
         self.reset_remote_satellite()
+        self.local_device_info = {
+            "fw_version": None,
+            "git_sha": None,
+            "git_dirty": None,
+            "build_date": None,
+            "sc_id": None,
+            "mode": None,
+            "flight": None,
+            "difficulty": 0,
+            "radio_configs": {
+                "R0": {"frequency": 0, "sf": 0, "bw": 0, "power": 0},
+                "R1": {"frequency": 0, "sf": 0, "bw": 0, "power": 0},
+            }
+        }
 
     def start_mock(self):
         self.mock_running = True

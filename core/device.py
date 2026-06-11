@@ -71,7 +71,7 @@ class FlatSatDevice:
         """True only if radio0 and shell are open (radio1 is optional for GS-only boards)."""
         return all(s is not None and s.is_open for s in [self._radio0, self._shell])
 
-    def connect(self) -> dict[str, bool]:
+    def connect(self, forced_role: str = "gs") -> dict[str, bool]:
         """Open all serial ports. Returns {endpoint: success}.
 
         On partial failure, closes any ports that were successfully opened.
@@ -92,6 +92,12 @@ class FlatSatDevice:
                         dsrdtr=False,
                         rtscts=False,
                     )
+                    # Explicitly assert DTR and RTS to enable virtual COM port CDC ACM communications.
+                    try:
+                        ser.dtr = True
+                        ser.rts = True
+                    except Exception:
+                        pass
                     setattr(self, attr, ser)
                     result[name] = True
                 except serial.SerialException:
@@ -104,22 +110,31 @@ class FlatSatDevice:
             self.disconnect()
         elif self._shell and self._shell.is_open:
             self._drain_boot_banner()
+            # Force the device to the selected mode (sat or gs)
+            cmd = "mode sat" if forced_role == "satellite" else "mode gs"
+            for _attempt in range(3):
+                resp = self.send_shell_command_full(cmd, timeout=0.5)
+                if resp is not None:
+                    break
+                import time
+                time.sleep(0.1)
 
         return result
 
     def _drain_boot_banner(self):
         """Drain firmware boot text from shell before sending real commands.
 
-        After USB CDC open, the firmware may still be printing its boot banner.
-        We wait for the boot output to settle, drain it, then send a no-op
-        command to confirm the shell is responsive before returning.
+        The updated DUAL firmware defaults to GS mode at boot so no sat_telem
+        interference; the 1 s USB settle delay in the firmware is the main wait.
+        We allow 50 ms for USB CDC to settle, then drain whatever boot text
+        arrived and sync the shell parser.
         """
         import time
 
         with self._shell_lock:
             try:
-                # Wait for firmware boot to complete
-                time.sleep(1.0)
+                # Wait for USB CDC setup and firmware init to settle (800ms)
+                time.sleep(0.8)
                 # Drain all boot text
                 if self._shell.in_waiting:
                     self._shell.read(self._shell.in_waiting)
@@ -127,7 +142,7 @@ class FlatSatDevice:
                 # Send bare newline to sync shell parser
                 self._shell.write(b"\r\n")
                 self._shell.flush()
-                time.sleep(0.3)
+                time.sleep(0.05)
                 # Drain the shell's response to the empty line
                 if self._shell.in_waiting:
                     self._shell.read(self._shell.in_waiting)
@@ -165,17 +180,14 @@ class FlatSatDevice:
                 return None
 
     def send_shell_command_full(self, cmd: str, timeout: float = 2.0) -> str | None:
-        """Send command to Shell (CDC2), return full multi-line response.
-
-        Reads in a loop until no new data arrives for 100ms, up to timeout.
-        """
+        """Send command to Shell (CDC2), return full multi-line response."""
         if not self._shell or not self._shell.is_open:
             return None
         with self._shell_lock:
             try:
                 import time
 
-                self._shell.timeout = 0.2
+                self._shell.timeout = 0.02  # 20ms timeout for trailing reads
                 self._shell.reset_input_buffer()
                 self._shell.write(f"{cmd}\r\n".encode("ascii"))
                 self._shell.flush()
@@ -183,12 +195,16 @@ class FlatSatDevice:
                 buf = b""
                 deadline = time.time() + timeout
                 while time.time() < deadline:
-                    chunk = self._shell.read(self._shell.in_waiting or 1)
+                    in_wait = self._shell.in_waiting
+                    if in_wait > 0:
+                        chunk = self._shell.read(in_wait)
+                    else:
+                        chunk = self._shell.read(1)  # blocks for at most 20ms
+
                     if chunk:
                         buf += chunk
                     elif buf:
-                        break  # Had data, now nothing more — done
-                    time.sleep(0.05)
+                        break  # Had data, now nothing more (timed out 20ms) — done
 
                 if buf:
                     return buf.decode("ascii", errors="ignore").strip()
