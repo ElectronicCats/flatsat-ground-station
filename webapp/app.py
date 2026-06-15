@@ -55,6 +55,16 @@ def _local_role_from_mode(mode: str) -> str:
     return "satellite" if mode in ("satellite", "mission", "unknown") else "ground_station"
 
 
+def _normalize_mode(m: str | None) -> str | None:
+    if not m:
+        return m
+    if m in ("sat", "satellite", "mission"):
+        return "mission"
+    if m in ("gs", "ground_station"):
+        return "ground_station"
+    return m
+
+
 def create_app(config_class=Config, db_path=None):
     app = Flask(__name__)
     app.config.from_object(config_class)
@@ -513,6 +523,10 @@ def create_app(config_class=Config, db_path=None):
                 return {"error": "Invalid or missing 'active_radio' (must be 0, 1 or 2)"}, 400
             
             radio_idx = int(radio_idx)
+            if gs.active_radio == radio_idx:
+                log_activity("INFO", "hardware", f"Active radio change ignored: already set to {radio_idx}")
+                return {"status": "ok", "active_radio": gs.active_radio, "no_change": True}
+                
             gs.active_radio = radio_idx
             
             if gs.is_hardware and gs.device:
@@ -680,6 +694,7 @@ def create_app(config_class=Config, db_path=None):
                 "active_radio": gs.active_radio,
                 "battery_mv": 0,
                 "tm_rate": 0,
+                "tinygs_profile": None,
                 "radio_configs": {
                     "R0": r0_cfg,
                     "R1": r1_cfg,
@@ -789,8 +804,31 @@ def create_app(config_class=Config, db_path=None):
             fw = {"fw_version": None, "git_sha": None, "git_dirty": None, "build_date": None}
         else:
             fw = parse_fw_version(fw_raw)
-        flight = parse_flight(flight_raw)
-        mode = _local_mode_from_shell(mode_raw, status_raw)
+
+        gs = app.config["GS_STATE"]
+
+        # Flight state fallback
+        if flight_raw is None:
+            flight = {
+                "flight": gs.local_device_info.get("flight"),
+                "battery_mv": gs.local_device_info.get("battery_mv"),
+                "tm_rate": gs.local_device_info.get("tm_rate"),
+                "uptime": gs.local_device_info.get("uptime"),
+                "tc_count": gs.local_device_info.get("tc_count"),
+                "error_count": gs.local_device_info.get("error_count"),
+            }
+        else:
+            flight = parse_flight(flight_raw)
+
+        # Mode state fallback
+        if mode_raw is None:
+            mode = gs.local_device_info.get("mode")
+        else:
+            mode = _local_mode_from_shell(mode_raw, status_raw)
+
+        if not mode or mode == "unknown":
+            mode = gs.local_device_info.get("mode") or "satellite"
+
         role = _local_role_from_mode(mode)
         return {
             **fw,
@@ -801,11 +839,11 @@ def create_app(config_class=Config, db_path=None):
             "uptime": flight.get("uptime"),
             "tc_count": flight.get("tc_count"),
             "error_count": flight.get("error_count"),
-            "difficulty": app.config["GS_STATE"].difficulty,
+            "difficulty": gs.difficulty,
             "sc_id": parse_sc_id(scid_raw) if scid_raw is not _SENTINEL else None,
             "role": role,
             "role_label": "Ground Station" if role == "ground_station" else "Satellite",
-            "active_radio": app.config["GS_STATE"].active_radio,
+            "active_radio": gs.active_radio,
         }
 
     def _build_satellite_snapshot(local: dict, remote: dict) -> dict:
@@ -1113,6 +1151,11 @@ def create_app(config_class=Config, db_path=None):
         mode = data.get("mode", "raw")
         gs = app.config["GS_STATE"]
 
+        # Comprobación de estado actual para evitar doble acción
+        if _normalize_mode(gs.local_device_info.get("mode")) == _normalize_mode(mode):
+            log_activity("INFO", "satellite", f"Mode change ignored: already in {mode}")
+            return {"status": "ok", "response": f"Already in mode: {mode}", "no_change": True}
+
         if mode == "ground_station":
             # Ground Station: firmware in raw + radios in command mode
             dev.send_shell_command_full("mode gs")
@@ -1175,6 +1218,12 @@ def create_app(config_class=Config, db_path=None):
             gs.local_device_info["role"] = local_role
             gs.local_device_info["role_label"] = "Ground Station" if local_role == "ground_station" else "Satellite"
 
+        # Comprobación de estado actual para evitar doble acción
+        current_flight = gs.remote_satellite.get("flight") if local_role == "ground_station" else gs.local_device_info.get("flight")
+        if current_flight and current_flight.lower() == flight.lower():
+            log_activity("INFO", "satellite", f"Flight state change ignored: already in {flight}")
+            return {"status": "ok", "response": f"Already in flight state: {flight}", "no_change": True}
+
         if local_role == "ground_station":
             from core.ccsds import sdls_protect_frame
             from core.telecommand import build_command_tc
@@ -1219,6 +1268,16 @@ def create_app(config_class=Config, db_path=None):
         level = data.get("level", 0)
 
         gs = app.config["GS_STATE"]
+
+        # Comprobación de estado actual para evitar doble acción
+        try:
+            level_int = int(level)
+        except (ValueError, TypeError):
+            level_int = 0
+        if gs.difficulty == level_int:
+            log_activity("INFO", "satellite", f"Difficulty change ignored: already at level {level_int}")
+            return {"status": "ok", "response": f"Already at difficulty level: {level_int}", "no_change": True}
+
         local_role = gs.local_device_info.get("role")
         if local_role is None:
             local_mode = _local_mode_from_shell(dev.send_shell_command_full("mode"))
@@ -1259,13 +1318,29 @@ def create_app(config_class=Config, db_path=None):
             return err
         data = request.get_json(silent=True) or {}
         action = data.get("action", "status")
+        gs = app.config["GS_STATE"]
         if action == "spoof":
             profile = data.get("profile", "norbi")
+            
+            # Comprobación de estado actual para evitar doble acción
+            if _normalize_mode(gs.local_device_info.get("mode")) == "tinygs" and gs.local_device_info.get("tinygs_profile") == profile:
+                log_activity("INFO", "satellite", f"TinyGS spoof ignored: already spoofing {profile}")
+                return {"status": "ok", "response": f"Already spoofing profile: {profile}", "no_change": True}
+                
             dev.send_shell_command_full("lora_mode ALL stream")
             resp = dev.send_shell_command_full(f"tinygs spoof {profile}")
+            gs.local_device_info["mode"] = "tinygs"
+            gs.local_device_info["tinygs_profile"] = profile
             log_activity("INFO", "satellite", f"TinyGS spoofing {profile}")
         elif action == "stop":
+            # Comprobación de estado actual para evitar doble acción
+            if _normalize_mode(gs.local_device_info.get("mode")) in ("mission", "ground_station", "raw"):
+                log_activity("INFO", "satellite", "TinyGS stop ignored: TinyGS is not active")
+                return {"status": "ok", "response": "TinyGS is not active", "no_change": True}
+                
             resp = dev.send_shell_command_full("tinygs stop")
+            gs.local_device_info["mode"] = "mission" # revert to satellite/mission
+            gs.local_device_info["tinygs_profile"] = None
             log_activity("INFO", "satellite", "TinyGS stopped")
         else:
             resp = dev.send_shell_command_full("tinygs status")

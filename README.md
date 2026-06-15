@@ -99,6 +99,28 @@ The CatSniffer requires Ground Station firmware compiled with its specific SX126
 #### Step 2: Power up the FlatSat (Satellite)
 Power up the FlatSat board standalone (via a USB charger/power source or battery). It runs the default satellite firmware and automatically starts transmitting sensor/heartbeat telemetry over the air on 915 MHz.
 
+#### Alternative: Runtime Role Configuration via Serial Console (minicom)
+
+If you are using the unified dual firmware (`prj.conf`) on identical FlatSat boards, you can configure their roles at runtime via the serial configuration shell (CDC2/Shell port):
+
+1. Connect the board to your PC via USB.
+2. Identify the configuration shell serial port (usually `/dev/ttyACM2` for the first device, or `/dev/ttyACM5` for a second device on Linux).
+3. Connect using `minicom` at 115200 baud:
+   ```bash
+   minicom -D /dev/ttyACM2 -b 115200
+   ```
+4. Press Enter to get the `flatsat>` prompt.
+5. Set the desired role:
+   - For **Ground Station**:
+     ```
+     mode gs
+     ```
+   - For **Satellite**:
+     ```
+     mode sat
+     ```
+   *(This setting is saved to non-volatile flash (NVS) and persists across reboots).*
+
 #### Step 3: Run the Webapp and Connect
 1. Connect the flashed CatSniffer to the PC via USB.
 2. Start the ground station webapp:

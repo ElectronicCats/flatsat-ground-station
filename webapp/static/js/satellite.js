@@ -351,55 +351,146 @@ async function pollStatus() {
 
 // --- Actions ---
 async function setActiveRadio(radioIdx) {
+    const radioVal = parseInt(radioIdx);
+    if (latestContext && latestContext.local) {
+        if (latestContext.local.active_radio === radioVal) {
+            console.log("Radio already active: " + radioIdx);
+            return;
+        }
+    }
+
+    const panel = document.getElementById("panel-controls");
+    if (panel.classList.contains("controls-loading")) return;
+    panel.classList.add("controls-loading");
+    setPanelState("controls", "loading", "Switching radio...");
+
     try {
         const resp = await fetch("/api/hardware/active_radio", {
             method: "POST",
             headers: {"Content-Type": "application/json"},
-            body: JSON.stringify({active_radio: parseInt(radioIdx)})
+            body: JSON.stringify({active_radio: radioVal})
         });
-        if (!resp.ok) { showToast("Active radio change failed", 5000); return; }
-        const data = await resp.json();
-        console.log("[GS] Active radio switched:", data);
-        await pollStatus();
+        if (!resp.ok) { showToast("Active radio change failed", 5000); }
+        else {
+            const data = await resp.json();
+            console.log("[GS] Active radio switched:", data);
+        }
     } catch (e) {
         showToast("Active radio error: " + e.message, 5000);
+    } finally {
+        panel.classList.remove("controls-loading");
+        setPanelState("controls", "ready", "Ready");
+        await pollStatus();
     }
 }
 
 async function setMode(m) {
-    highlightBtn("mode-btns", m === "satellite" || m === "mission" ? "mission" : m);
-    let data;
-    if (m === "ground_station") {
-        data = await api("mode", "POST", {mode: "ground_station"});
-    } else if (m === "tinygs") {
-        const profile = document.getElementById("tinygs-profile").value;
-        data = await api("tinygs", "POST", {action: "spoof", profile: profile});
-    } else {
-        data = await api("mode", "POST", {mode: m});
+    let targetMode = m;
+    if (targetMode === "satellite") targetMode = "mission";
+    
+    if (latestContext && latestContext.local) {
+        let currentMode = latestContext.local.mode;
+        if (currentMode === "satellite") currentMode = "mission";
+        
+        if (currentMode === targetMode) {
+            console.log("Already in mode: " + m);
+            return;
+        }
     }
-    if (data.error) { showToast("Mode failed: " + data.error, 5000); return; }
-    await pollStatus();
+
+    const panel = document.getElementById("panel-controls");
+    if (panel.classList.contains("controls-loading")) return;
+    panel.classList.add("controls-loading");
+    setPanelState("controls", "loading", "Updating mode...");
+
+    highlightBtn("mode-btns", targetMode);
+    try {
+        let data;
+        if (m === "ground_station") {
+            data = await api("mode", "POST", {mode: "ground_station"});
+        } else if (m === "tinygs") {
+            const profile = document.getElementById("tinygs-profile").value;
+            data = await api("tinygs", "POST", {action: "spoof", profile: profile});
+        } else {
+            data = await api("mode", "POST", {mode: m});
+        }
+        if (data.error) { showToast("Mode failed: " + data.error, 5000); }
+    } catch (e) {
+        showToast("Mode error: " + e.message, 5000);
+    } finally {
+        panel.classList.remove("controls-loading");
+        setPanelState("controls", "ready", "Ready");
+        await pollStatus();
+    }
 }
+
 async function setFlight(f) {
+    if (latestContext) {
+        const role = latestContext.connection_role || "satellite";
+        if (role === "ground_station") {
+            if (latestContext.satellite && latestContext.satellite.flight && latestContext.satellite.flight.toLowerCase() === f.toLowerCase()) {
+                console.log("Satellite already in flight state: " + f);
+                return;
+            }
+        } else {
+            if (latestContext.local && latestContext.local.flight && latestContext.local.flight.toLowerCase() === f.toLowerCase()) {
+                console.log("Local device already in flight state: " + f);
+                return;
+            }
+        }
+    }
+
+    const panel = document.getElementById("panel-controls");
+    if (panel.classList.contains("controls-loading")) return;
+    panel.classList.add("controls-loading");
+
     highlightBtn("flight-btns", f.toLowerCase());
     setPanelState("controls", "loading", "Sending TC...");
     showToast("↑ Sending flight TC: " + f.toUpperCase() + "...", 4000);
-    const data = await api("flight", "POST", {flight: f});
-    if (data.error) {
-        setPanelState("controls", "error", "TC failed");
-        showToast("⚠ Flight TC failed: " + data.error, 6000);
-        return;
+    try {
+        const data = await api("flight", "POST", {flight: f});
+        if (data.error) {
+            setPanelState("controls", "error", "TC failed");
+            showToast("⚠ Flight TC failed: " + data.error, 6000);
+        } else {
+            const result = data.result || {};
+            const detail = result.status === "sent" ? " (" + (result.bytes || 0) + " bytes, " + (result.response || "OK") + ")" : "";
+            setPanelState("controls", "ready", "TC sent");
+            showToast("✔ Flight TC sent: " + f.toUpperCase() + detail, 4000);
+        }
+    } catch (e) {
+        setPanelState("controls", "error", "TC error");
+        showToast("⚠ Flight TC error: " + e.message, 6000);
+    } finally {
+        panel.classList.remove("controls-loading");
+        await pollStatus();
     }
-    const result = data.result || {};
-    const detail = result.status === "sent" ? " (" + (result.bytes || 0) + " bytes, " + (result.response || "OK") + ")" : "";
-    setPanelState("controls", "ready", "TC sent");
-    showToast("✔ Flight TC sent: " + f.toUpperCase() + detail, 4000);
-    await pollStatus();
 }
+
 async function setDifficulty(l) {
-    const data = await api("difficulty", "POST", {level: parseInt(l)});
-    if (data.error) { showToast("Difficulty failed: " + data.error, 5000); return; }
-    await pollStatus();
+    const levelVal = parseInt(l);
+    if (latestContext && latestContext.local) {
+        if (latestContext.local.difficulty === levelVal) {
+            console.log("Already at difficulty level: " + l);
+            return;
+        }
+    }
+
+    const panel = document.getElementById("panel-controls");
+    if (panel.classList.contains("controls-loading")) return;
+    panel.classList.add("controls-loading");
+    setPanelState("controls", "loading", "Updating difficulty...");
+
+    try {
+        const data = await api("difficulty", "POST", {level: levelVal});
+        if (data.error) { showToast("Difficulty failed: " + data.error, 5000); }
+    } catch (e) {
+        showToast("Difficulty error: " + e.message, 5000);
+    } finally {
+        panel.classList.remove("controls-loading");
+        setPanelState("controls", "ready", "Ready");
+        await pollStatus();
+    }
 }
 async function applyLora(radio) {
     const r = radio.toLowerCase();
@@ -415,26 +506,83 @@ async function applyLora(radio) {
     showToast(radio + " LoRa config applied", 3000);
 }
 async function tinygsSpoof() {
-    const data = await api("tinygs", "POST", {action: "spoof", profile: document.getElementById("tinygs-profile").value});
-    if (data.error) { showToast("TinyGS spoof failed: " + data.error, 5000); return; }
-    document.getElementById("btn-spoof").className = "btn-active";
-    document.getElementById("btn-tinygs-stop").className = "";
-    await pollStatus();
+    const profile = document.getElementById("tinygs-profile").value;
+    if (latestContext && latestContext.local) {
+        if (latestContext.local.mode === "tinygs" && latestContext.local.tinygs_profile === profile) {
+            console.log("Already spoofing profile: " + profile);
+            return;
+        }
+    }
+
+    const panel = document.getElementById("panel-controls");
+    if (panel.classList.contains("controls-loading")) return;
+    panel.classList.add("controls-loading");
+    setPanelState("controls", "loading", "Starting TinyGS spoof...");
+
+    try {
+        const data = await api("tinygs", "POST", {action: "spoof", profile: profile});
+        if (data.error) { showToast("TinyGS spoof failed: " + data.error, 5000); }
+        else {
+            document.getElementById("btn-spoof").className = "btn-active";
+            document.getElementById("btn-tinygs-stop").className = "";
+        }
+    } catch (e) {
+        showToast("TinyGS spoof error: " + e.message, 5000);
+    } finally {
+        panel.classList.remove("controls-loading");
+        setPanelState("controls", "ready", "Ready");
+        await pollStatus();
+    }
 }
 async function tinygsStop() {
-    const data = await api("tinygs", "POST", {action: "stop"});
-    if (data.error) { showToast("TinyGS stop failed: " + data.error, 5000); return; }
-    document.getElementById("btn-spoof").className = "";
-    document.getElementById("btn-tinygs-stop").className = "";
-    await pollStatus();
+    if (latestContext && latestContext.local) {
+        if (latestContext.local.mode !== "tinygs") {
+            console.log("TinyGS is already stopped");
+            return;
+        }
+    }
+
+    const panel = document.getElementById("panel-controls");
+    if (panel.classList.contains("controls-loading")) return;
+    panel.classList.add("controls-loading");
+    setPanelState("controls", "loading", "Stopping TinyGS...");
+
+    try {
+        const data = await api("tinygs", "POST", {action: "stop"});
+        if (data.error) { showToast("TinyGS stop failed: " + data.error, 5000); }
+        else {
+            document.getElementById("btn-spoof").className = "";
+            document.getElementById("btn-tinygs-stop").className = "";
+        }
+    } catch (e) {
+        showToast("TinyGS stop error: " + e.message, 5000);
+    } finally {
+        panel.classList.remove("controls-loading");
+        setPanelState("controls", "ready", "Ready");
+        await pollStatus();
+    }
 }
 async function resetDefaults() {
     if (!confirm("Reset RF config and mode to factory defaults?")) return;
-    const data = await api("reset", "POST");
-    if (data.error) { showToast("Reset failed: " + data.error, 5000); return; }
-    await pollStatus();
-    await pollLora();
-    showToast("Defaults restored", 3000);
+    const panel = document.getElementById("panel-controls");
+    if (panel.classList.contains("controls-loading")) return;
+    panel.classList.add("controls-loading");
+    setPanelState("controls", "loading", "Resetting defaults...");
+
+    try {
+        const data = await api("reset", "POST");
+        if (data.error) { showToast("Reset failed: " + data.error, 5000); }
+        else {
+            showToast("Defaults restored", 3000);
+        }
+    } catch (e) {
+        showToast("Reset error: " + e.message, 5000);
+    } finally {
+        panel.classList.remove("controls-loading");
+        setPanelState("controls", "ready", "Ready");
+        await pollStatus();
+        await pollLora();
+    }
 }
 
 // --- Single sequential poll loop (avoids shell contention) ---

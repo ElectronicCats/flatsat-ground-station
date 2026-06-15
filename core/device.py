@@ -187,24 +187,31 @@ class FlatSatDevice:
             try:
                 import time
 
-                self._shell.timeout = 0.02  # 20ms timeout for trailing reads
+                self._shell.timeout = 0.20  # 200ms timeout for trailing reads
+                if self._shell.in_waiting > 0:
+                    self._shell.read(self._shell.in_waiting)
                 self._shell.reset_input_buffer()
                 self._shell.write(f"{cmd}\r\n".encode("ascii"))
                 self._shell.flush()
 
                 buf = b""
                 deadline = time.time() + timeout
+                cmd_stripped = cmd.strip()
                 while time.time() < deadline:
                     in_wait = self._shell.in_waiting
                     if in_wait > 0:
                         chunk = self._shell.read(in_wait)
                     else:
-                        chunk = self._shell.read(1)  # blocks for at most 20ms
+                        chunk = self._shell.read(1)  # blocks for at most 200ms
 
                     if chunk:
                         buf += chunk
                     elif buf:
-                        break  # Had data, now nothing more (timed out 20ms) — done
+                        # Had data, now nothing more (timed out 200ms)
+                        # Only break if we have received more than just the echo
+                        current_str = buf.decode("ascii", errors="ignore").strip()
+                        if current_str != cmd_stripped:
+                            break
 
                 if buf:
                     return buf.decode("ascii", errors="ignore").strip()

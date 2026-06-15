@@ -232,3 +232,60 @@ def test_satellite_reset(app, auth_client):
     calls = [c[0][0] for c in mock_dev.send_shell_command_full.call_args_list]
     assert "reset_defaults" in calls
     assert len(calls) == 2  # queries 'mode' then 'reset_defaults'
+
+
+def test_satellite_duplicate_mode_ignored(app, auth_client):
+    mock_dev = _setup_hardware(app)
+    gs = app.config["GS_STATE"]
+    gs.local_device_info["mode"] = "mission"
+    
+    resp = auth_client.post("/api/satellite/mode", json={"mode": "mission"}, content_type="application/json")
+    assert resp.status_code == 200
+    assert resp.get_json().get("no_change") is True
+    mock_dev.send_shell_command_full.assert_not_called()
+
+
+def test_satellite_duplicate_flight_ignored(app, auth_client):
+    mock_dev = _setup_hardware(app)
+    gs = app.config["GS_STATE"]
+    gs.local_device_info["role"] = "satellite"
+    gs.local_device_info["flight"] = "NOMINAL"
+    
+    resp = auth_client.post("/api/satellite/flight", json={"flight": "nominal"}, content_type="application/json")
+    assert resp.status_code == 200
+    assert resp.get_json().get("no_change") is True
+    mock_dev.send_shell_command_full.assert_not_called()
+
+
+def test_satellite_duplicate_difficulty_ignored(app, auth_client):
+    mock_dev = _setup_hardware(app)
+    gs = app.config["GS_STATE"]
+    gs.difficulty = 2
+    
+    resp = auth_client.post("/api/satellite/difficulty", json={"level": 2}, content_type="application/json")
+    assert resp.status_code == 200
+    assert resp.get_json().get("no_change") is True
+    mock_dev.send_shell_command_full.assert_not_called()
+
+
+def test_satellite_duplicate_tinygs_ignored(app, auth_client):
+    mock_dev = _setup_hardware(app)
+    gs = app.config["GS_STATE"]
+    gs.local_device_info["mode"] = "tinygs"
+    gs.local_device_info["tinygs_profile"] = "norbi"
+    
+    resp = auth_client.post("/api/satellite/tinygs", json={"action": "spoof", "profile": "norbi"}, content_type="application/json")
+    assert resp.status_code == 200
+    assert resp.get_json().get("no_change") is True
+    mock_dev.send_shell_command_full.assert_not_called()
+
+
+def test_active_radio_duplicate_ignored(app, auth_client):
+    mock_dev = _setup_hardware(app)
+    gs = app.config["GS_STATE"]
+    gs.active_radio = 2
+    
+    resp = auth_client.post("/api/hardware/active_radio", json={"active_radio": 2}, content_type="application/json")
+    assert resp.status_code == 200
+    assert resp.get_json().get("no_change") is True
+    mock_dev.send_shell_command_full.assert_not_called()

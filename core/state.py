@@ -50,6 +50,7 @@ class GroundStationState:
             "mode": None,
             "flight": None,
             "difficulty": 0,
+            "tinygs_profile": None,
             "radio_configs": {
                 "R0": {"frequency": 0, "sf": 0, "bw": 0, "power": 0},
                 "R1": {"frequency": 0, "sf": 0, "bw": 0, "power": 0},
@@ -86,6 +87,7 @@ class GroundStationState:
             "mode": None,
             "flight": None,
             "difficulty": 0,
+            "tinygs_profile": None,
             "radio_configs": {
                 "R0": {"frequency": 0, "sf": 0, "bw": 0, "power": 0},
                 "R1": {"frequency": 0, "sf": 0, "bw": 0, "power": 0},
@@ -106,6 +108,7 @@ class GroundStationState:
             "mode": None,
             "flight": None,
             "difficulty": 0,
+            "tinygs_profile": None,
             "radio_configs": {
                 "R0": {"frequency": 0, "sf": 0, "bw": 0, "power": 0},
                 "R1": {"frequency": 0, "sf": 0, "bw": 0, "power": 0},
@@ -127,6 +130,7 @@ class GroundStationState:
             "mode": None,
             "flight": None,
             "difficulty": 0,
+            "tinygs_profile": None,
             "radio_configs": {
                 "R0": {"frequency": 0, "sf": 0, "bw": 0, "power": 0},
                 "R1": {"frequency": 0, "sf": 0, "bw": 0, "power": 0},
