@@ -14,19 +14,48 @@ Optional for hardware mode:
 
 ## Quick Start
 
-### Linux / macOS
+### 1. Linux Quick Start
+* **Requirements:** Python 3.11+, `python3-venv`, and USB serial port access permissions.
+* **USB Permissions (Important):** To access `/dev/ttyACM*` ports without root, add your user to the dialout (or uucp) group, then log out and log back in:
+  ```bash
+  sudo usermod -aG dialout $USER
+  ```
+
 ```bash
 git clone <repo-url>
 cd flatsat-ground-station
-python -m venv .venv
+python3 -m venv .venv
 source .venv/bin/activate
 pip install -r requirements.txt
 export FLATSAT_LEVEL=1  # 1: Easy, 2: Medium, 3: Hard
 # Optional (for single-radio hardware like CatSniffer): export FLATSAT_SINGLE_RADIO=1
-python -m webapp.app
+python3 -m webapp.app
 ```
 
-### Windows (PowerShell)
+---
+
+### 2. macOS Quick Start
+* **Requirements:** Python 3.11+ (Homebrew recommended), pip, and virtualenv.
+* **Port Conflict Warning:** macOS and later uses port 5000 for the AirPlay Receiver service. To avoid conflicts, configure the webapp to run on port 5001 by setting `FLATSAT_PORT=5001` before running, or by changing the default port `5000` to `5001` inside the entry point file [webapp/app.py](file:///home/USER/flatsat-ground-station/webapp/app.py) at **line 1617** (in the `port = int(os.environ.get("FLATSAT_PORT", 5000))` statement).
+
+```bash
+git clone <repo-url>
+cd flatsat-ground-station
+python3 -m venv .venv
+source .venv/bin/activate
+pip install -r requirements.txt
+export FLATSAT_LEVEL=1  # 1: Easy, 2: Medium, 3: Hard
+# Optional (for single-radio hardware like CatSniffer): export FLATSAT_SINGLE_RADIO=1
+export FLATSAT_PORT=5001  # Run on port 5001 to bypass AirPlay conflict
+python3 -m webapp.app
+```
+
+---
+
+### 3. Windows Quick Start
+* **Requirements:** Python 3.11+ (from Microsoft Store or official installer).
+
+#### PowerShell:
 ```powershell
 git clone <repo-url>
 cd flatsat-ground-station
@@ -39,7 +68,7 @@ $env:FLATSAT_LEVEL="1"  # 1: Easy, 2: Medium, 3: Hard
 python -m webapp.app
 ```
 
-### Windows (Command Prompt - CMD)
+#### Command Prompt (CMD):
 ```cmd
 git clone <repo-url>
 cd flatsat-ground-station
