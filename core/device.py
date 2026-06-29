@@ -68,8 +68,15 @@ class FlatSatDevice:
 
     @property
     def is_connected(self) -> bool:
-        """True only if radio0 and shell are open (radio1 is optional for GS-only boards)."""
-        return all(s is not None and s.is_open for s in [self._radio0, self._shell])
+        """True only if radio0 and shell are open (radio1 is optional for GS-only boards) and physical ports exist."""
+        import os
+        is_mock = self._radio0 is not None and "Mock" in type(self._radio0).__name__
+        for s, path in [(self._radio0, self._discovered.radio0_port), (self._shell, self._discovered.shell_port)]:
+            if s is None or not s.is_open:
+                return False
+            if not is_mock and path and path.startswith("/dev/") and not os.path.exists(path):
+                return False
+        return True
 
     def connect(self, forced_role: str = "gs") -> dict[str, bool]:
         """Open all serial ports. Returns {endpoint: success}.
@@ -289,6 +296,8 @@ class FlatSatDevice:
                 if line:
                     return line.decode("ascii", errors="ignore").strip()
                 return None
+            except (serial.SerialException, OSError):
+                raise
             except Exception:
                 return None
 

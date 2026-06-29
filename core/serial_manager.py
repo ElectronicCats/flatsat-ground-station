@@ -116,7 +116,14 @@ def _group_ports_by_device(ports: list) -> dict[str, list]:
     """Group ports by device serial number."""
     groups: dict[str, list] = {}
     for port in ports:
-        serial_num = _extract_serial_number(port.hwid) if port.hwid else None
+        serial_num = getattr(port, "serial_number", None)
+        if serial_num and isinstance(serial_num, str):
+            serial_num = serial_num.strip()
+        else:
+            serial_num = None
+
+        if not serial_num:
+            serial_num = _extract_serial_number(port.hwid) if port.hwid else None
         if not serial_num and hasattr(port, "location") and port.location:
             serial_num = f"loc-{port.location}"
         if not serial_num:

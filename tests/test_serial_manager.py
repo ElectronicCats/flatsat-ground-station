@@ -118,3 +118,14 @@ def test_discover_devices_finds_flatsat(mock_comports):
     assert len(devices) == 1
     assert devices[0].is_complete
     assert devices[0].identity.serial_number == "TESTSERIAL"
+
+
+def test_group_ports_by_device_using_serial_number():
+    p1 = MagicMock(serial_number="ABC123", hwid="SER=UNKNOWN", device="/dev/ttyACM0", location=None)
+    p2 = MagicMock(serial_number="ABC123", hwid="SER=UNKNOWN", device="/dev/ttyACM1", location=None)
+    p3 = MagicMock(serial_number="XYZ789", hwid="SER=UNKNOWN", device="/dev/ttyACM2", location=None)
+    groups = _group_ports_by_device([p1, p2, p3])
+    assert len(groups) == 2
+    assert len(groups["ABC123"]) == 2
+    assert len(groups["XYZ789"]) == 1
+

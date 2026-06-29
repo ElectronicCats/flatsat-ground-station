@@ -153,3 +153,22 @@ def test_partial_connect_not_connected(mock_serial_cls):
     assert result["radio1"] is True
     assert result["shell"] is True
     assert not dev.is_connected  # partial = not connected
+
+
+def test_is_connected_paths_check():
+    class DummySerial:
+        def __init__(self):
+            self.is_open = True
+
+    disc = _make_discovered(r0="/dev/nonexistent_r0", sh="/dev/nonexistent_shell")
+    dev = FlatSatDevice(disc)
+    dev._radio0 = DummySerial()
+    dev._shell = DummySerial()
+
+    with patch("os.path.exists") as mock_exists:
+        mock_exists.return_value = False
+        assert not dev.is_connected
+
+        mock_exists.return_value = True
+        assert dev.is_connected
+
