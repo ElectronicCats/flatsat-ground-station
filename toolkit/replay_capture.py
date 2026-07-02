@@ -42,45 +42,53 @@ def capture(port: str, output: str = "capture.json", duration: float = 30.0):
             buf += chunk
 
             # Try to extract frames from buffer
-            # LoRa command-mode responses: +RX <len>,<hex>\r\n
-            while b"+RX" in buf:
-                idx = buf.index(b"+RX")
-                # Find end of line
-                nl = buf.find(b"\n", idx)
-                if nl == -1:
-                    break
-                line = buf[idx:nl].decode(errors="replace").strip()
-                buf = buf[nl + 1 :]
+            if b"\n" in buf:
+                lines = buf.split(b"\n")
+                buf = lines[-1]
+                for line_bytes in lines[:-1]:
+                    line = line_bytes.decode(errors="replace").strip()
+                    frame_hex = None
 
-                # Parse +RX <len>,<hex>
-                parts = line.split(",", 1)
-                if len(parts) == 2:
-                    try:
-                        frame_hex = parts[1].strip()
-                        frame_bytes = bytes.fromhex(frame_hex)
-                        ts = datetime.now().isoformat()
+                    if "+RX" in line:
+                        # Parse +RX <len>,<hex>
+                        parts = line.split(",", 1)
+                        if len(parts) == 2:
+                            frame_hex = parts[1].strip()
+                    elif "RX: " in line and " |" in line:
+                        # Parse RX: <hex> | RSSI: <rssi> | SNR: <snr>
+                        try:
+                            start_idx = line.index("RX: ") + 4
+                            end_idx = line.index(" |")
+                            frame_hex = line[start_idx:end_idx].strip()
+                        except ValueError:
+                            pass
 
-                        parsed = parse_frame(frame_bytes)
-                        entry = {
-                            "timestamp": ts,
-                            "hex": frame_hex,
-                            "length": len(frame_bytes),
-                            "type": parsed.get("type", "?"),
-                            "apid": parsed.get("apid", 0),
-                            "seq": parsed.get("seq_count", 0),
-                            "crc_valid": parsed.get("crc_valid", False),
-                        }
-                        frames.append(entry)
+                    if frame_hex:
+                        try:
+                            frame_bytes = bytes.fromhex(frame_hex)
+                            ts = datetime.now().isoformat()
 
-                        print(
-                            f"[+] Frame #{len(frames)}: {entry['type']} "
-                            f"APID=0x{entry['apid']:03X} "
-                            f"seq={entry['seq']} "
-                            f"CRC={'OK' if entry['crc_valid'] else 'FAIL'} "
-                            f"({entry['length']} bytes)"
-                        )
-                    except ValueError:
-                        pass
+                            parsed = parse_frame(frame_bytes)
+                            entry = {
+                                "timestamp": ts,
+                                "hex": frame_hex,
+                                "length": len(frame_bytes),
+                                "type": parsed.get("type", "?"),
+                                "apid": parsed.get("apid", 0),
+                                "seq": parsed.get("seq_count", 0),
+                                "crc_valid": parsed.get("crc_valid", False),
+                            }
+                            frames.append(entry)
+
+                            print(
+                                f"[+] Frame #{len(frames)}: {entry['type']} "
+                                f"APID=0x{entry['apid']:03X} "
+                                f"seq={entry['seq']} "
+                                f"CRC={'OK' if entry['crc_valid'] else 'FAIL'} "
+                                f"({entry['length']} bytes)"
+                            )
+                        except ValueError:
+                            pass
 
     except KeyboardInterrupt:
         print("\n[*] Capture stopped by user")
