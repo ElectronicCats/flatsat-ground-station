@@ -1612,6 +1612,8 @@ def start_telemetry_thread(app):
 
 
 if __name__ == "__main__":
+    import os
     app = create_app()
-    print("PwnSat2 Ground Station running on http://localhost:5000")
-    socketio.run(app, host="0.0.0.0", port=5000, debug=True, allow_unsafe_werkzeug=True)
+    port = int(os.environ.get("FLATSAT_PORT", 5000))
+    print(f"PwnSat2 Ground Station running on http://localhost:{port}")
+    socketio.run(app, host="0.0.0.0", port=port, debug=True, allow_unsafe_werkzeug=True)
