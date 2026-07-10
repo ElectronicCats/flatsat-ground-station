@@ -468,6 +468,14 @@ def create_app(config_class=Config, db_path=None):
         if extra_hex.lower().startswith("0x"):
             extra_hex = extra_hex[2:]
 
+        # Backend role validation: restrict operators to allowed opcodes and block custom hex data
+        if g.role != "admin":
+            allowed_opcodes = [0x10, 0x20]
+            if opcode_int not in allowed_opcodes:
+                return {"error": "Forbidden: Operator role is not authorized to send this command"}, 403
+            if extra_hex:
+                return {"error": "Forbidden: Operator role is not authorized to send custom hex data"}, 403
+
         try:
             extra_bytes = bytes.fromhex(extra_hex) if extra_hex else b""
         except ValueError:

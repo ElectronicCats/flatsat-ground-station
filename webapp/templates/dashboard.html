@@ -35,12 +35,16 @@
                 <select name="opcode" id="opcode">
                     <option value="10">PING (0x10)</option>
                     <option value="20">READ_SENSOR (0x20)</option>
+                    {% if g.role == 'admin' %}
                     <option value="01">SET_SAFE_MODE (0x01)</option>
                     <option value="02">SET_NOMINAL (0x02)</option>
                     <option value="42">READ_FLAG (0x42)</option>
+                    {% endif %}
                 </select>
             </label>
+            {% if g.role == 'admin' %}
             <label>Data (hex): <input name="data" id="tc-data" placeholder="optional" style="width:120px;"></label>
+            {% endif %}
             <button type="submit">Send TC</button>
         </form>
         <pre id="tc-response" style="margin-top:8px; max-height:150px; overflow-y:auto; font-size:0.85em;"></pre>
