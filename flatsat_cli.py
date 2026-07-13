@@ -10,13 +10,29 @@ import sys
 import time
 import serial
 
+from rich.console import Console
+from rich.table import Table
+from rich import box
+
 from core.serial_manager import discover_devices
 from core.device import FlatSatDevice
+
+console = Console()
+
+
+def flatsat_get_devices():
+    """Return all connected FlatSat boards with their ACM port mapping.
+
+    Mirrors catnip_get_devices() from CatSniffer: a thin, importable wrapper
+    around the discovery routine so callers don't need to know it lives in
+    core.serial_manager.
+    """
+    return discover_devices()
 
 
 def get_selected_device(serial_number=None, port=None):
     """Resolve which device to connect to."""
-    devices = discover_devices()
+    devices = flatsat_get_devices()
     
     if not devices:
         if port:
@@ -75,9 +91,40 @@ def print_title(text):
     print(f"\033[1;36m=== {text} ===\033[0m")
 
 
+_HEALTH_STYLE = {
+    "HEALTHY": "green",
+    "PARTIAL": "yellow",
+    "CRITICAL": "red",
+}
+
+
+def print_devices_table(devices):
+    """Render connected FlatSat boards as a rich table (catnip-style)."""
+    table = Table(title=f"Found {len(devices)} FlatSat device(s)", box=box.ROUNDED)
+    table.add_column("Device", style="magenta bold", justify="left", no_wrap=True)
+    table.add_column("Radio 0 (CDC0)", style="cyan", justify="left")
+    table.add_column("Radio 1 (CDC1)", style="cyan", justify="left")
+    table.add_column("Shell (CDC2)", style="cyan", justify="left")
+    table.add_column("Health", justify="left")
+
+    for i, d in enumerate(devices):
+        radio0 = d.radio0_port or "[red]Not found[/red]"
+        radio1 = d.radio1_port or "[red]Not found[/red]"
+        shell = d.shell_port or "[red]Not found[/red]"
+        health_style = _HEALTH_STYLE.get(d.health.name, "white")
+        health = f"[{health_style}]{d.health.name}[/{health_style}]"
+
+        table.add_row(
+            f"[{i}] {d.identity.serial_number}", radio0, radio1, shell, health
+        )
+
+    console.print()
+    console.print(table)
+
+
 def print_help_menu():
     help_text = """\033[1;33m=== COMANDOS DISPONIBLES ===\033[0m
-  \033[1mflatsat list\033[0m        - Muestra las placas FlatSat conectadas y sus puertos.
+  \033[1mflatsat devices\033[0m     - Muestra las placas FlatSat conectadas y sus puertos.
   \033[1mflatsat status\033[0m      - Verifica si el satélite responde y qué radios están activas.
   \033[1mflatsat sensors\033[0m     - Muestra las lecturas de los sensores (temperatura, aceleración, etc.).
   \033[1mflatsat mode [gs|sat]\033[0m- Cambia entre modo SAT (satélite automático) y GS (estación de tierra).
@@ -114,15 +161,17 @@ def send_cmd(dev, cmd):
 
 def main():
     parser = argparse.ArgumentParser(
-        description="FlatSat Host CLI - Manage and configure your FlatSat boards easily."
+        description="FlatSat Host CLI - Manage and configure your FlatSat boards easily.",
+        add_help=False,
     )
+    parser.add_argument("-h", "--help", action="store_true", help="Show this help menu and exit.")
     parser.add_argument("-s", "--serial", help="Serial number of the target FlatSat board.")
     parser.add_argument("-p", "--port", help="Force direct connection to a custom shell port (e.g. /dev/ttyACM3).")
     
     subparsers = parser.add_subparsers(dest="command", help="Sub-commands")
     
-    # 1. list
-    subparsers.add_parser("list", help="List all connected FlatSat boards and their endpoints.")
+    # 1. devices
+    subparsers.add_parser("devices", help="List all connected FlatSat boards and their endpoints.")
     
     # 2. status
     subparsers.add_parser("status", help="Read system status and firmware information.")
@@ -170,23 +219,21 @@ def main():
     cmd_parser.add_argument("raw", help="The raw command string to execute")
 
     args = parser.parse_args()
-    
-    if not args.command or args.command == "list":
-        # Execute list devices
+
+    if args.help or not args.command:
+        print_help_menu()
+        return
+
+    if args.command == "devices":
+        # Execute devices listing
         print_banner()
-        devices = discover_devices()
-        print_title("CONNECTED FLATSAT DEVICES")
+        devices = flatsat_get_devices()
         if not devices:
+            print_title("CONNECTED FLATSAT DEVICES")
             print("  No FlatSat devices detected.")
         else:
-            for i, d in enumerate(devices):
-                print(f"[{i}] Serial: {d.identity.serial_number}")
-                print(f"    - Radio 0 (CDC0): {d.radio0_port or 'N/A'}")
-                print(f"    - Radio 1 (CDC1): {d.radio1_port or 'N/A'}")
-                print(f"    - Shell   (CDC2): {d.shell_port or 'N/A'}")
-                print(f"    - Device Health : {d.health.name}")
+            print_devices_table(devices)
         print()
-        print_help_menu()
         return
 
     # For all other commands, resolve device and connect
