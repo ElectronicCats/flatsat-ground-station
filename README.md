@@ -25,7 +25,10 @@ Optional for hardware mode:
 git clone <repo-url>
 cd flatsat-ground-station
 python3 -m venv .venv
+# Para bash/zsh:
 source .venv/bin/activate
+# Para fish:
+# source .venv/bin/activate.fish
 pip install -r requirements.txt
 export FLATSAT_LEVEL=1  # 1: Easy, 2: Medium, 3: Hard
 # Optional (for single-radio hardware like CatSniffer): export FLATSAT_SINGLE_RADIO=1
@@ -162,6 +165,88 @@ If you are using the unified dual firmware (`prj.conf`) on identical FlatSat boa
 5. Go to the dashboard/satellite views to see the over-the-air telemetry updates received from the FlatSat!
 
 > **Linux USB permissions:** If the device is not detected, you may need to add a udev rule or run with appropriate permissions. See [Troubleshooting](#troubleshooting).
+
+---
+
+## Herramienta de Línea de Comandos (flatsat CLI)
+
+Para interactuar con la placa FlatSat y cambiar sus parámetros de configuración rápidamente, se incluye una herramienta CLI interactiva en Python (`flatsat_cli.py`) que se ejecuta directamente desde el host de desarrollo, evitando tener que abrir minicom o recordar los comandos serie manuales.
+
+La herramienta cuenta con detección automática de puertos serie basados en el VID/PID de FlatSat, filtrado del eco de consola para respuestas limpias, y un banner ASCII de bienvenida.
+
+### 1. Instalación y Configuración del Comando Global
+
+Para que el comando `flatsat` esté disponible globalmente en cualquier ruta de tu terminal:
+
+*   **Si utilizas el intérprete `fish`:**
+    Recarga tu archivo de configuración de fish:
+    ```fish
+    source ~/.config/fish/config.fish
+    ```
+*   **Si utilizas `bash`:**
+    Asegúrate de agregar la siguiente línea a tu `~/.bashrc`:
+    ```bash
+    alias flatsat="/home/omaro/GitHub/flatsat-ground-station/.venv/bin/python3 /home/omaro/GitHub/flatsat-ground-station/flatsat_cli.py"
+    ```
+    Y recárgalo con `source ~/.bashrc`.
+
+---
+
+### 2. Uso y Comandos Disponibles
+
+Una vez configurado, puedes ejecutar `flatsat` desde cualquier directorio. Si se llama sin argumentos, listará los dispositivos conectados y el menú de ayuda:
+
+```bash
+flatsat
+```
+
+#### Lista de Comandos:
+
+*   **`flatsat list`**
+    Muestra las placas FlatSat actualmente conectadas por USB, indicando sus puertos de datos (`Radio 0` y `Radio 1`), puerto de comandos (`Shell`) y estado de salud.
+*   **`flatsat status`**
+    Consulta y muestra el firmware, la versión de Git, fecha de compilación, la radio activa y el estado actual de los transceptores.
+*   **`flatsat sensors`**
+    Lee e imprime en formato limpio las lecturas de los sensores de telemetría (BME280: temperatura, presión, humedad; LIS2DH: acelerómetro).
+*   **`flatsat mode [gs|sat]`**
+    Cambia o consulta el modo operativo. `gs` desactiva la protección automática de radio de telemetría y desbloquea el cambio manual de parámetros LoRa.
+*   **`flatsat config`**
+    Configura y aplica parámetros de LoRa a la radio física seleccionada (Radio 0 o Radio 1).
+    *   **Consultar configuración actual (ej. Radio 0):**
+        ```bash
+        flatsat config --radio 0
+        ```
+    *   **Preparar (Stage) cambios sin aplicarlos (ej. Frecuencia a 916MHz, SF10, BW 125kHz):**
+        ```bash
+        flatsat config --radio 0 --freq 916000000 --sf 10 --bw 125
+        ```
+    *   **Configurar y aplicar inmediatamente en el hardware (usando la bandera `--apply`):**
+        ```bash
+        flatsat config --radio 0 --freq 916000000 --sf 10 --bw 125 --apply
+        ```
+    *   **Parámetros aceptados:**
+        *   `--radio [0|1]` (Selecciona la radio a configurar, por defecto 0).
+        *   `--freq [Hz]` (Frecuencia en Hertz, ej. `916000000` para 916 MHz).
+        *   `--sf [7-12]` (Spreading Factor).
+        *   `--bw [125|250|500]` (Ancho de banda en kHz).
+        *   `--cr [5-8]` (Coding Rate).
+        *   `--power [dBm]` (Potencia de transmisión en dBm).
+        *   `--syncword [public|private|0xNN]` (Palabra de sincronía, ej. `0x2D`).
+        *   `--apply` (Aplica todos los cambios staged al chip físico de la radio de forma inmediata).
+*   **`flatsat flight [safe|nominal|idle|debug]`**
+    Consulta o modifica el estado lógico de vuelo del satélite.
+*   **`flatsat difficulty [1|2|3]`**
+    Establece o lee el nivel de seguridad del satélite correspondiente al CTF del taller.
+*   **`flatsat color [R G B]`**
+    Establece un color personalizado RGB en el LED NeoPixel (valores de canal de 0 a 255).
+*   **`flatsat identify`**
+    Hace parpadear rápidamente todos los LEDs de la placa FlatSat para ubicarla físicamente.
+*   **`flatsat reboot`**
+    Reinicia el microcontrolador y lo fuerza a entrar en modo de carga de firmware BOOTSEL (montará el volumen `RPI-RP2`).
+*   **`flatsat cmd "[comando_crudo]"`**
+    Envía un comando de texto crudo directamente a la terminal de la placa y muestra la respuesta en consola.
+
+---
 
 ## Docker
 
@@ -485,6 +570,24 @@ If the web application hangs in a `pending` state when sending a telecommand (li
    * **Windows (PowerShell):** `$env:FLATSAT_SINGLE_RADIO="1"`
    * **Windows (CMD):** `set FLATSAT_SINGLE_RADIO=1`
 3. Restart the webapp.
+
+### ModuleNotFoundError: No module named 'flask' (or other libraries)
+
+*   **Causa:** Se está ejecutando el script utilizando el intérprete de Python global del sistema en lugar del entorno virtual del proyecto (`.venv`). Esto suele ocurrir tras abrir una nueva ventana de terminal o recargar los archivos de configuración (como hacer `source ~/.config/fish/config.fish`).
+*   **Solución (bash/zsh):** Asegúrate de activar el entorno virtual antes de correr la aplicación:
+    ```bash
+    source .venv/bin/activate
+    python -m webapp.app
+    ```
+*   **Solución (fish):** Activa el entorno con el script específico para fish:
+    ```fish
+    source .venv/bin/activate.fish
+    python -m webapp.app
+    ```
+*   **Alternativa directa:** Llama directamente al ejecutable del entorno virtual sin necesidad de activación previa:
+    ```bash
+    ./.venv/bin/python3 -m webapp.app
+    ```
 
 
 
