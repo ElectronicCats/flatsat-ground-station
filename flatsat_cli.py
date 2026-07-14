@@ -143,6 +143,7 @@ def print_help_menu():
       --cr [5-8]        (Coding Rate)
       --power [dBm]     (Potencia de transmisión)
       --syncword [val]  (Palabra de sincronía, ej: 0x2D)
+      --mode [stream|command] (Modo de la radio)
       --apply           (Aplica los cambios staged al hardware inmediatamente)
 """
     print(help_text)
@@ -206,6 +207,7 @@ def main():
     config_parser.add_argument("--cr", type=int, choices=[5, 6, 7, 8], help="Coding Rate (5-8)")
     config_parser.add_argument("--power", type=int, help="TX power in dBm")
     config_parser.add_argument("--syncword", help="Syncword (public, private, or hex value e.g. 0x2D)")
+    config_parser.add_argument("--mode", choices=["stream", "command"], help="LoRa output mode (stream or command)")
     config_parser.add_argument("--apply", action="store_true", help="Apply staged changes immediately")
     
     # 9. identify
@@ -339,6 +341,10 @@ def main():
             if args.syncword is not None:
                 res = send_cmd(dev, f"lora_syncword {args.syncword}")
                 print(f"  - Syncword -> {args.syncword}: {res.strip()}")
+                staged = True
+            if args.mode is not None:
+                res = send_cmd(dev, f"lora_mode R{args.radio} {args.mode}")
+                print(f"  - Mode -> {args.mode}: {res.strip()}")
                 staged = True
                 
             if args.apply or staged:
