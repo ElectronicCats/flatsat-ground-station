@@ -55,11 +55,17 @@
     <div class="field"><label>BW:</label> <span id="lora-r0-bw" class="loading-value">Loading...</span> kHz</div>
     <div class="field"><label>Power:</label> <span id="lora-r0-power" class="loading-value">Loading...</span> dBm</div>
     <hr style="border-color:#333;">
+    {% if g.role == 'admin' %}
     <div class="field"><label>Set Freq (Hz):</label> <input id="set-r0-freq" type="number" value="915000000" style="width:130px;"></div>
     <div class="field"><label>Set SF:</label> <input id="set-r0-sf" type="number" min="7" max="12" value="7" style="width:60px;"></div>
     <div class="field"><label>Set BW (kHz):</label> <select id="set-r0-bw"><option>125</option><option>250</option><option>500</option></select></div>
     <div class="field"><label>Set Power (dBm):</label> <input id="set-r0-power" type="number" min="-9" max="22" value="20" style="width:60px;"></div>
     <button onclick="applyLora('R0')">Apply R0</button>
+    {% else %}
+    <div style="background: rgba(255, 165, 0, 0.1); border: 1px solid orange; color: orange; padding: 10px; border-radius: 4px; font-size: 0.9em; text-align: center;">
+      ⚠️ Configuración bloqueada para Operadores. Usa el CLI: <code>flatsat config --radio 0 ...</code> en tu terminal.
+    </div>
+    {% endif %}
 </div>
 
 <!-- LoRa Config Panel — Radio 1 -->
@@ -70,11 +76,17 @@
     <div class="field"><label>BW:</label> <span id="lora-r1-bw" class="loading-value">Loading...</span> kHz</div>
     <div class="field"><label>Power:</label> <span id="lora-r1-power" class="loading-value">Loading...</span> dBm</div>
     <hr style="border-color:#333;">
+    {% if g.role == 'admin' %}
     <div class="field"><label>Set Freq (Hz):</label> <input id="set-r1-freq" type="number" value="916000000" style="width:130px;"></div>
     <div class="field"><label>Set SF:</label> <input id="set-r1-sf" type="number" min="7" max="12" value="7" style="width:60px;"></div>
     <div class="field"><label>Set BW (kHz):</label> <select id="set-r1-bw"><option>125</option><option>250</option><option>500</option></select></div>
     <div class="field"><label>Set Power (dBm):</label> <input id="set-r1-power" type="number" min="-9" max="22" value="20" style="width:60px;"></div>
     <button onclick="applyLora('R1')">Apply R1</button>
+    {% else %}
+    <div style="background: rgba(255, 165, 0, 0.1); border: 1px solid orange; color: orange; padding: 10px; border-radius: 4px; font-size: 0.9em; text-align: center;">
+      ⚠️ Configuración bloqueada para Operadores. Usa el CLI: <code>flatsat config --radio 1 ...</code> en tu terminal.
+    </div>
+    {% endif %}
 </div>
 
 <!-- Sensors Panel -->
@@ -108,6 +120,7 @@
     <h2>Connected Device Controls <span class="panel-status" id="panel-controls-status">Syncing...</span></h2>
     <div id="controls-note" style="margin-bottom:12px; color:#888;">Loading connected device context...</div>
 
+    {% if g.role == 'admin' %}
     <div style="margin-bottom:10px;">
         <label style="color:#888;">Mode:</label>
         <div class="btn-group" id="mode-btns">
@@ -161,6 +174,11 @@
     <div>
         <button onclick="resetDefaults()" style="background:#442; border-color:#664;">Reset Defaults</button>
     </div>
+    {% else %}
+    <div style="background: rgba(255, 165, 0, 0.1); border: 1px solid orange; color: orange; padding: 15px; border-radius: 4px; text-align: center;">
+      ⚠️ Controles del satélite bloqueados para Operadores. Usa la herramienta de terminal <code>flatsat</code> para modificar los parámetros operativos del satélite (ej: <code>flatsat mode</code>, <code>flatsat flight</code>, <code>flatsat difficulty</code>, etc.).
+    </div>
+    {% endif %}
 </div>
 
 </div><!-- sat-content -->

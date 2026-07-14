@@ -26,6 +26,13 @@ def app():
 @pytest.fixture
 def auth_client(app):
     client = app.test_client()
+    client.post("/login", data={"username": "admin", "password": "password"})
+    return client
+
+
+@pytest.fixture
+def operator_client(app):
+    client = app.test_client()
     client.post("/login", data={"username": "operator", "password": "operator123"})
     return client
 
@@ -130,3 +137,9 @@ def test_satellite_reset_ground_station(app, auth_client):
     assert gs.difficulty == 0
     mock_dev.send_shell_command_full.assert_any_call("reset_defaults")
     mock_dev.send_shell_command_full.assert_any_call("radio0")
+
+
+def test_active_radio_switch_operator_denied(app, operator_client):
+    _setup_hardware(app)
+    resp = operator_client.post("/api/hardware/active_radio", json={"active_radio": 1}, content_type="application/json")
+    assert resp.status_code == 403

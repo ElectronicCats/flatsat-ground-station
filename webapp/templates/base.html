@@ -11,7 +11,9 @@
     <a href="/dashboard">Dashboard</a> |
     <a href="/logs">Logs</a> |
     <a href="/satellite">Satellite</a> |
+    {% if g.role == 'admin' %}
     <a href="/config">Config</a> |
+    {% endif %}
     <a href="/logout">Logout ({{ g.username }})</a>
 </nav>
 {% endblock %}

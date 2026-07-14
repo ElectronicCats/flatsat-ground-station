@@ -265,6 +265,11 @@ def create_app(config_class=Config, db_path=None):
     @app.route("/config")
     @login_required
     def config_page():
+        if g.role != "admin":
+            from flask import flash, redirect, url_for
+            flash("El apartado de Configuración está reservado para Administradores.")
+            return redirect(url_for("dashboard"))
+
         from webapp.db import get_db
 
         db = get_db()
@@ -525,6 +530,9 @@ def create_app(config_class=Config, db_path=None):
     def api_hardware_active_radio():
         gs = app.config["GS_STATE"]
         if request.method == "POST":
+            err_adm = _require_admin()
+            if err_adm:
+                return err_adm
             data = request.get_json(silent=True) or {}
             radio_idx = data.get("active_radio")
             if radio_idx is None or radio_idx not in (0, 1, 2, "0", "1", "2"):
@@ -762,6 +770,11 @@ def create_app(config_class=Config, db_path=None):
         if not gs.is_hardware or not gs.device:
             return None, ({"error": "Satellite not connected"}, 400)
         return gs.device, None
+
+    def _require_admin():
+        if g.role != "admin":
+            return ({"error": "La configuración está deshabilitada para Operadores. Utiliza la herramienta flatsat CLI en la terminal."}, 403)
+        return None
 
     def _sync_radio_config_to_db(dev):
         """Read LoRa config from hardware and upsert into radio_config for current user."""
@@ -1089,6 +1102,9 @@ def create_app(config_class=Config, db_path=None):
                 gs.local_device_info["radio_configs"] = {}
             gs.local_device_info["radio_configs"][radio] = cfg
             return cfg
+        err_adm = _require_admin()
+        if err_adm:
+            return err_adm
         data = request.get_json(silent=True) or {}
         radio = data.get("radio", "R0")
         freq = data.get("frequency")
@@ -1152,6 +1168,9 @@ def create_app(config_class=Config, db_path=None):
     @app.route("/api/satellite/mode", methods=["POST"])
     @login_required
     def api_satellite_mode():
+        err_adm = _require_admin()
+        if err_adm:
+            return err_adm
         dev, err = _require_hardware()
         if err:
             return err
@@ -1211,6 +1230,9 @@ def create_app(config_class=Config, db_path=None):
     @app.route("/api/satellite/flight", methods=["POST"])
     @login_required
     def api_satellite_flight():
+        err_adm = _require_admin()
+        if err_adm:
+            return err_adm
         dev, err = _require_hardware()
         if err:
             return err
@@ -1269,6 +1291,9 @@ def create_app(config_class=Config, db_path=None):
     @app.route("/api/satellite/difficulty", methods=["POST"])
     @login_required
     def api_satellite_difficulty():
+        err_adm = _require_admin()
+        if err_adm:
+            return err_adm
         dev, err = _require_hardware()
         if err:
             return err
@@ -1321,6 +1346,9 @@ def create_app(config_class=Config, db_path=None):
     @app.route("/api/satellite/tinygs", methods=["POST"])
     @login_required
     def api_satellite_tinygs():
+        err_adm = _require_admin()
+        if err_adm:
+            return err_adm
         dev, err = _require_hardware()
         if err:
             return err
@@ -1357,6 +1385,9 @@ def create_app(config_class=Config, db_path=None):
     @app.route("/api/satellite/reset", methods=["POST"])
     @login_required
     def api_satellite_reset():
+        err_adm = _require_admin()
+        if err_adm:
+            return err_adm
         dev, err = _require_hardware()
         if err:
             return err

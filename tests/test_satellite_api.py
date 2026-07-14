@@ -26,6 +26,13 @@ def app():
 @pytest.fixture
 def auth_client(app):
     client = app.test_client()
+    client.post("/login", data={"username": "admin", "password": "password"})
+    return client
+
+
+@pytest.fixture
+def operator_client(app):
+    client = app.test_client()
     client.post("/login", data={"username": "operator", "password": "operator123"})
     return client
 
@@ -289,3 +296,24 @@ def test_active_radio_duplicate_ignored(app, auth_client):
     assert resp.status_code == 200
     assert resp.get_json().get("no_change") is True
     mock_dev.send_shell_command_full.assert_not_called()
+
+
+def test_satellite_config_operator_denied(app, operator_client):
+    _setup_hardware(app)
+    resp = operator_client.post("/api/satellite/lora_config", json={"radio": "R0", "frequency": 915000000}, content_type="application/json")
+    assert resp.status_code == 403
+
+    resp = operator_client.post("/api/satellite/mode", json={"mode": "mission"}, content_type="application/json")
+    assert resp.status_code == 403
+
+    resp = operator_client.post("/api/satellite/flight", json={"flight": "nominal"}, content_type="application/json")
+    assert resp.status_code == 403
+
+    resp = operator_client.post("/api/satellite/difficulty", json={"level": 2}, content_type="application/json")
+    assert resp.status_code == 403
+
+    resp = operator_client.post("/api/satellite/tinygs", json={"action": "spoof"}, content_type="application/json")
+    assert resp.status_code == 403
+
+    resp = operator_client.post("/api/satellite/reset")
+    assert resp.status_code == 403
