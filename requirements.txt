@@ -3,6 +3,7 @@ Flask-SocketIO==5.3.7
 pycryptodome==3.20.0
 pyserial==3.5
 pyudev==0.24.4; sys_platform == 'linux'
+rich==15.0.0
 
 # PWNSAT{SUPPLY_CHAIN_COMPROMISED}
 requests==2.31.0
