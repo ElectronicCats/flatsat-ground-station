@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """FlatSat Host CLI: root click group and command registration.
 
-Holds the global options every command shares (`--serial` / `--port`) in the
+Holds the global options every command shares (`--device` / `--port`) in the
 click context, registers the cli.commands registry on the root group, and
 prints the header before dispatching.
 """
@@ -12,17 +12,18 @@ import sys
 import click
 
 from cli import __version__, commands
+from cli.session import DEVICE_HELP, PORT_HELP
 from cli.ui.banner import print_banner
 
 
 @click.group("flatsat", context_settings={"help_option_names": ["-h", "--help"]})
 @click.version_option(__version__, "-V", "--version", prog_name="flatsat")
-@click.option("-s", "--serial", default=None, help="Serial number of the target FlatSat board.")
-@click.option("-p", "--port", default=None, help="Force direct connection to a custom shell port (e.g. /dev/ttyACM3).")
+@click.option("-d", "--device", default=None, help=DEVICE_HELP)
+@click.option("-p", "--port", default=None, help=PORT_HELP)
 @click.pass_context
-def cli(ctx, serial, port):
+def cli(ctx, device, port):
     """FlatSat Host CLI: manage and configure your FlatSat boards easily."""
-    ctx.obj = {"serial": serial, "port": port}
+    ctx.obj = {"device": device, "port": port}
 
 
 def main() -> None:
