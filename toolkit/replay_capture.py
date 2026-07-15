@@ -19,6 +19,72 @@ sys.path.insert(0, sys.path[0] or ".")
 from ccsds_tools import decode_tm, parse_frame
 
 
+def _extract_frame_hex(line: str):
+    """Pull the frame hex out of one capture line, or None if it isn't a frame.
+
+    Handles both `+RX <len>,<hex>` and the CatSniffer/ground-station format
+    `RX: <hex> | RSSI: <n> | SNR: <n>`.
+    """
+    line = line.strip()
+    if "+RX" in line:
+        parts = line.split(",", 1)
+        if len(parts) == 2:
+            return parts[1].strip()
+    elif "RX: " in line and " |" in line:
+        try:
+            start_idx = line.index("RX: ") + 4
+            end_idx = line.index(" |")
+            return line[start_idx:end_idx].strip()
+        except ValueError:
+            return None
+    return None
+
+
+def _frame_entry(frame_hex: str, ts: str = None):
+    """Build a frame dict from hex, or None if the hex is invalid."""
+    try:
+        frame_bytes = bytes.fromhex(frame_hex)
+        parsed = parse_frame(frame_bytes)
+    except ValueError:
+        return None
+    return {
+        "timestamp": ts or datetime.now().isoformat(),
+        "hex": frame_hex,
+        "length": len(frame_bytes),
+        "type": parsed.get("type", "?"),
+        "apid": parsed.get("apid", 0),
+        "seq": parsed.get("seq_count", 0),
+        "crc_valid": parsed.get("crc_valid", False),
+    }
+
+
+def load_frames(capture_file: str):
+    """Load frames from a capture file.
+
+    Accepts both the JSON produced by `capture` and the raw text log written
+    by the CatSniffer (`catnip sniff lora ... -r file.txt`) or by the ground
+    station, whose lines look like `RX: <hex> | RSSI: <n> | SNR: <n>`.
+    """
+    with open(capture_file) as f:
+        content = f.read()
+
+    # JSON capture (from this tool's `capture` command)
+    try:
+        return json.loads(content).get("frames", [])
+    except (json.JSONDecodeError, ValueError):
+        pass
+
+    # Raw text log (from `catnip sniff lora -r ...`)
+    frames = []
+    for line in content.splitlines():
+        frame_hex = _extract_frame_hex(line)
+        if frame_hex:
+            entry = _frame_entry(frame_hex)
+            if entry:
+                frames.append(entry)
+    return frames
+
+
 def capture(port: str, output: str = "capture.json", duration: float = 30.0):
     """Capture frames from a CDC Radio port."""
     import serial
@@ -46,49 +112,20 @@ def capture(port: str, output: str = "capture.json", duration: float = 30.0):
                 lines = buf.split(b"\n")
                 buf = lines[-1]
                 for line_bytes in lines[:-1]:
-                    line = line_bytes.decode(errors="replace").strip()
-                    frame_hex = None
-
-                    if "+RX" in line:
-                        # Parse +RX <len>,<hex>
-                        parts = line.split(",", 1)
-                        if len(parts) == 2:
-                            frame_hex = parts[1].strip()
-                    elif "RX: " in line and " |" in line:
-                        # Parse RX: <hex> | RSSI: <rssi> | SNR: <snr>
-                        try:
-                            start_idx = line.index("RX: ") + 4
-                            end_idx = line.index(" |")
-                            frame_hex = line[start_idx:end_idx].strip()
-                        except ValueError:
-                            pass
-
-                    if frame_hex:
-                        try:
-                            frame_bytes = bytes.fromhex(frame_hex)
-                            ts = datetime.now().isoformat()
-
-                            parsed = parse_frame(frame_bytes)
-                            entry = {
-                                "timestamp": ts,
-                                "hex": frame_hex,
-                                "length": len(frame_bytes),
-                                "type": parsed.get("type", "?"),
-                                "apid": parsed.get("apid", 0),
-                                "seq": parsed.get("seq_count", 0),
-                                "crc_valid": parsed.get("crc_valid", False),
-                            }
-                            frames.append(entry)
-
-                            print(
-                                f"[+] Frame #{len(frames)}: {entry['type']} "
-                                f"APID=0x{entry['apid']:03X} "
-                                f"seq={entry['seq']} "
-                                f"CRC={'OK' if entry['crc_valid'] else 'FAIL'} "
-                                f"({entry['length']} bytes)"
-                            )
-                        except ValueError:
-                            pass
+                    frame_hex = _extract_frame_hex(line_bytes.decode(errors="replace"))
+                    if not frame_hex:
+                        continue
+                    entry = _frame_entry(frame_hex)
+                    if not entry:
+                        continue
+                    frames.append(entry)
+                    print(
+                        f"[+] Frame #{len(frames)}: {entry['type']} "
+                        f"APID=0x{entry['apid']:03X} "
+                        f"seq={entry['seq']} "
+                        f"CRC={'OK' if entry['crc_valid'] else 'FAIL'} "
+                        f"({entry['length']} bytes)"
+                    )
 
     except KeyboardInterrupt:
         print("\n[*] Capture stopped by user")
@@ -104,16 +141,12 @@ def replay(port: str, capture_file: str, delay: float = 1.0, modify_seq: bool = 
     """Replay captured frames to a CDC Radio port."""
     import serial
 
-    with open(capture_file) as f:
-        data = json.load(f)
-
-    frames = data.get("frames", [])
+    frames = load_frames(capture_file)
     if not frames:
         print("[!] No frames in capture file")
         return
 
     print(f"[*] Loaded {len(frames)} frames from {capture_file}")
-    print(f"[*] Capture date: {data.get('capture_date', 'unknown')}")
 
     ser = serial.Serial(port, 115200, timeout=2, dsrdtr=False, rtscts=False)
     time.sleep(0.5)
@@ -160,12 +193,8 @@ def replay(port: str, capture_file: str, delay: float = 1.0, modify_seq: bool = 
 
 def analyze(capture_file: str):
     """Analyze a capture file — show frame details and patterns."""
-    with open(capture_file) as f:
-        data = json.load(f)
-
-    frames = data.get("frames", [])
+    frames = load_frames(capture_file)
     print(f"[*] Capture: {capture_file}")
-    print(f"[*] Date: {data.get('capture_date', 'unknown')}")
     print(f"[*] Frames: {len(frames)}")
     print()
 
@@ -198,10 +227,12 @@ if __name__ == "__main__":
     if len(sys.argv) < 2:
         print("Usage:")
         print("  replay_capture.py capture <port> [output.json] [duration_sec]")
-        print("  replay_capture.py replay <port> <capture.json> [--modify-seq]")
-        print("  replay_capture.py analyze <capture.json>")
+        print("  replay_capture.py replay <port> <capture> [--modify-seq]")
+        print("  replay_capture.py analyze <capture>")
         print()
         print("Capture TM frames from LoRa, analyze patterns, and replay them.")
+        print("<capture> can be this tool's .json OR a CatSniffer text log")
+        print("  (catnip sniff lora ... -r file.txt, lines 'RX: <hex> | RSSI | SNR').")
         print("Use --modify-seq to increment sequence counters (bypass Level 3 anti-replay).")
         sys.exit(1)
 
