@@ -1,7 +1,7 @@
 """Rich table rendering for device listings."""
 
-from rich.table import Table
 from rich import box
+from rich.table import Table
 
 from cli.ui import console
 
@@ -28,9 +28,7 @@ def print_devices_table(devices):
         health_style = _HEALTH_STYLE.get(d.health.name, "white")
         health = f"[{health_style}]{d.health.name}[/{health_style}]"
 
-        table.add_row(
-            f"[{i}] {d.identity.serial_number}", radio0, radio1, shell, health
-        )
+        table.add_row(f"[{i}] {d.identity.serial_number}", radio0, radio1, shell, health)
 
     console.print()
     console.print(table)

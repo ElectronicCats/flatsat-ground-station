@@ -1,20 +1,19 @@
 """Get or set workshop security/difficulty level."""
 
-from cli.session import send_cmd
+import click
 
-NAME = "difficulty"
-NEEDS_DEVICE = True
-
-
-def add_parser(subparsers):
-    p = subparsers.add_parser(NAME, help="Get or set workshop security/difficulty level.")
-    p.add_argument("value", nargs="?", type=int, choices=[1, 2, 3], help="Difficulty level")
+from cli.session import send_cmd, with_device
+from cli.ui.output import print_info
 
 
-def run(args, dev):
-    if args.value is not None:
-        output = send_cmd(dev, f"difficulty {args.value}")
-        print(f"[*] {output.strip()}")
+@click.command("difficulty")
+@click.argument("value", required=False, type=click.IntRange(1, 3))
+@with_device
+def difficulty(dev, value):
+    """Get or set workshop security/difficulty level"""
+    if value is not None:
+        output = send_cmd(dev, f"difficulty {value}")
+        print_info(output.strip())
     else:
         output = send_cmd(dev, "difficulty")
-        print(f"[*] Security Level: {output.strip()}")
+        print_info(f"Security Level: {output.strip()}")

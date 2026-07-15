@@ -1,27 +1,24 @@
 """Command registry.
 
-Each command module exposes:
-  NAME          -> subcommand string
-  NEEDS_DEVICE  -> whether app.py should connect a device before run()
-  add_parser(subparsers)
-  run(args, dev)   (dev is None when NEEDS_DEVICE is False)
+Each module here exposes a single click command object named after the module.
+Device-backed commands wrap their callback in `cli.session.with_device`, which
+resolves and connects the board before the callback runs.
 
-To add a new command: create a module here and append it to COMMANDS.
+To add a new command: create a module here and append it to COMMANDS. app.py
+registers everything in COMMANDS on the root group.
 """
 
-from . import (
-    devices,
-    status,
-    sensors,
-    mode,
-    flight,
-    difficulty,
-    color,
-    identify,
-    reboot,
-    cmd,
-    config,
-)
+from .cmd import cmd
+from .color import color
+from .config import config
+from .devices import devices
+from .difficulty import difficulty
+from .flight import flight
+from .identify import identify
+from .mode import mode
+from .reboot import reboot
+from .sensors import sensors
+from .status import status
 
 COMMANDS = [
     devices,
@@ -36,5 +33,3 @@ COMMANDS = [
     cmd,
     config,
 ]
-
-BY_NAME = {m.NAME: m for m in COMMANDS}

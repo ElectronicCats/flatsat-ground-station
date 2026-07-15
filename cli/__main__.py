@@ -1,8 +1,7 @@
 #!/usr/bin/env python3
 
-import asyncio
-import sys
 import os
+import sys
 
 # Add vendor directory to sys.path for bundled dependencies
 # In development, this is relative to the current script

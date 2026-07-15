@@ -1,70 +1,76 @@
 """Stage and apply LoRa radio configuration settings."""
 
-from cli.session import send_cmd
-from cli.ui.banner import print_title
+import click
 
-NAME = "config"
-NEEDS_DEVICE = True
-
-
-def add_parser(subparsers):
-    p = subparsers.add_parser(NAME, help="Stage and apply radio configuration settings.")
-    p.add_argument("--radio", type=int, choices=[0, 1], default=0, help="Radio index to configure (0 or 1)")
-    p.add_argument("--freq", type=int, help="LoRa frequency in Hz (e.g. 915000000)")
-    p.add_argument("--sf", type=int, choices=range(7, 13), help="Spreading Factor (7-12)")
-    p.add_argument("--bw", type=int, choices=[125, 250, 500], help="Bandwidth in kHz")
-    p.add_argument("--cr", type=int, choices=[5, 6, 7, 8], help="Coding Rate (5-8)")
-    p.add_argument("--power", type=int, help="TX power in dBm")
-    p.add_argument("--syncword", help="Syncword (public, private, or hex value e.g. 0x2D)")
-    p.add_argument("--mode", choices=["stream", "command"], help="LoRa output mode (stream or command)")
-    p.add_argument("--apply", action="store_true", help="Apply staged changes immediately")
+from cli.session import send_cmd, with_device
+from cli.ui.output import print_dim, print_info, print_response, print_success, print_title, print_warning
 
 
-def run(args, dev):
-    print_title(f"RADIO CONFIGURATION - RADIO {args.radio}")
+@click.command("config")
+@click.option("--radio", type=click.Choice(["0", "1"]), default="0", show_default=True, help="Radio index to configure")
+@click.option("--freq", type=int, help="LoRa frequency in Hz (e.g. 915000000)")
+@click.option("--sf", type=click.IntRange(7, 12), help="Spreading Factor (7-12)")
+@click.option("--bw", type=click.Choice(["125", "250", "500"]), help="Bandwidth in kHz")
+@click.option("--cr", type=click.IntRange(5, 8), help="Coding Rate (5-8)")
+@click.option("--power", type=int, help="TX power in dBm")
+@click.option("--syncword", help="Syncword (public, private, or hex value e.g. 0x2D)")
+@click.option("--mode", type=click.Choice(["stream", "command"]), help="LoRa output mode")
+@click.option("--apply", is_flag=True, help="Apply staged changes immediately")
+@with_device
+def config(dev, radio, freq, sf, bw, cr, power, syncword, mode, apply):
+    """Stage and apply LoRa radio configuration settings
+
+    Without any parameter it prints the radio's current configuration.
+    Parameters are staged on the board and only written to the hardware
+    once --apply is passed:
+
+    \b
+        flatsat config --radio 0 --freq 915000000 --sf 7 --apply
+    """
+    print_title(f"RADIO CONFIGURATION - RADIO {radio}")
 
     # Select target radio
-    select_res = send_cmd(dev, f"radio{args.radio}")
-    print(f"[*] Selecting Radio {args.radio}: {select_res.strip()}")
+    select_res = send_cmd(dev, f"radio{radio}")
+    print_info(f"Selecting Radio {radio}: {select_res.strip()}")
 
     staged = False
-    if args.freq is not None:
-        res = send_cmd(dev, f"lora_freq {args.freq}")
-        print(f"  - Frequency -> {args.freq} Hz: {res.strip()}")
+    if freq is not None:
+        res = send_cmd(dev, f"lora_freq {freq}")
+        print_dim(f"Frequency        -> {freq} Hz: {res.strip()}")
         staged = True
-    if args.sf is not None:
-        res = send_cmd(dev, f"lora_sf {args.sf}")
-        print(f"  - Spreading Factor -> SF{args.sf}: {res.strip()}")
+    if sf is not None:
+        res = send_cmd(dev, f"lora_sf {sf}")
+        print_dim(f"Spreading Factor -> SF{sf}: {res.strip()}")
         staged = True
-    if args.bw is not None:
-        res = send_cmd(dev, f"lora_bw {args.bw}")
-        print(f"  - Bandwidth -> {args.bw} kHz: {res.strip()}")
+    if bw is not None:
+        res = send_cmd(dev, f"lora_bw {bw}")
+        print_dim(f"Bandwidth        -> {bw} kHz: {res.strip()}")
         staged = True
-    if args.cr is not None:
-        res = send_cmd(dev, f"lora_cr {args.cr}")
-        print(f"  - Coding Rate -> 4/{args.cr}: {res.strip()}")
+    if cr is not None:
+        res = send_cmd(dev, f"lora_cr {cr}")
+        print_dim(f"Coding Rate      -> 4/{cr}: {res.strip()}")
         staged = True
-    if args.power is not None:
-        res = send_cmd(dev, f"lora_power {args.power}")
-        print(f"  - Power -> {args.power} dBm: {res.strip()}")
+    if power is not None:
+        res = send_cmd(dev, f"lora_power {power}")
+        print_dim(f"Power            -> {power} dBm: {res.strip()}")
         staged = True
-    if args.syncword is not None:
-        res = send_cmd(dev, f"lora_syncword {args.syncword}")
-        print(f"  - Syncword -> {args.syncword}: {res.strip()}")
+    if syncword is not None:
+        res = send_cmd(dev, f"lora_syncword {syncword}")
+        print_dim(f"Syncword         -> {syncword}: {res.strip()}")
         staged = True
-    if args.mode is not None:
-        res = send_cmd(dev, f"lora_mode R{args.radio} {args.mode}")
-        print(f"  - Mode -> {args.mode}: {res.strip()}")
+    if mode is not None:
+        res = send_cmd(dev, f"lora_mode R{radio} {mode}")
+        print_dim(f"Mode             -> {mode}: {res.strip()}")
         staged = True
 
-    if args.apply or staged:
-        if args.apply:
+    if apply or staged:
+        if apply:
             apply_res = send_cmd(dev, "lora_apply")
-            print(f"[+] Applying changes: {apply_res.strip()}")
+            print_success(f"Applying changes: {apply_res.strip()}")
         else:
-            print("[!] Note: Changes are STAGED but not yet applied. Run with --apply to write to hardware.")
+            print_warning("Changes are STAGED but not yet applied. Run with --apply to write to hardware.")
     else:
         # No staging parameters, show current config
         cfg_res = send_cmd(dev, "lora_config")
         if cfg_res:
-            print(cfg_res.strip())
+            print_response(cfg_res.strip())

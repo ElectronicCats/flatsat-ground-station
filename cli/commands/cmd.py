@@ -1,17 +1,20 @@
 """Send a raw shell command to the FlatSat console."""
 
-from cli.session import send_cmd
+import click
 
-NAME = "cmd"
-NEEDS_DEVICE = True
-
-
-def add_parser(subparsers):
-    p = subparsers.add_parser(NAME, help="Send a raw shell command to the FlatSat console.")
-    p.add_argument("raw", help="The raw command string to execute")
+from cli.session import send_cmd, with_device
+from cli.ui.output import print_response
 
 
-def run(args, dev):
-    output = send_cmd(dev, args.raw)
+@click.command("cmd")
+@click.argument("raw")
+@with_device
+def cmd(dev, raw):
+    """Send a raw shell command to the FlatSat console
+
+    \b
+        flatsat cmd "lora_config"
+    """
+    output = send_cmd(dev, raw)
     if output:
-        print(output.strip())
+        print_response(output.strip())

@@ -1,20 +1,19 @@
 """Get or set flight operational state."""
 
-from cli.session import send_cmd
+import click
 
-NAME = "flight"
-NEEDS_DEVICE = True
-
-
-def add_parser(subparsers):
-    p = subparsers.add_parser(NAME, help="Get or set flight operational state.")
-    p.add_argument("value", nargs="?", choices=["safe", "nominal", "idle", "debug"], help="Operational state")
+from cli.session import send_cmd, with_device
+from cli.ui.output import print_info
 
 
-def run(args, dev):
-    if args.value:
-        output = send_cmd(dev, f"flight {args.value}")
-        print(f"[*] {output.strip()}")
+@click.command("flight")
+@click.argument("value", required=False, type=click.Choice(["safe", "nominal", "idle", "debug"]))
+@with_device
+def flight(dev, value):
+    """Get or set flight operational state"""
+    if value:
+        output = send_cmd(dev, f"flight {value}")
+        print_info(output.strip())
     else:
         output = send_cmd(dev, "flight")
-        print(f"[*] Flight State: {output.strip()}")
+        print_info(f"Flight State: {output.strip()}")

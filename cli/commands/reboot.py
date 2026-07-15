@@ -1,14 +1,15 @@
 """Reboot the board (forces it into BOOTSEL mode)."""
 
-NAME = "reboot"
-NEEDS_DEVICE = True
+import click
+
+from cli.session import with_device
+from cli.ui.output import print_info, print_success
 
 
-def add_parser(subparsers):
-    subparsers.add_parser(NAME, help="Reboot the board (forces it into BOOTSEL mode).")
-
-
-def run(args, dev):
-    print("[*] Rebooting device into BOOTSEL bootloader mode...")
+@click.command("reboot")
+@with_device
+def reboot(dev):
+    """Reboot the board into the BOOTSEL bootloader"""
+    print_info("Rebooting device into BOOTSEL bootloader mode...")
     dev.send_shell_command("reboot")
-    print("[+] Command sent. Device should disconnect shortly.")
+    print_success("Command sent. Device should disconnect shortly.")

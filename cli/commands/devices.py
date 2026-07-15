@@ -1,23 +1,19 @@
 """List all connected FlatSat boards and their endpoints."""
 
+import click
+
 from cli.session import flatsat_get_devices
-from cli.ui.banner import print_banner, print_title
+from cli.ui.output import print_title, print_warning
 from cli.ui.tables import print_devices_table
 
-NAME = "devices"
-NEEDS_DEVICE = False
 
-
-def add_parser(subparsers):
-    subparsers.add_parser(NAME, help="List all connected FlatSat boards and their endpoints.")
-
-
-def run(args, dev=None):
-    print_banner()
-    devices = flatsat_get_devices()
-    if not devices:
+@click.command("devices")
+def devices():
+    """List all connected FlatSat boards and their endpoints"""
+    devs = flatsat_get_devices()
+    if not devs:
         print_title("CONNECTED FLATSAT DEVICES")
-        print("  No FlatSat devices detected.")
-    else:
-        print_devices_table(devices)
-    print()
+        print_warning("No FlatSat devices detected.")
+        return
+
+    print_devices_table(devs)

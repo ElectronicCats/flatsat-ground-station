@@ -1,20 +1,18 @@
 """Read live telemetry data from onboard sensors."""
 
-from cli.session import send_cmd
-from cli.ui.banner import print_title
+import click
 
-NAME = "sensors"
-NEEDS_DEVICE = True
-
-
-def add_parser(subparsers):
-    subparsers.add_parser(NAME, help="Read live telemetry data from BME280 and LIS2DH sensors.")
+from cli.session import send_cmd, with_device
+from cli.ui.output import print_error, print_response, print_title
 
 
-def run(args, dev):
+@click.command("sensors")
+@with_device
+def sensors(dev):
+    """Read live telemetry data from BME280 and LIS2DH sensors"""
     print_title("TELEMETRY SENSORS")
     output = send_cmd(dev, "sensors")
     if output:
-        print(output.strip())
+        print_response(output.strip())
     else:
-        print("[-] Failed to retrieve sensor values.")
+        print_error("Failed to retrieve sensor values.")

@@ -1,60 +1,39 @@
 #!/usr/bin/env python3
-"""FlatSat Host CLI: argument parsing and command dispatch.
+"""FlatSat Host CLI: root click group and command registration.
 
-Discovers subcommands from the cli.commands registry, resolves/connects a
-device when needed, and delegates execution to the matching command module.
+Holds the global options every command shares (`--serial` / `--port`) in the
+click context, registers the cli.commands registry on the root group, and
+prints the header before dispatching.
 """
 
-import argparse
+import os
 import sys
 
-from cli import commands
-from cli.session import get_selected_device
-from cli.ui.help import print_help_menu
+import click
+
+from cli import __version__, commands
+from cli.ui.banner import print_banner
 
 
-def build_parser():
-    parser = argparse.ArgumentParser(
-        description="FlatSat Host CLI - Manage and configure your FlatSat boards easily.",
-        add_help=False,
-    )
-    parser.add_argument("-h", "--help", action="store_true", help="Show this help menu and exit.")
-    parser.add_argument("-s", "--serial", help="Serial number of the target FlatSat board.")
-    parser.add_argument("-p", "--port", help="Force direct connection to a custom shell port (e.g. /dev/ttyACM3).")
+@click.group("flatsat", context_settings={"help_option_names": ["-h", "--help"]})
+@click.version_option(__version__, "-V", "--version", prog_name="flatsat")
+@click.option("-s", "--serial", default=None, help="Serial number of the target FlatSat board.")
+@click.option("-p", "--port", default=None, help="Force direct connection to a custom shell port (e.g. /dev/ttyACM3).")
+@click.pass_context
+def cli(ctx, serial, port):
+    """FlatSat Host CLI: manage and configure your FlatSat boards easily."""
+    ctx.obj = {"serial": serial, "port": port}
 
-    subparsers = parser.add_subparsers(dest="command", help="Sub-commands")
+
+def main() -> None:
+    if not os.environ.get("_FLATSAT_COMPLETE"):
+        module = next((a for a in sys.argv[1:] if not a.startswith("-")), None)
+        print_banner(module)
+
     for command in commands.COMMANDS:
-        command.add_parser(subparsers)
+        cli.add_command(command)
 
-    return parser
-
-
-def main(argv=None):
-    parser = build_parser()
-    args = parser.parse_args(argv)
-
-    if args.help or not args.command:
-        print_help_menu()
-        return
-
-    command = commands.BY_NAME[args.command]
-
-    # Commands that don't touch hardware (e.g. `devices`) run without connecting.
-    if not command.NEEDS_DEVICE:
-        command.run(args, None)
-        return
-
-    dev = get_selected_device(serial_number=args.serial, port=args.port)
-
-    connection_res = dev.connect()
-    if not connection_res.get("shell"):
-        print("[-] Error: Failed to open Shell serial interface.")
-        sys.exit(1)
-
-    try:
-        command.run(args, dev)
-    finally:
-        dev.disconnect()
+    cli(prog_name="flatsat")
 
 
 if __name__ == "__main__":
