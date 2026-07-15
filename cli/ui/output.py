@@ -4,7 +4,7 @@ from rich.console import Console
 from rich.style import Style
 
 STYLES = {
-    "header": Style(color="magenta", bold=True),
+    "header": Style(color="cyan", bold=True),
     "success": Style(color="green", bold=True),
     "warning": Style(color="yellow", bold=True),
     "error": Style(color="red", bold=True),

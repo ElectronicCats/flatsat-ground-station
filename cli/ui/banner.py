@@ -57,11 +57,11 @@ def print_banner(module=None):
  ---=-- -===============-  -=---  |
  ---       --=======--        --  |"""
 
-    colored_ascii = f"[magenta bold]{ascii_art}[/magenta bold]"
+    colored_ascii = f"[cyan bold]{ascii_art}[/cyan bold]"
 
     header_panel = Panel(
         colored_ascii,
-        title=f"[magenta]{COMPANY}[/magenta]",
+        title=f"[cyan]{COMPANY}[/cyan]",
         border_style=STYLES["header"],
         title_align="left",
         padding=(1, 2),
