@@ -32,3 +32,6 @@ venv/
 
 # Exploits
 exploit_*.py
+
+# Builds
+build_*/
