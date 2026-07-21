@@ -243,7 +243,8 @@ document.getElementById("tc-form").addEventListener("submit", async function(e) 
     e.preventDefault();
     const opcode = document.getElementById("opcode").value;
     const cmdName = document.getElementById("opcode").selectedOptions[0].text;
-    const data = document.getElementById("tc-data").value || "";
+    const dataEl = document.getElementById("tc-data");
+    const data = dataEl ? (dataEl.value || "") : "";
     const ts = new Date().toLocaleTimeString();
     const pre = document.getElementById("tc-response");
     // Immediate feedback before waiting for server
