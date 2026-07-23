@@ -21,6 +21,7 @@ from .replay import replay
 from .sensors import sensors
 from .sniff import sniff
 from .status import status
+from .transmit import transmit
 
 COMMANDS = [
     devices,
@@ -35,5 +36,6 @@ COMMANDS = [
     cmd,
     sniff,
     replay,
+    transmit,
     config,
 ]
