@@ -1428,7 +1428,7 @@ def start_telemetry_thread(app):
 
     import serial
 
-    from core.ccsds import parse_frame, sdls_unprotect_frame
+    from core.ccsds import detect_tm_difficulty, parse_frame, sdls_unprotect_frame
     from core.device import parse_lora_rx
     from core.telemetry import decode_tm_payload, generate_mock_telemetry
 
@@ -1491,7 +1491,21 @@ def start_telemetry_thread(app):
                                 f" rssi={parsed.get('rssi')} snr={parsed.get('snr')}"
                             )
                             raw_bytes = bytes.fromhex(parsed["data"])
-                            difficulty = getattr(gs, "difficulty", 0)
+                            # Heartbeats carry the satellite's own SDLS level and can be
+                            # trial-decrypted against known invariants, so let them drive
+                            # the RX difficulty. Encrypt-then-CRC means a wrong level still
+                            # passes the CRC check, so we cannot rely on the local board's
+                            # setting matching the sender's.
+                            detected = detect_tm_difficulty(raw_bytes)
+                            if detected is not None and detected != getattr(gs, "remote_difficulty", None):
+                                print(
+                                    f"[RADIO{rx_radio} SDLS] satellite difficulty={detected}"
+                                    f" (local board={getattr(gs, 'difficulty', 0)})"
+                                )
+                                gs.remote_difficulty = detected
+                            difficulty = getattr(gs, "remote_difficulty", None)
+                            if difficulty is None:
+                                difficulty = getattr(gs, "difficulty", 0)
                             # Parse the frame as received. Firmware computes the CRC *after*
                             # encrypting the payload (encrypt-then-CRC), so the CRC must be
                             # validated over the ciphertext — before decryption.
