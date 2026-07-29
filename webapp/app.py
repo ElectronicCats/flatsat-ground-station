@@ -1491,11 +1491,24 @@ def start_telemetry_thread(app):
                                 f" rssi={parsed.get('rssi')} snr={parsed.get('snr')}"
                             )
                             raw_bytes = bytes.fromhex(parsed["data"])
-                            # SDLS: decrypt TM payload based on difficulty
                             difficulty = getattr(gs, "difficulty", 0)
-                            if difficulty >= 2:
-                                raw_bytes = sdls_unprotect_frame(raw_bytes, difficulty)
+                            # Parse the frame as received. Firmware computes the CRC *after*
+                            # encrypting the payload (encrypt-then-CRC), so the CRC must be
+                            # validated over the ciphertext — before decryption.
                             pkt = parse_frame(raw_bytes)
+                            # SDLS: recover the plaintext payload for decoding, and stay
+                            # robust to firmware that instead does CRC-over-plaintext.
+                            if pkt is not None and difficulty >= 2:
+                                dec_frame = sdls_unprotect_frame(raw_bytes, difficulty)
+                                pkt_dec = parse_frame(dec_frame)
+                                if pkt.crc_valid:
+                                    # encrypt-then-CRC: CRC authenticated the ciphertext;
+                                    # swap in the decrypted payload for decoding.
+                                    if pkt_dec is not None:
+                                        pkt.payload = pkt_dec.payload
+                                elif pkt_dec is not None and pkt_dec.crc_valid:
+                                    # CRC-over-plaintext: the decrypted frame authenticates.
+                                    pkt = pkt_dec
                             if pkt is None:
                                 print(f"[RADIO{rx_radio} CCSDS] parse_frame returned None for {len(raw_bytes)} bytes")
                             elif not pkt.crc_valid and raw_bytes[-2:] != b"\x00\x00":

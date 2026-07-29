@@ -136,7 +136,12 @@ def sdls_unprotect_frame(frame: bytes, difficulty: int) -> bytes:
 
     Level 0-1: plaintext.  Level 2: XOR.  Level 3+: AES-128-CTR.
     Only payload bytes are decrypted; header and CRC are untouched.
-    Firmware encrypts after CRC computation, so CRC matches plaintext.
+
+    Note: observed firmware computes the CRC *after* encrypting (encrypt-then-CRC),
+    so the CRC authenticates the ciphertext, not the plaintext. Callers should
+    therefore validate the CRC on the frame as received and use this function only
+    to recover the plaintext payload for decoding. The RX path in
+    ``webapp/app.py`` stays robust to both orderings.
     """
     if difficulty < 2:
         return frame
