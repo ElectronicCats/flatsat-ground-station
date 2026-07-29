@@ -40,11 +40,15 @@ def decode_heartbeat(payload: bytes) -> dict:
 
 
 def decode_bme280(payload: bytes) -> dict:
-    """Decode BME280 TM payload (APID 0x010). Little-endian."""
+    """Decode BME280 TM payload (APID 0x010). Little-endian.
+
+    Firmware sends press_x10 in deci-Pascals (press_pa * 10), so sea level is
+    1013250. Divide by 1000 to get the hPa used across the pipeline and UI.
+    """
     temp_x100, press_x10, humidity = struct.unpack("<hIB", payload[:7])
     return {
         "temperature": temp_x100 / 100.0,
-        "pressure": press_x10 / 10.0,
+        "pressure": press_x10 / 1000.0,
         "humidity": humidity,
     }
 
@@ -84,7 +88,7 @@ def decode_all_sensors(payload: bytes) -> dict:
     temp_x100, press_x10, humidity, ax, ay, az, battery_mv = struct.unpack("<hIBhhhH", payload[:15])
     return {
         "temperature": temp_x100 / 100.0,
-        "pressure": press_x10 / 10.0,
+        "pressure": press_x10 / 1000.0,
         "humidity": humidity,
         "accel_x": ax,
         "accel_y": ay,
@@ -143,7 +147,10 @@ def generate_mock_telemetry() -> dict:
             random.randint(0, 5),
         )
     elif apid == APID_TM_BME280:
-        payload = struct.pack("<hIB", random.randint(2000, 3500), random.randint(10100, 10200), random.randint(40, 60))
+        # press_x10 is deci-Pascals on the wire: 1010000..1020000 == 1010..1020 hPa
+        payload = struct.pack(
+            "<hIB", random.randint(2000, 3500), random.randint(1010000, 1020000), random.randint(40, 60)
+        )
     else:
         payload = struct.pack("<hhh", random.randint(-50, 50), random.randint(-50, 50), random.randint(950, 1050))
 
