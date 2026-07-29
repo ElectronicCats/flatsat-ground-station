@@ -80,7 +80,7 @@ Humid: 48%"""
     assert result["accel_y"] == -8
     assert result["accel_z"] == 1012
     assert result["temperature"] == 25.340
-    assert result["pressure"] == 101325
+    assert result["pressure"] == 1013.25  # shell reports Pa, parser normalizes to hPa
     assert result["humidity"] == 48
 
 

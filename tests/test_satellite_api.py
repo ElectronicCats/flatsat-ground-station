@@ -121,7 +121,7 @@ def test_satellite_status_ground_station_prefers_remote_tm(app, auth_client):
 def test_satellite_sensors_ground_station_use_remote_snapshot(app, auth_client):
     mock_dev = _setup_hardware(app)
     gs = app.config["GS_STATE"]
-    gs.update_remote_satellite(0x010, {"temperature": 22.75, "pressure": 101250.0, "humidity": 48}, rssi=-69, snr=7.5)
+    gs.update_remote_satellite(0x010, {"temperature": 22.75, "pressure": 1012.50, "humidity": 48}, rssi=-69, snr=7.5)
     gs.update_remote_satellite(0x011, {"accel_x": 12, "accel_y": -4, "accel_z": 1003}, rssi=-69, snr=7.5)
     mock_dev.send_shell_command_full.side_effect = lambda cmd, **kw: {
         "mode": "modemode: raw",
