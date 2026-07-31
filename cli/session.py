@@ -77,6 +77,11 @@ def get_device_or_exit(device=None, port=None):
     """Resolve and connect a FlatSat device, or exit with an error."""
     dev = get_selected_device(device=device, port=port)
 
+    # Connect WITHOUT forcing a role (forced_role=None): each CLI command is a
+    # separate process that connects and disconnects, so forcing a mode here
+    # would flip the board's role on every command (e.g. a satellite would be
+    # knocked back to ground station and stop beaconing telemetry). Commands
+    # that need a specific mode (e.g. `mode`) set it explicitly themselves.
     if not dev.connect().get("shell"):
         print_error("Failed to open Shell serial interface.")
         sys.exit(1)
