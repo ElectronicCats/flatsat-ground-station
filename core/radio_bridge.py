@@ -47,73 +47,85 @@ class RadioBridge:
 
             if use_dual:
                 # DUAL RADIO MODE:
-                # 1. Always transmit on Radio 1 (Telecommand) sintonized to 916 MHz where the satellite listens
+                # Transmit on Radio 1 (Telecommand @ 916 MHz) while telemetry keeps
+                # coming in on Radio 0 (915 MHz). We must NOT touch self.active_radio
+                # here: it is the user's persistent selection, and the background RX
+                # loop plus the UI both read it. Repurposing it as a transient TX
+                # target makes the RX loop switch to Radio 1 (losing telemetry),
+                # contend with this TX on the Radio 1 lock (corrupting the command),
+                # and — since the restore is not atomic — can leave it stuck on
+                # Radio 1. Instead, serialize the transmit with radio_tx_lock and
+                # flag tx_in_progress so the RX loop pauses for the brief TX window.
                 tx_radio = 1
-                orig_active_radio = self._state.active_radio
-                try:
-                    # Switch physical board to radio1 antenna and clear buffers
-                    self._state.active_radio = tx_radio
-                    self._state.device.send_shell_command_full("radio1")
-                    self._state.device.reset_radio_input_buffers()
+                with self._state.radio_tx_lock:
+                    self._state.tx_in_progress = True
+                    try:
+                        # Switch physical board to radio1 antenna and clear buffers
+                        self._state.device.send_shell_command_full("radio1")
+                        self._state.device.reset_radio_input_buffers()
 
-                    # Try sending using command mode TX first
-                    resp = self._state.device.send_radio_tx(tx_radio, data)
-                    if resp is not None:
-                        if not isinstance(resp, str):
-                            resp = str(resp)
-                        if "Success" in resp:
-                            status_dict = {"status": "sent", "bytes": len(data), "response": resp}
+                        # Try sending using command mode TX first
+                        resp = self._state.device.send_radio_tx(tx_radio, data)
+                        if resp is not None:
+                            if not isinstance(resp, str):
+                                resp = str(resp)
+                            if "Success" in resp:
+                                status_dict = {"status": "sent", "bytes": len(data), "response": resp}
+                            else:
+                                status_dict = {"status": "error", "error": resp}
                         else:
-                            status_dict = {"status": "error", "error": resp}
-                    else:
-                        # Fallback to stream/raw transmission on active radio
-                        if self._state.device.send_radio_raw(tx_radio, data):
-                            status_dict = {"status": "sent", "bytes": len(data), "response": "Stream TX Success"}
-                        else:
-                            status_dict = {"status": "error", "error": f"No radio available on Radio {tx_radio}"}
-                except Exception as e:
-                    status_dict = {"status": "error", "error": str(e)}
-                finally:
-                    # 2. Always revert back to Radio 0 (Telemetry RX) to listen for downlinks on 915 MHz
-                    self._state.active_radio = orig_active_radio
-                    self._state.device.send_shell_command_full("radio0")
-                    self._state.device.reset_radio_input_buffers()
+                            # Fallback to stream/raw transmission on active radio
+                            if self._state.device.send_radio_raw(tx_radio, data):
+                                status_dict = {"status": "sent", "bytes": len(data), "response": "Stream TX Success"}
+                            else:
+                                status_dict = {"status": "error", "error": f"No radio available on Radio {tx_radio}"}
+                    except Exception as e:
+                        status_dict = {"status": "error", "error": str(e)}
+                    finally:
+                        # Always revert the physical board back to Radio 0 (Telemetry
+                        # RX) so downlinks on 915 MHz keep arriving.
+                        self._state.device.send_shell_command_full("radio0")
+                        self._state.device.reset_radio_input_buffers()
+                        self._state.tx_in_progress = False
             else:
                 # SINGLE RADIO MODE (CatSniffer/GS-only or manual override of specific radio):
+                # On a single-radio board TX and RX share one physical radio, so the
+                # RX loop must pause while we flip it into command mode and back.
                 tx_radio = 1 if active_radio == 1 else 0
-                orig_active_radio = self._state.active_radio
-                try:
-                    # Keep selected radio and switch to it physically
-                    r_str = f"R{tx_radio}"
-                    self._state.device.send_shell_command_full(f"radio{tx_radio}")
-                    self._state.device.send_shell_command_full(f"lora_mode {r_str} command")
-                    self._state.device.send_shell_command_full(f"lora_apply {r_str}")
-                    self._state.device.reset_radio_input_buffers()
+                with self._state.radio_tx_lock:
+                    self._state.tx_in_progress = True
+                    try:
+                        # Keep selected radio and switch to it physically
+                        r_str = f"R{tx_radio}"
+                        self._state.device.send_shell_command_full(f"radio{tx_radio}")
+                        self._state.device.send_shell_command_full(f"lora_mode {r_str} command")
+                        self._state.device.send_shell_command_full(f"lora_apply {r_str}")
+                        self._state.device.reset_radio_input_buffers()
 
-                    # Try sending using command mode TX first
-                    resp = self._state.device.send_radio_tx(tx_radio, data)
-                    if resp is not None:
-                        if not isinstance(resp, str):
-                            resp = str(resp)
-                        if "Success" in resp:
-                            status_dict = {"status": "sent", "bytes": len(data), "response": resp}
+                        # Try sending using command mode TX first
+                        resp = self._state.device.send_radio_tx(tx_radio, data)
+                        if resp is not None:
+                            if not isinstance(resp, str):
+                                resp = str(resp)
+                            if "Success" in resp:
+                                status_dict = {"status": "sent", "bytes": len(data), "response": resp}
+                            else:
+                                status_dict = {"status": "error", "error": resp}
                         else:
-                            status_dict = {"status": "error", "error": resp}
-                    else:
-                        # Fallback to stream/raw transmission on active radio
-                        if self._state.device.send_radio_raw(tx_radio, data):
-                            status_dict = {"status": "sent", "bytes": len(data), "response": "Stream TX Success"}
-                        else:
-                            status_dict = {"status": "error", "error": f"No radio available on Radio {tx_radio}"}
-                except Exception as e:
-                    status_dict = {"status": "error", "error": str(e)}
-                finally:
-                    # Always revert selected Radio back to stream mode to listen for telemetry
-                    r_str = f"R{tx_radio}"
-                    self._state.active_radio = orig_active_radio
-                    self._state.device.send_shell_command_full(f"lora_mode {r_str} stream")
-                    self._state.device.send_shell_command_full(f"lora_apply {r_str}")
-                    self._state.device.reset_radio_input_buffers()
+                            # Fallback to stream/raw transmission on active radio
+                            if self._state.device.send_radio_raw(tx_radio, data):
+                                status_dict = {"status": "sent", "bytes": len(data), "response": "Stream TX Success"}
+                            else:
+                                status_dict = {"status": "error", "error": f"No radio available on Radio {tx_radio}"}
+                    except Exception as e:
+                        status_dict = {"status": "error", "error": str(e)}
+                    finally:
+                        # Always revert selected Radio back to stream mode to listen for telemetry
+                        r_str = f"R{tx_radio}"
+                        self._state.device.send_shell_command_full(f"lora_mode {r_str} stream")
+                        self._state.device.send_shell_command_full(f"lora_apply {r_str}")
+                        self._state.device.reset_radio_input_buffers()
+                        self._state.tx_in_progress = False
 
             return status_dict
 

@@ -1443,6 +1443,12 @@ def start_telemetry_thread(app):
 
             if gs and gs.is_hardware and gs.device:
                 # HARDWARE MODE: read from the active radio
+                # Pause RX while a telecommand is transmitting: the TX path may flip
+                # the physical radio and reset serial buffers, so reading now would
+                # grab the wrong radio or fight the TX for the port lock.
+                if getattr(gs, "tx_in_progress", False):
+                    time.sleep(0.05)
+                    continue
                 # Step 1: Read line (connection-level — fallback on failure)
                 try:
                     if not gs.device.is_connected:
