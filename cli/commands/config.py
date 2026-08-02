@@ -29,48 +29,53 @@ def config(dev, radio, freq, sf, bw, cr, power, syncword, mode, apply):
     """
     print_title(f"RADIO CONFIGURATION - RADIO {radio}")
 
-    # Select target radio
-    select_res = send_cmd(dev, f"radio{radio}")
-    print_info(f"Selecting Radio {radio}: {select_res.strip()}")
+    # Address every sub-command to the radio EXPLICITLY (R0/R1). Do NOT rely on
+    # a prior `radio{radio}` selection + implicit active-radio targeting: in
+    # satellite mode the firmware's radio_manager forces active_radio back to
+    # rx_radio on every tick (radio_manager.c), so an implicit `lora_freq <hz>`
+    # can race and land on the wrong radio (e.g. R1's 916 MHz applied to R0).
+    # The firmware accepts an optional R0|R1|ALL prefix on all lora_* commands.
+    rp = f"R{radio}"
+    print_info(f"Configuring Radio {radio} (explicit {rp} addressing)")
 
     staged = False
     if freq is not None:
-        res = send_cmd(dev, f"lora_freq {freq}")
+        res = send_cmd(dev, f"lora_freq {rp} {freq}")
         print_dim(f"Frequency        -> {freq} Hz: {res.strip()}")
         staged = True
     if sf is not None:
-        res = send_cmd(dev, f"lora_sf {sf}")
+        res = send_cmd(dev, f"lora_sf {rp} {sf}")
         print_dim(f"Spreading Factor -> SF{sf}: {res.strip()}")
         staged = True
     if bw is not None:
-        res = send_cmd(dev, f"lora_bw {bw}")
+        res = send_cmd(dev, f"lora_bw {rp} {bw}")
         print_dim(f"Bandwidth        -> {bw} kHz: {res.strip()}")
         staged = True
     if cr is not None:
-        res = send_cmd(dev, f"lora_cr {cr}")
+        res = send_cmd(dev, f"lora_cr {rp} {cr}")
         print_dim(f"Coding Rate      -> 4/{cr}: {res.strip()}")
         staged = True
     if power is not None:
-        res = send_cmd(dev, f"lora_power {power}")
+        res = send_cmd(dev, f"lora_power {rp} {power}")
         print_dim(f"Power            -> {power} dBm: {res.strip()}")
         staged = True
     if syncword is not None:
-        res = send_cmd(dev, f"lora_syncword {syncword}")
+        res = send_cmd(dev, f"lora_syncword {rp} {syncword}")
         print_dim(f"Syncword         -> {syncword}: {res.strip()}")
         staged = True
     if mode is not None:
-        res = send_cmd(dev, f"lora_mode R{radio} {mode}")
+        res = send_cmd(dev, f"lora_mode {rp} {mode}")
         print_dim(f"Mode             -> {mode}: {res.strip()}")
         staged = True
 
     if apply or staged:
         if apply:
-            apply_res = send_cmd(dev, "lora_apply")
+            apply_res = send_cmd(dev, f"lora_apply {rp}")
             print_success(f"Applying changes: {apply_res.strip()}")
         else:
             print_warning("Changes are STAGED but not yet applied. Run with --apply to write to hardware.")
     else:
-        # No staging parameters, show current config
-        cfg_res = send_cmd(dev, "lora_config")
+        # No staging parameters, show current config for this radio
+        cfg_res = send_cmd(dev, f"lora_config {rp}")
         if cfg_res:
             print_response(cfg_res.strip())
