@@ -184,10 +184,7 @@ def test_satellite_mode_mission(app, auth_client):
     assert resp.status_code == 200
     calls = [c[0][0] for c in mock_dev.send_shell_command_full.call_args_list]
     assert "mode sat" in calls
-    # Satellite uses MIXED radio modes: R1 stream (TX telemetry), R0 command
-    # (RX telecommands). `lora_mode ALL stream` would clobber R0 and break uplink.
-    assert "lora_mode R1 stream" in calls
-    assert "lora_mode R0 command" in calls
+    assert "lora_mode ALL stream" in calls
 
 
 def test_satellite_mode_ground_station(app, auth_client):
