@@ -1206,9 +1206,14 @@ def create_app(config_class=Config, db_path=None):
             gs.local_device_info["role"] = "ground_station"
             gs.local_device_info["role_label"] = "Ground Station"
         elif mode == "mission":
+            # Satellite: MIXED radio modes. R1 stream transmits telemetry/beacons;
+            # R0 command receives telecommands. A receptor must be in command mode
+            # to demodulate/parse incoming frames — `lora_mode ALL stream` would
+            # clobber R0 and the satellite would never process the uplink.
             dev.send_shell_command_full("mode sat")
-            resp = dev.send_shell_command_full("lora_mode ALL stream")
-            
+            dev.send_shell_command_full("lora_mode R1 stream")
+            resp = dev.send_shell_command_full("lora_mode R0 command")
+
             # Update cache
             gs.local_device_info["mode"] = "mission"
             gs.local_device_info["role"] = "satellite"

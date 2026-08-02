@@ -14,9 +14,15 @@ from cli.ui.output import print_info, print_success, print_warning
 # Web-app mode name -> the shell command sequence sent to the board.
 # Kept in sync with webapp/app.py api_satellite_mode().
 MODE_SEQUENCES = {
-    # Satellite / mission: radios stream telemetry.
-    "mission": ["mode sat", "lora_mode ALL stream"],
-    "sat": ["mode sat", "lora_mode ALL stream"],
+    # Satellite / mission: MIXED radio modes.
+    #   R1 stream  -> transmits telemetry/beacons (firmware auto-beacon).
+    #   R0 command -> receives telecommands. A receptor MUST be in command mode
+    #                 to demodulate/parse incoming frames (see docs
+    #                 hardware-mode-design.md:101); with R0 in stream the
+    #                 satellite never processes the uplink. Do NOT use
+    #                 `lora_mode ALL stream` here: it clobbers R0's command mode.
+    "mission": ["mode sat", "lora_mode R1 stream", "lora_mode R0 command"],
+    "sat": ["mode sat", "lora_mode R1 stream", "lora_mode R0 command"],
     # Ground station: radios in command mode (role inferred as ground station).
     "ground_station": ["mode gs", "lora_apply ALL", "lora_mode ALL command"],
     "gs": ["mode gs", "lora_apply ALL", "lora_mode ALL command"],
