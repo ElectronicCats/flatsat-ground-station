@@ -207,37 +207,6 @@ socket.on("telemetry_update", function(data) {
     addTelemetryRow(data);
 });
 
-async function loadHistory() {
-    try {
-        const resp = await fetch("/api/telemetry?limit=200");
-        if (!resp.ok) return;
-        const rows = await resp.json();
-        if (!Array.isArray(rows)) return;
-        rows.reverse().forEach(row => {
-            addTelemetryRow({
-                apid: row.apid,
-                seq_count: null,
-                raw_hex: row.raw_hex,
-                timestamp: null,
-                rssi: row.rssi,
-                snr: row.snr,
-                decoded: {
-                    temperature: row.temperature,
-                    pressure: row.pressure,
-                    humidity: row.humidity,
-                    accel_x: row.accel_x,
-                    accel_y: row.accel_y,
-                    accel_z: row.accel_z,
-                    sc_id: row.spacecraft_id,
-                },
-            }, row.timestamp, true);
-        });
-        applyFilterAndPagination();
-    } catch (e) {
-        console.error("[TM] Failed to load history:", e);
-    }
-}
-
 function clearTelemetry() {
     document.getElementById("telemetry-body").innerHTML = "";
     if (typeof pktCount !== "undefined") {
@@ -301,6 +270,16 @@ function updatePagination(totalMatched, totalPages) {
     info.textContent = "Page " + currentPage + "/" + totalPages + " | " + totalMatched + " rows" + filterNote;
     prevBtn.disabled = currentPage <= 1;
     nextBtn.disabled = currentPage >= totalPages;
+
+    // The table only ever holds packets received in this session, so an empty
+    // body means "nothing received yet" — say so instead of showing a blank box.
+    const empty = document.getElementById("tm-empty");
+    if (empty) {
+        empty.style.display = totalMatched === 0 ? "" : "none";
+        empty.textContent = totalRows > 0 && filterText
+            ? "No rows match the filter."
+            : "No packets received yet in this session.";
+    }
 }
 
 function tmPagePrev() {
@@ -321,6 +300,5 @@ function tmFilter(value) {
     applyFilterAndPagination();
 }
 
-loadHistory();
 initializeColumnControls();
 applyFilterAndPagination();
