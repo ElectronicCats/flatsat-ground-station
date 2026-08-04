@@ -13,7 +13,7 @@ def difficulty(dev, value):
     """Get or set workshop security/difficulty level"""
     if value is not None:
         output = send_cmd(dev, f"difficulty {value}")
-        print_info(output.strip())
+        print_info(output.strip() if output else f"Security Level set to {value}")
     else:
         output = send_cmd(dev, "difficulty")
-        print_info(f"Security Level: {output.strip()}")
+        print_info(f"Security Level: {output.strip() if output else '(no response)'}")
