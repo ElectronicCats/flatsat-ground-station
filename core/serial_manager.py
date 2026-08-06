@@ -112,6 +112,15 @@ def _extract_interface_number(port) -> int | None:
     return None
 
 
+def _port_sort_key(port):
+    """Sort helper to extract integers from port names (natural sorting for COM10 vs COM3)."""
+    device = getattr(port, "device", "") or ""
+    match = re.search(r"(\d+)", device)
+    if match:
+        return (0, int(match.group(1)))
+    return (1, device.lower())
+
+
 def _group_ports_by_device(ports: list) -> dict[str, list]:
     """Group ports by device serial number."""
     groups: dict[str, list] = {}
@@ -135,7 +144,7 @@ def _group_ports_by_device(ports: list) -> dict[str, list]:
 def _map_endpoints_intelligent(ports: list) -> dict[str, str]:
     """Map ports to endpoint names using multiple strategies."""
     ports_dict: dict[str, str] = {}
-    sorted_ports = sorted(ports, key=lambda p: p.device)
+    sorted_ports = sorted(ports, key=_port_sort_key)
 
     # Strategy 1: match by description string
     for port in sorted_ports:
@@ -208,12 +217,12 @@ def discover_devices() -> list[DiscoveredDevice]:
     if not cat_ports:
         return []
 
-    cat_ports.sort(key=lambda p: p.device)
+    cat_ports.sort(key=_port_sort_key)
     groups = _group_ports_by_device(cat_ports)
     devices = []
 
     for serial_num, ports in groups.items():
-        ports.sort(key=lambda p: p.device)
+        ports.sort(key=_port_sort_key)
         identity = DeviceIdentity(serial_number=serial_num)
         endpoint_map = _map_endpoints_intelligent(ports)
         devices.append(DiscoveredDevice(identity=identity, ports=endpoint_map))

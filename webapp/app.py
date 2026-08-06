@@ -616,8 +616,7 @@ def create_app(config_class=Config, db_path=None):
             time.sleep(0.5)  # Let OS release serial ports
 
         device_role = data.get("device_role", "auto")
-        # If 'auto', we default to 'gs' for safety as per original design
-        role_to_send = "satellite" if device_role == "satellite" else "gs"
+        role_to_send = device_role
 
         device = FlatSatDevice(discovered)
         connect_result = device.connect(forced_role=role_to_send)

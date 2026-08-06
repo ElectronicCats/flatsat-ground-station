@@ -4,6 +4,7 @@ Simplified from flatsatTUI/device.py: no asyncio, no command queue,
 direct serial read/write with timeouts. One device at a time.
 """
 
+import os
 import re
 import threading
 
@@ -69,7 +70,6 @@ class FlatSatDevice:
     @property
     def is_connected(self) -> bool:
         """True only if radio0 and shell are open (radio1 is optional for GS-only boards) and physical ports exist."""
-        import os
         is_mock = self._radio0 is not None and "Mock" in type(self._radio0).__name__
         for s, path in [(self._radio0, self._discovered.radio0_port), (self._shell, self._discovered.shell_port)]:
             if s is None or not s.is_open:
@@ -78,21 +78,32 @@ class FlatSatDevice:
                 return False
         return True
 
-    def connect(self, forced_role: str = "gs") -> dict[str, bool]:
+    def connect(self, forced_role: str = "auto") -> dict[str, bool]:
         """Open all serial ports. Returns {endpoint: success}.
 
         On partial failure, closes any ports that were successfully opened.
         """
+        self.disconnect()
+
+        # Gather targets
+        targets = {"radio0": self._discovered.radio0_port, "shell": self._discovered.shell_port}
+        if self.has_radio1:
+            targets["radio1"] = self._discovered.radio1_port
+
         result = {}
-        for name, port_path, attr in [
-            ("radio0", self._discovered.radio0_port, "_radio0"),
-            ("radio1", self._discovered.radio1_port, "_radio1"),
-            ("shell", self._discovered.shell_port, "_shell"),
-        ]:
-            if port_path:
+        for name, path in targets.items():
+            if path:
                 try:
+                    # In mock mode, we just pretend it succeeds
+                    is_mock = os.environ.get("FLATSAT_MOCK") == "1"
+                    if is_mock:
+                        from unittest.mock import MagicMock
+                        setattr(self, f"_{name}", MagicMock(is_open=True))
+                        result[name] = True
+                        continue
+
                     ser = serial.Serial(
-                        port_path,
+                        path,
                         BAUDRATE,
                         timeout=1.0,
                         write_timeout=1.0,
@@ -105,7 +116,7 @@ class FlatSatDevice:
                         ser.rts = True
                     except Exception:
                         pass
-                    setattr(self, attr, ser)
+                    setattr(self, f"_{name}", ser)
                     result[name] = True
                 except serial.SerialException:
                     result[name] = False
@@ -117,14 +128,15 @@ class FlatSatDevice:
             self.disconnect()
         elif self._shell and self._shell.is_open:
             self._drain_boot_banner()
-            # Force the device to the selected mode (sat or gs)
-            cmd = "mode sat" if forced_role == "satellite" else "mode gs"
-            for _attempt in range(3):
-                resp = self.send_shell_command_full(cmd, timeout=0.5)
-                if resp is not None:
-                    break
-                import time
-                time.sleep(0.1)
+            # Force the device to the selected mode (sat or gs) if not auto
+            if forced_role in ("satellite", "gs"):
+                cmd = "mode sat" if forced_role == "satellite" else "mode gs"
+                for _attempt in range(3):
+                    resp = self.send_shell_command_full(cmd, timeout=0.5)
+                    if resp is not None:
+                        break
+                    import time
+                    time.sleep(0.1)
 
         return result
 
