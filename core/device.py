@@ -196,20 +196,11 @@ class FlatSatDevice:
 
     def send_shell_command(self, cmd: str, timeout: float = 2.0) -> str | None:
         """Send command to Shell (CDC2), return first response line."""
-        if not self._shell or not self._shell.is_open:
-            return None
-        with self._shell_lock:
-            try:
-                self._shell.timeout = timeout
-                self._shell.reset_input_buffer()
-                self._shell.write(f"{cmd}\r\n".encode("ascii"))
-                self._shell.flush()
-                response = self._shell.readline()
-                if response:
-                    return response.decode("ascii", errors="ignore").strip()
-                return None
-            except Exception:
-                return None
+        resp = self.send_shell_command_full(cmd, timeout)
+        if resp:
+            lines = resp.splitlines()
+            return lines[0] if lines else None
+        return None
 
     def send_shell_command_full(self, cmd: str, timeout: float = 2.0) -> str | None:
         """Send command to Shell (CDC2), return full multi-line response."""
@@ -219,31 +210,35 @@ class FlatSatDevice:
             try:
                 import time
 
-                self._shell.timeout = 0.20  # 200ms timeout for trailing reads
+                # Use non-blocking strategy on Windows/Linux to prevent virtual COM port blocking issues
+                self._shell.timeout = 0
                 if self._shell.in_waiting > 0:
                     self._shell.read(self._shell.in_waiting)
                 self._shell.reset_input_buffer()
                 self._shell.write(f"{cmd}\r\n".encode("ascii"))
                 self._shell.flush()
 
+                # Wait for the command to execute and output to start loading
+                time.sleep(0.08)
+
                 buf = b""
                 deadline = time.time() + timeout
                 cmd_stripped = cmd.strip()
+
                 while time.time() < deadline:
                     in_wait = self._shell.in_waiting
                     if in_wait > 0:
                         chunk = self._shell.read(in_wait)
+                        if chunk:
+                            buf += chunk
+                        time.sleep(0.03) # Settle delay
                     else:
-                        chunk = self._shell.read(1)  # blocks for at most 200ms
-
-                    if chunk:
-                        buf += chunk
-                    elif buf:
-                        # Had data, now nothing more (timed out 200ms)
-                        # Only break if we have received more than just the echo
-                        current_str = buf.decode("ascii", errors="ignore").strip()
-                        if current_str != cmd_stripped:
-                            break
+                        time.sleep(0.02)
+                        # If still no data and we have received more than the command echo, we are done
+                        if self._shell.in_waiting == 0 and buf:
+                            current_str = buf.decode("ascii", errors="ignore").strip()
+                            if current_str != cmd_stripped:
+                                break
 
                 if buf:
                     return buf.decode("ascii", errors="ignore").strip()
