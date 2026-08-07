@@ -87,28 +87,21 @@ def _extract_interface_number(port) -> int | None:
     if not isinstance(hwid, str):
         hwid = ""
     hwid = hwid.upper()
-    
-    # Windows style: VID_1209&PID_BABC&MI_02
-    match = re.search(r"MI_(\d+)", hwid)
-    if match:
-        return int(match.group(1))
-        
-    # Alternate Windows / general style: MI=02
-    match = re.search(r"MI=(\d+)", hwid)
-    if match:
-        return int(match.group(1))
+    location = getattr(port, "location", "") or ""
+
+    # Windows style: USB\VID_1209&PID_BABC&MI_04\... or &MI_02 or MI=02
+    if hwid:
+        match_win = re.search(r"[&\\]MI[=_]?(\d+)", hwid, re.IGNORECASE)
+        if match_win:
+            return int(match_win.group(1))
 
     # Linux / macOS style in location or hwid: e.g. "1-7:1.2" or "LOCATION=1-7:1.2"
-    location = getattr(port, "location", "") or ""
-    if not isinstance(location, str):
-        location = ""
     for string_to_check in [location, hwid]:
         if string_to_check:
-            # Match :config.interface, e.g. :1.2 or :1.0
             match = re.search(r":\d+\.(\d+)(?:$|\s)", string_to_check)
             if match:
                 return int(match.group(1))
-                
+
     return None
 
 
@@ -156,48 +149,24 @@ def _map_endpoints_intelligent(ports: list) -> dict[str, str]:
         elif "radio1" in desc or "radio 1" in desc:
             ports_dict[ENDPOINT_RADIO1] = port.device
 
-    # Strategy 2: match by USB interface number or interface/product strings
+    # Strategy 2: Match by USB interface number (MI_00 -> Radio0, MI_02 -> Radio1, MI_04 -> Shell)
     if len(ports_dict) < 3:
-        for port in sorted_ports:
-            if port.device in ports_dict.values():
-                continue
-            
-            # Check port interface attribute
-            if hasattr(port, "interface") and port.interface:
-                desc = port.interface.lower()
-                if "shell" in desc:
-                    ports_dict[ENDPOINT_SHELL] = port.device
-                    continue
-                elif "radio0" in desc or "radio 0" in desc:
-                    ports_dict[ENDPOINT_RADIO0] = port.device
-                    continue
-                elif "radio1" in desc or "radio 1" in desc:
-                    ports_dict[ENDPOINT_RADIO1] = port.device
-                    continue
+        unmapped = [p for p in sorted_ports if p.device not in ports_dict.values()]
+        iface_ports = []
+        for p in unmapped:
+            iface = _extract_interface_number(p)
+            if iface is not None:
+                iface_ports.append((iface, p))
 
-            # Check port product attribute
-            if hasattr(port, "product") and port.product:
-                desc = port.product.lower()
-                if "shell" in desc:
-                    ports_dict[ENDPOINT_SHELL] = port.device
-                    continue
-                elif "radio0" in desc or "radio 0" in desc:
-                    ports_dict[ENDPOINT_RADIO0] = port.device
-                    continue
-                elif "radio1" in desc or "radio 1" in desc:
-                    ports_dict[ENDPOINT_RADIO1] = port.device
-                    continue
-
-            # Check raw USB interface number
-            interface_num = _extract_interface_number(port)
-            if interface_num is not None:
-                # Interface 0/1 -> Radio 0, Interface 2/3 -> Radio 1, Interface 4/5 -> Shell
-                if interface_num in (0, 1):
-                    ports_dict[ENDPOINT_RADIO0] = port.device
-                elif interface_num in (2, 3):
-                    ports_dict[ENDPOINT_RADIO1] = port.device
-                elif interface_num in (4, 5):
-                    ports_dict[ENDPOINT_SHELL] = port.device
+        if len(iface_ports) == 3:
+            iface_ports.sort(key=lambda x: x[0])
+            ports_dict[ENDPOINT_RADIO0] = iface_ports[0][1].device
+            ports_dict[ENDPOINT_RADIO1] = iface_ports[1][1].device
+            ports_dict[ENDPOINT_SHELL] = iface_ports[2][1].device
+        elif len(iface_ports) == 2:
+            iface_ports.sort(key=lambda x: x[0])
+            ports_dict[ENDPOINT_RADIO0] = iface_ports[0][1].device
+            ports_dict[ENDPOINT_SHELL] = iface_ports[1][1].device
 
     # Strategy 3: positional fallback
     if len(ports_dict) < 3:
