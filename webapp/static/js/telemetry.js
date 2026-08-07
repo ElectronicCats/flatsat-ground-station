@@ -37,6 +37,16 @@ function fmtRaw(hex) {
     return '<span style="color:#888;font-size:0.85em;">' + hex + "</span>";
 }
 
+// Coerce a value to a number and format it, falling back to "-" for
+// missing/non-finite values. Guards against a single malformed field
+// throwing (e.g. calling .toFixed on a string) and breaking the whole row.
+function num(value, digits, suffix = "") {
+    if (value === null || value === undefined || value === "") return "-";
+    const n = Number(value);
+    if (!Number.isFinite(n)) return "-";
+    return (digits != null ? n.toFixed(digits) : String(n)) + suffix;
+}
+
 function buildCell(col, value, asHtml = false) {
     const td = document.createElement("td");
     td.dataset.col = col;
@@ -115,141 +125,87 @@ socket.on("disconnect", function() {
 });
 
 function addTelemetryRow(data, recvTimeOverride, skipPagination) {
-    const d = data.decoded || {};
+    // A single malformed packet must never break the live feed: swallow and log.
+    try {
+        data = data || {};
+        const d = data.decoded || {};
+        // A frame with an APID parsed as CCSDS. Without it the backend could not
+        // decode the frame (non-CCSDS beacon, or CRC-failed/dropped) → show raw.
+        const isRaw = data.apid === undefined || data.apid === null;
 
-    const hasDecodedData = d.temperature != null
-        || d.pressure != null
-        || d.humidity != null
-        || d.accel_x != null
-        || d.sc_id != null
-        || d.solar_mv != null
-        || d.latitude != null;
+        const tbody = document.getElementById("telemetry-body");
+        if (!tbody) return;
+        const row = document.createElement("tr");
+        const now = recvTimeOverride || new Date().toLocaleTimeString();
 
-    const tbody = document.getElementById("telemetry-body");
-    const row = document.createElement("tr");
-    const now = recvTimeOverride || new Date().toLocaleTimeString();
+        const scId = d.sc_id != null ? "0x" + Number(d.sc_id).toString(16).padStart(2, "0") : "-";
 
-    if (hasDecodedData) {
         [
             ["recv_time", now],
             ["frame_ts", fmtFrameTime(data.timestamp)],
             ["apid", fmtHexApid(data.apid)],
             ["seq", fmt(data.seq_count)],
-            ["sc_id", d.sc_id != null ? "0x" + Number(d.sc_id).toString(16).padStart(2, "0") : "-"],
-            ["flight", fmtFlight(d)],
+            ["sc_id", scId],
+            ["flight", isRaw ? "-" : fmtFlight(d)],
             ["difficulty", fmt(d.difficulty)],
-            ["battery", d.battery_mv != null ? d.battery_mv + " mV" : "-"],
-            ["uptime", d.uptime != null ? d.uptime + " s" : "-"],
+            ["battery", num(d.battery_mv, 0, " mV")],
+            ["uptime", num(d.uptime, 0, " s")],
             ["tc_count", fmt(d.tc_count)],
             ["error_count", fmt(d.error_count)],
-            ["temp", d.temperature != null ? d.temperature.toFixed(2) + " C" : "-"],
-            ["pressure", d.pressure != null ? d.pressure.toFixed(1) + " hPa" : "-"],
-            ["humidity", d.humidity != null ? d.humidity + "%" : "-"],
-            ["accel_x", fmt(d.accel_x)],
-            ["accel_y", fmt(d.accel_y)],
-            ["accel_z", fmt(d.accel_z)],
-            ["solar", d.solar_mv != null ? d.solar_mv + " mV" : "-"],
-            ["current", d.current_ma != null ? d.current_ma + " mA" : "-"],
-            ["lat", d.latitude != null ? d.latitude.toFixed(6) : "-"],
-            ["lon", d.longitude != null ? d.longitude.toFixed(6) : "-"],
-            ["alt", d.altitude_m != null ? d.altitude_m.toFixed(1) + " m" : "-"],
-            ["rssi", data.rssi != null ? data.rssi + " dBm" : "-"],
-            ["snr", data.snr != null ? data.snr + " dB" : "-"],
+            ["temp", num(d.temperature, 2, " C")],
+            ["pressure", num(d.pressure, 1, " hPa")],
+            ["humidity", num(d.humidity, 0, "%")],
+            ["accel_x", num(d.accel_x, 0)],
+            ["accel_y", num(d.accel_y, 0)],
+            ["accel_z", num(d.accel_z, 0)],
+            ["solar", num(d.solar_mv, 0, " mV")],
+            ["current", num(d.current_ma, 0, " mA")],
+            ["lat", num(d.latitude, 6)],
+            ["lon", num(d.longitude, 6)],
+            ["alt", num(d.altitude_m, 1, " m")],
+            ["rssi", num(data.rssi, 0, " dBm")],
+            ["snr", num(data.snr, 0, " dB")],
             ["raw", fmtRaw(data.raw_hex), true],
         ].forEach(([col, value, asHtml]) => row.appendChild(buildCell(col, value, asHtml)));
-    } else {
-        // Raw frame (TinyGS beacons, unknown APIDs)
-        [
-            ["recv_time", now],
-            ["frame_ts", fmtFrameTime(data.timestamp)],
-            ["apid", fmtHexApid(data.apid)],
-            ["seq", fmt(data.seq_count)],
-            ["sc_id", "-"],
-            ["flight", "-"],
-            ["difficulty", "-"],
-            ["battery", "-"],
-            ["uptime", "-"],
-            ["tc_count", "-"],
-            ["error_count", "-"],
-            ["temp", "-"],
-            ["pressure", "-"],
-            ["humidity", "-"],
-            ["accel_x", "-"],
-            ["accel_y", "-"],
-            ["accel_z", "-"],
-            ["solar", "-"],
-            ["current", "-"],
-            ["lat", "-"],
-            ["lon", "-"],
-            ["alt", "-"],
-            ["rssi", data.rssi != null ? data.rssi + " dBm" : "-"],
-            ["snr", data.snr != null ? data.snr + " dB" : "-"],
-            ["raw", fmtRaw(data.raw_hex), true],
-        ].forEach(([col, value, asHtml]) => row.appendChild(buildCell(col, value, asHtml)));
-        row.style.color = "#888";
+
+        if (isRaw) {
+            row.style.color = "#888";
+            row.title = "Unparsed frame: not valid CCSDS, or CRC failed and it was dropped. Only RSSI/SNR and raw hex are available.";
+        }
+
+        tbody.insertBefore(row, tbody.firstChild);
+        applyColumnVisibility();
+
+        // Update packet counter
+        if (typeof pktCount !== "undefined") {
+            pktCount++;
+            const counter = document.getElementById("pkt-counter");
+            if (counter) counter.textContent = "| Packets: " + pktCount;
+        }
+
+        // Update last-seen time
+        const lastSeen = document.getElementById("last-seen");
+        if (lastSeen) lastSeen.textContent = "| Last: " + now;
+
+        // Update RSSI/SNR in status bar
+        if (data.rssi != null) {
+            const el = document.getElementById("hw-rssi");
+            if (el) el.textContent = " | RSSI: " + num(data.rssi, 0, " dBm") + " | SNR: " + num(data.snr, 0, " dB");
+        }
+
+        while (tbody.children.length > MAX_ROWS) {
+            tbody.removeChild(tbody.lastChild);
+        }
+
+        if (!skipPagination) applyFilterAndPagination();
+    } catch (err) {
+        console.error("[TM] Failed to render telemetry row:", err, data);
     }
-
-    tbody.insertBefore(row, tbody.firstChild);
-    applyColumnVisibility();
-
-    // Update packet counter
-    if (typeof pktCount !== "undefined") {
-        pktCount++;
-        const counter = document.getElementById("pkt-counter");
-        if (counter) counter.textContent = "| Packets: " + pktCount;
-    }
-
-    // Update last-seen time
-    const lastSeen = document.getElementById("last-seen");
-    if (lastSeen) lastSeen.textContent = "| Last: " + now;
-
-    // Update RSSI in status bar
-    if (data.rssi !== undefined) {
-        const el = document.getElementById("hw-rssi");
-        if (el) el.textContent = " | RSSI: " + data.rssi + " dBm | SNR: " + data.snr + " dB";
-    }
-
-    while (tbody.children.length > MAX_ROWS) {
-        tbody.removeChild(tbody.lastChild);
-    }
-
-    if (!skipPagination) applyFilterAndPagination();
 }
 
 socket.on("telemetry_update", function(data) {
     addTelemetryRow(data);
 });
-
-async function loadHistory() {
-    try {
-        const resp = await fetch("/api/telemetry?limit=200");
-        if (!resp.ok) return;
-        const rows = await resp.json();
-        if (!Array.isArray(rows)) return;
-        rows.reverse().forEach(row => {
-            addTelemetryRow({
-                apid: row.apid,
-                seq_count: null,
-                raw_hex: row.raw_hex,
-                timestamp: null,
-                rssi: row.rssi,
-                snr: row.snr,
-                decoded: {
-                    temperature: row.temperature,
-                    pressure: row.pressure,
-                    humidity: row.humidity,
-                    accel_x: row.accel_x,
-                    accel_y: row.accel_y,
-                    accel_z: row.accel_z,
-                    sc_id: row.spacecraft_id,
-                },
-            }, row.timestamp, true);
-        });
-        applyFilterAndPagination();
-    } catch (e) {
-        console.error("[TM] Failed to load history:", e);
-    }
-}
 
 function clearTelemetry() {
     document.getElementById("telemetry-body").innerHTML = "";
@@ -314,6 +270,16 @@ function updatePagination(totalMatched, totalPages) {
     info.textContent = "Page " + currentPage + "/" + totalPages + " | " + totalMatched + " rows" + filterNote;
     prevBtn.disabled = currentPage <= 1;
     nextBtn.disabled = currentPage >= totalPages;
+
+    // The table only ever holds packets received in this session, so an empty
+    // body means "nothing received yet" — say so instead of showing a blank box.
+    const empty = document.getElementById("tm-empty");
+    if (empty) {
+        empty.style.display = totalMatched === 0 ? "" : "none";
+        empty.textContent = totalRows > 0 && filterText
+            ? "No rows match the filter."
+            : "No packets received yet in this session.";
+    }
 }
 
 function tmPagePrev() {
@@ -334,6 +300,5 @@ function tmFilter(value) {
     applyFilterAndPagination();
 }
 
-loadHistory();
 initializeColumnControls();
 applyFilterAndPagination();

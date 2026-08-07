@@ -1,5 +1,6 @@
 """FlatSat ground station state management."""
 
+import threading
 import time
 from typing import Any
 
@@ -37,7 +38,16 @@ class GroundStationState:
         self.device: Any | None = None
         self.mock_running: bool = False
         self.difficulty: int = 0
+        # SDLS difficulty of the *remote* satellite, recovered from its heartbeats.
+        # self.difficulty is the local board's setting and can differ; the RX path
+        # must decrypt with the sender's level, not ours. None until detected.
+        self.remote_difficulty: int | None = None
         self.active_radio: int = 0
+        # Serializes the RF transmit path and lets the background RX loop pause
+        # while a telecommand is being transmitted. `active_radio` is the user's
+        # persistent selection and must NOT be repurposed as a transient TX target.
+        self.radio_tx_lock: threading.RLock = threading.RLock()
+        self.tx_in_progress: bool = False
         self.remote_satellite: dict = _empty_remote_satellite()
         self.forced_radio_mode: str = "auto"
         self.forced_device_role: str = "auto"
@@ -74,6 +84,7 @@ class GroundStationState:
         self.device = None
         self.mock_running = False
         self.difficulty = 0
+        self.remote_difficulty = None
         self.active_radio = 0
         self.reset_remote_satellite()
         self.forced_radio_mode = "auto"

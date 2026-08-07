@@ -167,7 +167,7 @@ def decode_tm_bme280(payload: bytes) -> dict:
     humidity = payload[6]
     return {
         "temp_c": temp_x100 / 100.0,
-        "pressure_hpa": press_x10 / 100.0,
+        "pressure_hpa": press_x10 / 1000.0,  # wire value is deci-Pascals
         "humidity_pct": humidity,
     }
 

@@ -1205,9 +1205,12 @@ def create_app(config_class=Config, db_path=None):
             gs.local_device_info["role"] = "ground_station"
             gs.local_device_info["role_label"] = "Ground Station"
         elif mode == "mission":
+            # Satellite: BOTH radios stream. The firmware couples role to
+            # lora_mode — a command-mode radio makes the board a ground station —
+            # so the satellite must keep R0+R1 in stream to stay a satellite.
             dev.send_shell_command_full("mode sat")
             resp = dev.send_shell_command_full("lora_mode ALL stream")
-            
+
             # Update cache
             gs.local_device_info["mode"] = "mission"
             gs.local_device_info["role"] = "satellite"
@@ -1427,7 +1430,7 @@ def start_telemetry_thread(app):
 
     import serial
 
-    from core.ccsds import parse_frame, sdls_unprotect_frame
+    from core.ccsds import detect_tm_difficulty, parse_frame, sdls_unprotect_frame
     from core.device import parse_lora_rx
     from core.telemetry import decode_tm_payload, generate_mock_telemetry
 
@@ -1442,6 +1445,12 @@ def start_telemetry_thread(app):
 
             if gs and gs.is_hardware and gs.device:
                 # HARDWARE MODE: read from the active radio
+                # Pause RX while a telecommand is transmitting: the TX path may flip
+                # the physical radio and reset serial buffers, so reading now would
+                # grab the wrong radio or fight the TX for the port lock.
+                if getattr(gs, "tx_in_progress", False):
+                    time.sleep(0.05)
+                    continue
                 # Step 1: Read line (connection-level — fallback on failure)
                 try:
                     if not gs.device.is_connected:
@@ -1490,11 +1499,38 @@ def start_telemetry_thread(app):
                                 f" rssi={parsed.get('rssi')} snr={parsed.get('snr')}"
                             )
                             raw_bytes = bytes.fromhex(parsed["data"])
-                            # SDLS: decrypt TM payload based on difficulty
-                            difficulty = getattr(gs, "difficulty", 0)
-                            if difficulty >= 2:
-                                raw_bytes = sdls_unprotect_frame(raw_bytes, difficulty)
+                            # Heartbeats carry the satellite's own SDLS level and can be
+                            # trial-decrypted against known invariants, so let them drive
+                            # the RX difficulty. Encrypt-then-CRC means a wrong level still
+                            # passes the CRC check, so we cannot rely on the local board's
+                            # setting matching the sender's.
+                            detected = detect_tm_difficulty(raw_bytes)
+                            if detected is not None and detected != getattr(gs, "remote_difficulty", None):
+                                print(
+                                    f"[RADIO{rx_radio} SDLS] satellite difficulty={detected}"
+                                    f" (local board={getattr(gs, 'difficulty', 0)})"
+                                )
+                                gs.remote_difficulty = detected
+                            difficulty = getattr(gs, "remote_difficulty", None)
+                            if difficulty is None:
+                                difficulty = getattr(gs, "difficulty", 0)
+                            # Parse the frame as received. Firmware computes the CRC *after*
+                            # encrypting the payload (encrypt-then-CRC), so the CRC must be
+                            # validated over the ciphertext — before decryption.
                             pkt = parse_frame(raw_bytes)
+                            # SDLS: recover the plaintext payload for decoding, and stay
+                            # robust to firmware that instead does CRC-over-plaintext.
+                            if pkt is not None and difficulty >= 2:
+                                dec_frame = sdls_unprotect_frame(raw_bytes, difficulty)
+                                pkt_dec = parse_frame(dec_frame)
+                                if pkt.crc_valid:
+                                    # encrypt-then-CRC: CRC authenticated the ciphertext;
+                                    # swap in the decrypted payload for decoding.
+                                    if pkt_dec is not None:
+                                        pkt.payload = pkt_dec.payload
+                                elif pkt_dec is not None and pkt_dec.crc_valid:
+                                    # CRC-over-plaintext: the decrypted frame authenticates.
+                                    pkt = pkt_dec
                             if pkt is None:
                                 print(f"[RADIO{rx_radio} CCSDS] parse_frame returned None for {len(raw_bytes)} bytes")
                             elif not pkt.crc_valid and raw_bytes[-2:] != b"\x00\x00":

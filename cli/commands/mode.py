@@ -15,6 +15,10 @@ from cli.ui.output import print_info, print_success, print_warning
 # Kept in sync with webapp/app.py api_satellite_mode().
 MODE_SEQUENCES = {
     # Satellite / mission: radios stream telemetry.
+    # NOTE: a satellite MUST keep BOTH radios in stream. The firmware couples the
+    # role to lora_mode — putting any radio in `command` makes the board behave
+    # as a ground station. So do NOT set R0 to command here to "receive"
+    # telecommands: it would flip the board out of satellite role.
     "mission": ["mode sat", "lora_mode ALL stream"],
     "sat": ["mode sat", "lora_mode ALL stream"],
     # Ground station: radios in command mode (role inferred as ground station).

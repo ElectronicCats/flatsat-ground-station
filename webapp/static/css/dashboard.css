@@ -17,6 +17,7 @@
     #tm-columns-reset { font-size:0.85em; }
     #tm-container { max-height:60vh; overflow:auto; border:1px solid #333; }
     #tm-container table { margin:0; }
+    #tm-empty { color:#888; font-size:0.9em; font-style:italic; padding:10px; }
     #telemetry-table { table-layout:fixed; font-size:0.9em; }
     #telemetry-table th, #telemetry-table td { white-space:nowrap; overflow:hidden; text-overflow:ellipsis; padding:4px 6px; }
     /* Column widths tuned to max content */

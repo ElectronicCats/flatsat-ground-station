@@ -10,11 +10,13 @@ from dataclasses import dataclass
 
 from core.constants import (
     AES_KEY_HARDCODED,
+    APID_TM_HEARTBEAT,
     CCSDS_CRC_SIZE,
     CCSDS_HDR_SIZE,
     CCSDS_MAX_PAYLOAD,
     CCSDS_SEC_HDR_SIZE,
     CCSDS_SEQ_STANDALONE,
+    CCSDS_SPACECRAFT_ID,
     CCSDS_TYPE_TC,
     CCSDS_TYPE_TM,
     CCSDS_VERSION,
@@ -136,7 +138,12 @@ def sdls_unprotect_frame(frame: bytes, difficulty: int) -> bytes:
 
     Level 0-1: plaintext.  Level 2: XOR.  Level 3+: AES-128-CTR.
     Only payload bytes are decrypted; header and CRC are untouched.
-    Firmware encrypts after CRC computation, so CRC matches plaintext.
+
+    Note: observed firmware computes the CRC *after* encrypting (encrypt-then-CRC),
+    so the CRC authenticates the ciphertext, not the plaintext. Callers should
+    therefore validate the CRC on the frame as received and use this function only
+    to recover the plaintext payload for decoding. The RX path in
+    ``webapp/app.py`` stays robust to both orderings.
     """
     if difficulty < 2:
         return frame
@@ -151,6 +158,50 @@ def sdls_unprotect_frame(frame: bytes, difficulty: int) -> bytes:
 def build_packet_id(pkt_type: int, apid: int) -> int:
     """Build 16-bit packet_id: version(3) | type(1) | sec_hdr(1) | apid(11)."""
     return ((CCSDS_VERSION & 0x7) << 13) | ((pkt_type & 0x1) << 12) | (1 << 11) | (apid & 0x7FF)
+
+
+#: Difficulty levels the TM path may have been encrypted with, most secure first.
+SDLS_DIFFICULTY_CANDIDATES = (3, 2, 1)
+
+
+def detect_tm_difficulty(frame: bytes) -> int | None:
+    """Recover the satellite's SDLS difficulty from a heartbeat frame (APID 0x001).
+
+    The ground station holds the keys but cannot read the difficulty field out of
+    an encrypted heartbeat without first knowing the difficulty. Instead of
+    guessing, trial-decrypt at each candidate level and keep the one whose
+    plaintext satisfies the heartbeat's structural invariants:
+
+      * ``sc_id`` equals CCSDS_SPACECRAFT_ID
+      * ``uptime`` equals the secondary-header timestamp (firmware assigns both
+        from the same ``k_uptime_get() / 1000`` in one loop iteration)
+      * ``flight_mode`` is in range, and the reported ``difficulty`` agrees with
+        the level that decrypted the frame
+
+    Those checks span ~40 bits, so a false positive is not a practical concern.
+    Levels 0 and 1 are both plaintext on the wire, so a single plaintext trial
+    covers them and the reported value is returned verbatim.
+
+    Returns None when the frame is not a usable heartbeat or nothing validates
+    (e.g. a difficulty the firmware gained after this code was written).
+    """
+    pkt = parse_frame(frame)
+    if pkt is None or pkt.apid != APID_TM_HEARTBEAT or len(pkt.payload) < 13:
+        return None
+
+    for level in SDLS_DIFFICULTY_CANDIDATES:
+        payload = bytearray(pkt.payload[:13])
+        if level >= 2:
+            _sdls_transform_payload(payload, level, decrypt=True, timestamp=pkt.timestamp)
+        sc_id, uptime, _battery_mv, flight_mode, difficulty = struct.unpack("<BIHBB", bytes(payload)[:9])
+        if sc_id != CCSDS_SPACECRAFT_ID or uptime != pkt.timestamp or flight_mode > 3:
+            continue
+        if level >= 2 and difficulty == level:
+            return level
+        if level < 2 and difficulty < 2:
+            # Plaintext trial: 0 and 1 are indistinguishable on the wire.
+            return difficulty
+    return None
 
 
 def parse_packet_id(packet_id: int) -> tuple[int, int, int]:

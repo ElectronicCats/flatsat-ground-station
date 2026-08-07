@@ -117,9 +117,10 @@ def parse_sensors(raw: str | None) -> dict:
     if temp_match:
         result["temperature"] = float(temp_match.group(1))
 
+    # Shell prints Pascals; the pipeline stores hPa (same unit as the TM decoder).
     press_match = re.search(r"Press:\s*(\d+)\s*Pa", raw)
     if press_match:
-        result["pressure"] = int(press_match.group(1))
+        result["pressure"] = int(press_match.group(1)) / 100.0
 
     humid_match = re.search(r"Humid:\s*(\d+)%", raw)
     if humid_match:

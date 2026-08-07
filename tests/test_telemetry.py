@@ -24,10 +24,11 @@ def test_decode_heartbeat():
 
 
 def test_decode_bme280():
-    payload = struct.pack("<hIB", 2550, 10132, 55)
+    # press_x10 is deci-Pascals: 1013250 dPa == 101325 Pa == 1013.25 hPa
+    payload = struct.pack("<hIB", 2550, 1013250, 55)
     result = decode_bme280(payload)
     assert result["temperature"] == 25.50
-    assert result["pressure"] == 1013.2
+    assert result["pressure"] == 1013.25
     assert result["humidity"] == 55
 
 

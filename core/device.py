@@ -78,10 +78,23 @@ class FlatSatDevice:
                 return False
         return True
 
-    def connect(self, forced_role: str = "auto") -> dict[str, bool]:
+    def connect(self, forced_role: str | None = None) -> dict[str, bool]:
         """Open all serial ports. Returns {endpoint: success}.
 
         On partial failure, closes any ports that were successfully opened.
+
+        ``forced_role`` controls whether connecting also changes the board's
+        operating mode:
+
+        - ``None`` (default): do NOT touch the mode. Connecting is pure I/O with
+          no side effect on the board's role — it stays in whatever mode it was
+          already in. The CLI relies on this so that querying/configuring a board
+          never silently flips it to ground station. (Each CLI command is a
+          separate process that connects and disconnects, so forcing a mode here
+          would clobber the board's role on every single command.)
+        - ``"satellite"`` / ``"gs"``: force the board into that mode after
+          connecting. Used by the webapp, which owns one persistent connection
+          and explicitly drives the board's role.
         """
         self.disconnect()
 
@@ -128,7 +141,7 @@ class FlatSatDevice:
             self.disconnect()
         elif self._shell and self._shell.is_open:
             self._drain_boot_banner()
-            # Force the device to the selected mode (sat or gs) if not auto
+            # Force the device to the selected mode (sat or gs) if explicitly requested
             if forced_role in ("satellite", "gs"):
                 cmd = "mode sat" if forced_role == "satellite" else "mode gs"
                 for _attempt in range(3):
