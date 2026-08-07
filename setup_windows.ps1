@@ -33,7 +33,7 @@ function flatsat {
     `$cli_path = "`$FLATSAT_DIR\flatsat-ground-station\flatsat_cli.py"
     `$python_path = "`$FLATSAT_DIR\flatsat-ground-station\.venv\Scripts\python.exe"
     if (Test-Path `$cli_path) {
-        & `$python_path `$cli_path `$args
+        & `$python_path `$cli_path `@args
     } else {
         Write-Host "Error: No se encontro flatsat_cli.py" -ForegroundColor Red
     }
@@ -43,7 +43,7 @@ function flatsat-tui {
     `$tui_module = "flatsatTUI"
     `$python_path = "`$FLATSAT_DIR\flat-sat-fw-interno\.venv\Scripts\python.exe"
     if (Test-Path "`$FLATSAT_DIR\flat-sat-fw-interno\flatsatTUI") {
-        & `$python_path -m `$tui_module `$args
+        & `$python_path -m `$tui_module `@args
     } else {
         Write-Host "Error: No se encontro flatsatTUI" -ForegroundColor Red
     }
@@ -54,7 +54,7 @@ function flatsat-web {
     `$python_path = "`$FLATSAT_DIR\flatsat-ground-station\.venv\Scripts\python.exe"
     if (Test-Path "`$app_path\webapp") {
         Set-Location `$app_path
-        & `$python_path -m webapp.app `$args
+        & `$python_path -m webapp.app `@args
     } else {
         Write-Host "Error: No se encontro la carpeta de la webapp" -ForegroundColor Red
     }
