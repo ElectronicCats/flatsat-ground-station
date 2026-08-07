@@ -2,10 +2,19 @@
 
 Discovers FlatSat devices by VID/PID (0x1209:0xBABC), groups 3 CDC
 endpoints per device by serial number, and maps them to Radio0/Radio1/Shell.
-Adapted from flatsatTUI/discovery.py.
+
+Port-mapping logic mirrors catnip (CatSniffer-Tools/catnip/modules/core/usb_connection.py)
+which is the reference implementation that works reliably on Windows 11.
+
+Cross-platform notes:
+    Linux   — location field always present; description may contain role name.
+    macOS   — location field present; description may be generic.
+    Windows — location may be absent for some interfaces; MI_ in HWID is used.
+              Strategies 1 and 2 are preferred; positional fallback is last resort.
 """
 
 import re
+import sys
 from dataclasses import dataclass, field
 
 import serial.tools.list_ports
@@ -18,6 +27,25 @@ from core.constants import (
     USB_VID,
     DeviceHealth,
 )
+
+# ── USB interface index → endpoint role ─────────────────────────────────────
+# Each CDC-ACM instance occupies 2 USB interfaces (data + control), so the
+# communication interface numbers are 0, 2, 4 — matching catnip's _INTF_TO_ROLE.
+_INTF_TO_ENDPOINT = {0: ENDPOINT_RADIO0, 2: ENDPOINT_RADIO1, 4: ENDPOINT_SHELL}
+
+# ── Description keyword → endpoint role ─────────────────────────────────────
+_DESC_TO_ENDPOINT = {
+    "shell":   ENDPOINT_SHELL,
+    "radio0":  ENDPOINT_RADIO0,
+    "radio 0": ENDPOINT_RADIO0,
+    "radio1":  ENDPOINT_RADIO1,
+    "radio 1": ENDPOINT_RADIO1,
+}
+
+
+# ════════════════════════════════════════════════════════════════════════════ #
+# Data models                                                                  #
+# ════════════════════════════════════════════════════════════════════════════ #
 
 
 @dataclass(frozen=True)
@@ -73,117 +101,13 @@ class DiscoveredDevice:
         return all([self.radio0_port, self.radio1_port, self.shell_port])
 
 
-def _extract_serial_number(hwid: str) -> str | None:
-    """Extract serial number from hwid string (SER=XXXX pattern)."""
-    if not hwid:
-        return None
-    match = re.search(r"SER=([A-Za-z0-9]+)", hwid)
-    return match.group(1) if match else None
-
-
-def _extract_interface_number(port) -> int | None:
-    """Extract USB interface number from port attributes."""
-    hwid = getattr(port, "hwid", "") or ""
-    if not isinstance(hwid, str):
-        hwid = ""
-    hwid = hwid.upper()
-    location = getattr(port, "location", "") or ""
-
-    # Windows style: USB\VID_1209&PID_BABC&MI_04\... or &MI_02 or MI=02
-    if hwid:
-        match_win = re.search(r"[&\\]MI[=_]?(\d+)", hwid, re.IGNORECASE)
-        if match_win:
-            return int(match_win.group(1))
-
-    # Linux / macOS style in location or hwid: e.g. "1-7:1.2" or "LOCATION=1-7:1.2"
-    for string_to_check in [location, hwid]:
-        if string_to_check:
-            match = re.search(r":\d+\.(\d+)(?:$|\s)", string_to_check)
-            if match:
-                return int(match.group(1))
-
-    return None
-
-
-def _port_sort_key(port):
-    """Sort helper to extract integers from port names (natural sorting for COM10 vs COM3)."""
-    device = getattr(port, "device", "") or ""
-    match = re.search(r"(\d+)", device)
-    if match:
-        return (0, int(match.group(1)))
-    return (1, device.lower())
-
-
-def _group_ports_by_device(ports: list) -> dict[str, list]:
-    """Group ports by device serial number."""
-    groups: dict[str, list] = {}
-    for port in ports:
-        serial_num = getattr(port, "serial_number", None)
-        if serial_num and isinstance(serial_num, str):
-            serial_num = serial_num.strip()
-        else:
-            serial_num = None
-
-        if not serial_num:
-            serial_num = _extract_serial_number(port.hwid) if port.hwid else None
-        if not serial_num and hasattr(port, "location") and port.location:
-            serial_num = f"loc-{port.location}"
-        if not serial_num:
-            serial_num = f"unknown-{port.device}"
-        groups.setdefault(serial_num, []).append(port)
-    return groups
-
-
-def _map_endpoints_intelligent(ports: list) -> dict[str, str]:
-    """Map ports to endpoint names using multiple strategies."""
-    ports_dict: dict[str, str] = {}
-    sorted_ports = sorted(ports, key=_port_sort_key)
-
-    # Strategy 1: match by description string
-    for port in sorted_ports:
-        desc = (port.description or "").lower()
-        if "shell" in desc:
-            ports_dict[ENDPOINT_SHELL] = port.device
-        elif "radio0" in desc or "radio 0" in desc:
-            ports_dict[ENDPOINT_RADIO0] = port.device
-        elif "radio1" in desc or "radio 1" in desc:
-            ports_dict[ENDPOINT_RADIO1] = port.device
-
-    # Strategy 2: Match by USB interface number (MI_00 -> Radio0, MI_02 -> Radio1, MI_04 -> Shell)
-    if len(ports_dict) < 3:
-        unmapped = [p for p in sorted_ports if p.device not in ports_dict.values()]
-        iface_ports = []
-        for p in unmapped:
-            iface = _extract_interface_number(p)
-            if iface is not None:
-                iface_ports.append((iface, p))
-
-        if len(iface_ports) == 3:
-            iface_ports.sort(key=lambda x: x[0])
-            ports_dict[ENDPOINT_RADIO0] = iface_ports[0][1].device
-            ports_dict[ENDPOINT_RADIO1] = iface_ports[1][1].device
-            ports_dict[ENDPOINT_SHELL] = iface_ports[2][1].device
-        elif len(iface_ports) == 2:
-            iface_ports.sort(key=lambda x: x[0])
-            ports_dict[ENDPOINT_RADIO0] = iface_ports[0][1].device
-            ports_dict[ENDPOINT_SHELL] = iface_ports[1][1].device
-
-    # Strategy 3: positional fallback
-    if len(ports_dict) < 3:
-        fallback = {0: ENDPOINT_RADIO0, 1: ENDPOINT_RADIO1, 2: ENDPOINT_SHELL}
-        for i, port in enumerate(sorted_ports[:3]):
-            name = fallback.get(i)
-            if name and name not in ports_dict:
-                ports_dict[name] = port.device
-
-    return ports_dict
-
-
-import sys
+# ════════════════════════════════════════════════════════════════════════════ #
+# Internal helpers                                                              #
+# ════════════════════════════════════════════════════════════════════════════ #
 
 
 def _is_flatsat_port(p) -> bool:
-    """Check if a serial port belongs to a FlatSat / CatSniffer device."""
+    """Check if a serial port belongs to a FlatSat device by VID/PID or string signatures."""
     if getattr(p, "vid", None) == USB_VID and getattr(p, "pid", None) == USB_PID:
         return True
     hwid = (getattr(p, "hwid", "") or "").upper()
@@ -198,17 +122,158 @@ def _is_flatsat_port(p) -> bool:
 
 
 def _normalize_port_path(path: str) -> str:
-    """Normalize Windows COM port paths, ensuring COM10+ uses the \\\\.\\COMx prefix."""
+    """Normalize Windows COM port paths — COM10+ must use the \\\\.\\COMx prefix."""
     if sys.platform == "win32" and path:
         path_upper = path.upper()
         if path_upper.startswith("COM") and not path_upper.startswith(r"\\.\COM"):
             try:
-                port_num = int(path_upper[3:])
-                if port_num >= 10:
+                if int(path_upper[3:]) >= 10:
                     return rf"\\.\{path_upper}"
             except ValueError:
                 pass
     return path
+
+
+def _port_sort_key(port):
+    """Natural sort on port device name (COM3 < COM10 < COM11)."""
+    device = getattr(port, "device", "") or ""
+    m = re.search(r"(\d+)", device)
+    return (0, int(m.group(1))) if m else (1, device.lower())
+
+
+def _extract_serial_number(hwid: str) -> str | None:
+    """Extract serial number from HWID string (SER=XXXX or SER:XXXX)."""
+    if not hwid:
+        return None
+    m = re.search(r"SER[=:]([A-Fa-f0-9]+)", hwid)
+    return m.group(1) if m else None
+
+
+def _group_ports_by_device(cat_ports: list) -> dict[str, list]:
+    """Group pyserial ListPortInfo entries by physical device.
+
+    Key priority (mirrors catnip _group_ports_by_device):
+        1. SER= serial number from HWID string.
+        2. port.serial_number attribute.
+        3. USB location *prefix* (bus-hub.port part before the first ':').
+           Using only the prefix is critical — the interface index after ':'
+           differs per port, so using the full string creates one group per port.
+    """
+    groups: dict[str, list] = {}
+
+    for port in cat_ports:
+        key = "unknown"
+
+        if port.hwid:
+            m = re.search(r"SER[=:]([A-Fa-f0-9]+)", port.hwid)
+            if m:
+                key = m.group(1)
+            elif port.serial_number:
+                key = port.serial_number
+        elif port.serial_number:
+            key = port.serial_number
+
+        # Location fallback — only the prefix before ':' so all interfaces of
+        # the same device share the same key.
+        if key == "unknown" and port.location and ":" in port.location:
+            key = port.location.split(":")[0]
+
+        # Last resort: unique per port (device won't be "complete" but won't crash)
+        if key == "unknown":
+            key = f"unknown-{port.device}"
+
+        groups.setdefault(key, []).append(port)
+
+    return groups
+
+
+def _map_endpoints(ports: list) -> dict[str, str]:
+    """Map a group of same-device ports to {endpoint_name: device_path}.
+
+    Four strategies in order (mirrors catnip _map_roles):
+
+    1a. Description substring match ('shell', 'radio0', 'radio 0', etc.)
+    1b. pyserial 'interface' attribute substring match.
+    1c. LOCATION= embedded in HWID string  — the format PySerial uses on Windows:
+        'USB VID:PID=1209:BABC SER=... LOCATION=bus-hub:x.N'
+        where N is the USB interface index (0, 2, 4).
+    2.  port.location field interface index ('bus-port:config.N' → N).
+    3.  Positional fallback on sorted device path (Radio0, Radio1, Shell order).
+    """
+    result: dict[str, str] = {}
+
+    # Strategy 1a — description substring
+    for port in ports:
+        desc = (port.description or "").lower()
+        for kw, ep in _DESC_TO_ENDPOINT.items():
+            if kw in desc and ep not in result:
+                result[ep] = port.device
+                break
+
+    # Strategy 1b — pyserial 'interface' attribute
+    if len(result) < 3:
+        _intf_kw = {
+            "shell":  ENDPOINT_SHELL,
+            "radio0": ENDPOINT_RADIO0,
+            "radio1": ENDPOINT_RADIO1,
+            "lora":   ENDPOINT_RADIO0,   # CatSniffer LoRa → Radio0 fallback
+            "bridge": ENDPOINT_RADIO1,   # CatSniffer Bridge → Radio1 fallback
+        }
+        for port in ports:
+            intf_name = (getattr(port, "interface", None) or "").lower()
+            for kw, ep in _intf_kw.items():
+                if kw in intf_name and ep not in result:
+                    result[ep] = port.device
+                    break
+
+    # Strategy 1c — LOCATION= field embedded inside HWID (Windows PySerial format)
+    # e.g. "USB VID:PID=1209:BABC SER=E6616408... LOCATION=1-2:x.4"
+    # The interface number after the final '.' is the USB interface index.
+    if len(result) < 3:
+        for port in ports:
+            if not port.hwid:
+                continue
+            m = re.search(r"LOCATION=\S+:(?:\w+)\.(\d+)", port.hwid, re.IGNORECASE)
+            if m:
+                ep = _INTF_TO_ENDPOINT.get(int(m.group(1)))
+                if ep and ep not in result:
+                    result[ep] = port.device
+
+    # Strategy 2 — port.location interface index
+    if len(result) < 3:
+        for port in ports:
+            if not (port.location and ":" in port.location):
+                continue
+            try:
+                intf_idx = int(port.location.split(":")[-1].split(".")[-1])
+                ep = _INTF_TO_ENDPOINT.get(intf_idx)
+                if ep and ep not in result:
+                    result[ep] = port.device
+            except (ValueError, IndexError):
+                pass
+
+    # Strategy 3 — positional fallback (sorted COM name)
+    if len(result) < 3:
+        role_order = [ENDPOINT_RADIO0, ENDPOINT_RADIO1, ENDPOINT_SHELL]
+        used_paths = set(result.values())
+        role_idx = 0
+        for port in sorted(ports, key=_port_sort_key):
+            if port.device in used_paths:
+                continue
+            while role_idx < len(role_order) and role_order[role_idx] in result:
+                role_idx += 1
+            if role_idx >= len(role_order):
+                break
+            result[role_order[role_idx]] = port.device
+            used_paths.add(port.device)
+            role_idx += 1
+
+    return result
+
+
+# ════════════════════════════════════════════════════════════════════════════ #
+# Public API                                                                    #
+# ════════════════════════════════════════════════════════════════════════════ #
 
 
 def discover_devices() -> list[DiscoveredDevice]:
@@ -222,11 +287,11 @@ def discover_devices() -> list[DiscoveredDevice]:
     groups = _group_ports_by_device(cat_ports)
     devices = []
 
-    for serial_num, ports in groups.items():
+    for _key, ports in sorted(groups.items()):
         ports.sort(key=_port_sort_key)
-        identity = DeviceIdentity(serial_number=serial_num)
-        endpoint_map = _map_endpoints_intelligent(ports)
-        # Normalize COM port paths for Windows (COM10+)
+        identity = DeviceIdentity(serial_number=_key)
+        endpoint_map = _map_endpoints(ports)
+        # Normalize COM port paths for Windows (COM10+ → \\.\ prefix)
         normalized_map = {k: _normalize_port_path(v) for k, v in endpoint_map.items()}
         devices.append(DiscoveredDevice(identity=identity, ports=normalized_map))
 

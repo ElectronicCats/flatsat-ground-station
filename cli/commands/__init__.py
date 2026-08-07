@@ -12,6 +12,7 @@ from .cmd import cmd
 from .color import color
 from .completion import completion
 from .config import config
+from .console import console
 from .devices import devices
 from .difficulty import difficulty
 from .flight import flight
@@ -26,6 +27,7 @@ from .transmit import transmit
 
 COMMANDS = [
     devices,
+    console,
     status,
     sensors,
     mode,

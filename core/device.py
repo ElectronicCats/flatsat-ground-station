@@ -213,40 +213,51 @@ class FlatSatDevice:
         return None
 
     def send_shell_command_full(self, cmd: str, timeout: float = 2.0) -> str | None:
-        """Send command to Shell (CDC2), return full multi-line response."""
+        """Send command to Shell (CDC2), return full multi-line response.
+
+        Uses the same algorithm as catnip's ShellConnection.send_command:
+        - port timeout = 1.0 s  (blocking read, works with usbser.sys on Windows 11)
+        - poll in_waiting every 20 ms to drain available bytes
+        - exit when 150 ms of silence after last received byte (catnip _SILENCE_S)
+        This avoids the in_waiting=0 bug when timeout=0 on Windows usbser.sys.
+        """
         if not self._shell or not self._shell.is_open:
             return None
         with self._shell_lock:
             try:
                 import time
 
-                # Set 0.1s timeout for Windows usbser.sys driver compatibility (timeout=0 breaks in_waiting on Win11)
-                self._shell.timeout = 0.1
+                _SILENCE_S = 0.15  # 150 ms silence window — same as catnip
+
+                self._shell.timeout = 1.0  # blocking read; usbser.sys needs non-zero
                 self._shell.reset_input_buffer()
+                self._shell.reset_output_buffer()
                 self._shell.write(f"{cmd}\r\n".encode("ascii"))
                 self._shell.flush()
 
                 buf = b""
-                deadline = time.time() + timeout
+                deadline = time.monotonic() + timeout
+                last_rx = None
 
-                while time.time() < deadline:
-                    chunk = self._shell.read(1024)
-                    if chunk:
-                        buf += chunk
+                while time.monotonic() < deadline:
+                    waiting = self._shell.in_waiting
+                    if waiting:
+                        buf += self._shell.read(waiting)
+                        last_rx = time.monotonic()
+                        time.sleep(0.02)
                     else:
-                        # If we already received data and a 0.1s read interval timed out with no new bytes, command output is complete
-                        if buf:
+                        if last_rx is not None and (time.monotonic() - last_rx) >= _SILENCE_S:
                             break
+                        time.sleep(0.02)
 
                 if buf:
                     decoded = buf.decode("ascii", errors="ignore").strip()
-                    # Filter out background telemetry lines (RX: / FSK RX:) from the command output
-                    filtered_lines = []
-                    for line in decoded.splitlines():
-                        line_stripped = line.strip()
-                        if line_stripped.startswith("RX:") or line_stripped.startswith("FSK RX:"):
-                            continue
-                        filtered_lines.append(line)
+                    # Filter out background telemetry lines (RX: / FSK RX:)
+                    filtered_lines = [
+                        line for line in decoded.splitlines()
+                        if not line.strip().startswith("RX:")
+                        and not line.strip().startswith("FSK RX:")
+                    ]
                     return "\n".join(filtered_lines).strip()
                 return None
             except Exception:
