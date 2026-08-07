@@ -210,10 +210,42 @@ def _map_endpoints_intelligent(ports: list) -> dict[str, str]:
     return ports_dict
 
 
+import sys
+
+
+def _is_flatsat_port(p) -> bool:
+    """Check if a serial port belongs to a FlatSat / CatSniffer device."""
+    if getattr(p, "vid", None) == USB_VID and getattr(p, "pid", None) == USB_PID:
+        return True
+    hwid = (getattr(p, "hwid", "") or "").upper()
+    if "1209" in hwid and "BABC" in hwid:
+        return True
+    desc = (getattr(p, "description", "") or "").upper()
+    prod = (getattr(p, "product", "") or "").upper()
+    for kw in ("FLATSAT", "CATSNIFFER", "ELECTRONIC CATS", "CAT-SHELL", "CAT-RADIO"):
+        if kw in desc or kw in prod:
+            return True
+    return False
+
+
+def _normalize_port_path(path: str) -> str:
+    """Normalize Windows COM port paths, ensuring COM10+ uses the \\\\.\\COMx prefix."""
+    if sys.platform == "win32" and path:
+        path_upper = path.upper()
+        if path_upper.startswith("COM") and not path_upper.startswith(r"\\.\COM"):
+            try:
+                port_num = int(path_upper[3:])
+                if port_num >= 10:
+                    return rf"\\.\{path_upper}"
+            except ValueError:
+                pass
+    return path
+
+
 def discover_devices() -> list[DiscoveredDevice]:
-    """Discover all connected FlatSat devices by VID/PID."""
+    """Discover all connected FlatSat devices by VID/PID and string signatures."""
     all_ports = list(serial.tools.list_ports.comports())
-    cat_ports = [p for p in all_ports if p.vid == USB_VID and p.pid == USB_PID]
+    cat_ports = [p for p in all_ports if _is_flatsat_port(p)]
     if not cat_ports:
         return []
 
@@ -225,6 +257,8 @@ def discover_devices() -> list[DiscoveredDevice]:
         ports.sort(key=_port_sort_key)
         identity = DeviceIdentity(serial_number=serial_num)
         endpoint_map = _map_endpoints_intelligent(ports)
-        devices.append(DiscoveredDevice(identity=identity, ports=endpoint_map))
+        # Normalize COM port paths for Windows (COM10+)
+        normalized_map = {k: _normalize_port_path(v) for k, v in endpoint_map.items()}
+        devices.append(DiscoveredDevice(identity=identity, ports=normalized_map))
 
     return devices

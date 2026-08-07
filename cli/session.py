@@ -130,10 +130,19 @@ def with_device(func):
 def send_cmd(dev, cmd):
     """Send a shell command and return the response with the echo stripped."""
     resp = dev.send_shell_command_full(cmd)
-    if resp:
-        resp = resp.strip()
-        cmd_stripped = cmd.strip()
-        if resp.startswith(cmd_stripped):
-            resp = resp[len(cmd_stripped) :].strip()
-        return resp
-    return None
+    if not resp:
+        return None
+
+    resp = resp.strip()
+    cmd_stripped = cmd.strip()
+
+    # Split into lines to strip echo cleanly across Windows/Linux line endings
+    lines = resp.splitlines()
+    if not lines:
+        return ""
+
+    first_line_clean = lines[0].strip()
+    if first_line_clean == cmd_stripped or first_line_clean.startswith(cmd_stripped):
+        lines = lines[1:]
+
+    return "\n".join(lines).strip()

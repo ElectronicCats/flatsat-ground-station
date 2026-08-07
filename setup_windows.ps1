@@ -32,31 +32,41 @@ $CodeBlock = @"
 function flatsat {
     `$cli_path = "`$FLATSAT_DIR\flatsat-ground-station\flatsat_cli.py"
     `$python_path = "`$FLATSAT_DIR\flatsat-ground-station\.venv\Scripts\python.exe"
-    if (Test-Path `$cli_path) {
-        & `$python_path `$cli_path `@args
+    if (-not (Test-Path -LiteralPath "`$python_path")) {
+        `$python_path = "python"
+    }
+    if (Test-Path -LiteralPath "`$cli_path") {
+        & `$python_path "`$cli_path" `@args
     } else {
-        Write-Host "Error: No se encontro flatsat_cli.py" -ForegroundColor Red
+        Write-Host "Error: No se encontro flatsat_cli.py en `$cli_path" -ForegroundColor Red
     }
 }
 
 function flatsat-tui {
-    `$tui_module = "flatsatTUI"
+    `$tui_path = "`$FLATSAT_DIR\flat-sat-fw-interno"
     `$python_path = "`$FLATSAT_DIR\flat-sat-fw-interno\.venv\Scripts\python.exe"
-    if (Test-Path "`$FLATSAT_DIR\flat-sat-fw-interno\flatsatTUI") {
-        & `$python_path -m `$tui_module `@args
+    if (-not (Test-Path -LiteralPath "`$python_path")) {
+        `$python_path = "python"
+    }
+    if (Test-Path -LiteralPath "`$tui_path\flatsatTUI") {
+        Set-Location -LiteralPath "`$tui_path"
+        & `$python_path -m flatsatTUI `@args
     } else {
-        Write-Host "Error: No se encontro flatsatTUI" -ForegroundColor Red
+        Write-Host "Error: No se encontro flatsatTUI en `$tui_path" -ForegroundColor Red
     }
 }
 
 function flatsat-web {
     `$app_path = "`$FLATSAT_DIR\flatsat-ground-station"
     `$python_path = "`$FLATSAT_DIR\flatsat-ground-station\.venv\Scripts\python.exe"
-    if (Test-Path "`$app_path\webapp") {
-        Set-Location `$app_path
+    if (-not (Test-Path -LiteralPath "`$python_path")) {
+        `$python_path = "python"
+    }
+    if (Test-Path -LiteralPath "`$app_path\webapp") {
+        Set-Location -LiteralPath "`$app_path"
         & `$python_path -m webapp.app `@args
     } else {
-        Write-Host "Error: No se encontro la carpeta de la webapp" -ForegroundColor Red
+        Write-Host "Error: No se encontro la carpeta de la webapp en `$app_path" -ForegroundColor Red
     }
 }
 Write-Host "🚀 Atajos de FlatSat cargados exitosamente (flatsat, flatsat-tui, flatsat-web)" -ForegroundColor Green
