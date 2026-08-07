@@ -241,7 +241,15 @@ class FlatSatDevice:
                                 break
 
                 if buf:
-                    return buf.decode("ascii", errors="ignore").strip()
+                    decoded = buf.decode("ascii", errors="ignore").strip()
+                    # Filter out background telemetry lines (RX: / FSK RX:) from the command output
+                    filtered_lines = []
+                    for line in decoded.splitlines():
+                        line_stripped = line.strip()
+                        if line_stripped.startswith("RX:") or line_stripped.startswith("FSK RX:"):
+                            continue
+                        filtered_lines.append(line)
+                    return "\n".join(filtered_lines).strip()
                 return None
             except Exception:
                 return None
