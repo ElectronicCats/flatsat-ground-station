@@ -205,7 +205,11 @@ def create_app(config_class=Config, db_path=None):
                 return {"error": "Command timed out"}, 408
         else:
             # SECURE: Restricted commands - Hard mode
-            allowed_cmds = ["uptime", "id", "whoami"]
+            import sys
+            if sys.platform == "win32":
+                allowed_cmds = ["systeminfo", "whoami", "ipconfig"]
+            else:
+                allowed_cmds = ["uptime", "id", "whoami"]
             if cmd not in allowed_cmds:
                 return {"error": "Command not allowed in high-security mode"}, 403
             try:

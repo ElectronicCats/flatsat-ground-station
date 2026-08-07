@@ -74,8 +74,15 @@ class FlatSatDevice:
         for s, path in [(self._radio0, self._discovered.radio0_port), (self._shell, self._discovered.shell_port)]:
             if s is None or not s.is_open:
                 return False
-            if not is_mock and path and path.startswith("/dev/") and not os.path.exists(path):
-                return False
+            if not is_mock and path:
+                if path.startswith("/dev/"):
+                    if not os.path.exists(path):
+                        return False
+                elif sys.platform == "win32":
+                    import serial.tools.list_ports
+                    active_ports = [p.device for p in serial.tools.list_ports.comports()]
+                    if path not in active_ports:
+                        return False
         return True
 
     def connect(self, forced_role: str | None = None) -> dict[str, bool]:
@@ -183,9 +190,11 @@ class FlatSatDevice:
                 pass
 
     def disconnect(self):
-        """Close all serial ports, holding all locks to prevent races."""
-        with self._radio0_lock, self._radio1_lock, self._shell_lock:
-            for attr in ["_radio0", "_radio1", "_shell"]:
+        """Close all serial ports, locking individually to prevent races and deadlocks."""
+        for attr, lock in [("_radio0", self._radio0_lock), 
+                           ("_radio1", self._radio1_lock), 
+                           ("_shell", self._shell_lock)]:
+            with lock:
                 ser = getattr(self, attr, None)
                 if ser and ser.is_open:
                     try:
@@ -212,8 +221,6 @@ class FlatSatDevice:
 
                 # Use non-blocking strategy on Windows/Linux to prevent virtual COM port blocking issues
                 self._shell.timeout = 0
-                if self._shell.in_waiting > 0:
-                    self._shell.read(self._shell.in_waiting)
                 self._shell.reset_input_buffer()
                 self._shell.write(f"{cmd}\r\n".encode("ascii"))
                 self._shell.flush()
@@ -325,7 +332,7 @@ class FlatSatDevice:
                     return line.decode("ascii", errors="ignore").strip()
                 return None
             except (serial.SerialException, OSError):
-                raise
+                return None
             except Exception:
                 return None
 
