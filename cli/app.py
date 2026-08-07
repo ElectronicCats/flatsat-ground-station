@@ -9,6 +9,14 @@ prints the header before dispatching.
 import os
 import sys
 
+# Force UTF-8 encoding on Windows to prevent UnicodeEncodeError in terminals with legacy code pages
+if sys.platform == "win32":
+    try:
+        sys.stdout.reconfigure(encoding="utf-8")
+        sys.stderr.reconfigure(encoding="utf-8")
+    except Exception:
+        pass
+
 import click
 
 from cli import __version__, commands
