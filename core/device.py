@@ -220,36 +220,23 @@ class FlatSatDevice:
             try:
                 import time
 
-                # Use non-blocking strategy on Windows/Linux to prevent virtual COM port blocking issues
-                self._shell.timeout = 0
+                # Set 0.1s timeout for Windows usbser.sys driver compatibility (timeout=0 breaks in_waiting on Win11)
+                self._shell.timeout = 0.1
                 self._shell.reset_input_buffer()
                 self._shell.write(f"{cmd}\r\n".encode("ascii"))
                 self._shell.flush()
 
-                # Wait for the command to execute and output to start loading
-                time.sleep(0.08)
-
                 buf = b""
                 deadline = time.time() + timeout
-                cmd_stripped = cmd.strip()
 
-                silence = 0.0
                 while time.time() < deadline:
-                    in_wait = self._shell.in_waiting
-                    if in_wait > 0:
-                        silence = 0.0
-                        chunk = self._shell.read(in_wait)
-                        if chunk:
-                            buf += chunk
-                        time.sleep(0.03) # Settle delay
+                    chunk = self._shell.read(1024)
+                    if chunk:
+                        buf += chunk
                     else:
-                        time.sleep(0.02)
-                        silence += 0.02
-                        # If silent for at least 100ms and we have data, check if we received more than the echo
-                        if silence >= 0.10 and buf:
-                            current_str = buf.decode("ascii", errors="ignore").strip()
-                            if current_str != cmd_stripped:
-                                break
+                        # If we already received data and a 0.1s read interval timed out with no new bytes, command output is complete
+                        if buf:
+                            break
 
                 if buf:
                     decoded = buf.decode("ascii", errors="ignore").strip()
