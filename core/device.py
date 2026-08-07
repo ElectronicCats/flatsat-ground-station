@@ -6,6 +6,7 @@ direct serial read/write with timeouts. One device at a time.
 
 import os
 import re
+import sys
 import threading
 
 import serial
@@ -232,17 +233,20 @@ class FlatSatDevice:
                 deadline = time.time() + timeout
                 cmd_stripped = cmd.strip()
 
+                silence = 0.0
                 while time.time() < deadline:
                     in_wait = self._shell.in_waiting
                     if in_wait > 0:
+                        silence = 0.0
                         chunk = self._shell.read(in_wait)
                         if chunk:
                             buf += chunk
                         time.sleep(0.03) # Settle delay
                     else:
                         time.sleep(0.02)
-                        # If still no data and we have received more than the command echo, we are done
-                        if self._shell.in_waiting == 0 and buf:
+                        silence += 0.02
+                        # If silent for at least 100ms and we have data, check if we received more than the echo
+                        if silence >= 0.10 and buf:
                             current_str = buf.decode("ascii", errors="ignore").strip()
                             if current_str != cmd_stripped:
                                 break

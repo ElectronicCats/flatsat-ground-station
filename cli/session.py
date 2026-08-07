@@ -104,7 +104,6 @@ def with_device(func):
         def color(dev, r): ...
     """
 
-    @functools.wraps(func)
     @click.pass_context
     def wrapper(ctx, *args, device=None, port=None, **kwargs):
         opts = ctx.obj or {}
@@ -116,6 +115,12 @@ def with_device(func):
             return func(dev, *args, **kwargs)
         finally:
             dev.disconnect()
+
+    wrapper = functools.update_wrapper(wrapper, func)
+    try:
+        del wrapper.__wrapped__
+    except AttributeError:
+        pass
 
     wrapper = click.option("-p", "--port", default=None, help=PORT_HELP)(wrapper)
     wrapper = click.option("-d", "--device", default=None, help=DEVICE_HELP)(wrapper)
