@@ -164,31 +164,53 @@ class FlatSatDevice:
     def _drain_boot_banner(self):
         """Drain firmware boot text from shell before sending real commands.
 
-        The updated DUAL firmware defaults to GS mode at boot so no sat_telem
-        interference; the 1 s USB settle delay in the firmware is the main wait.
-        We allow 50 ms for USB CDC to settle, then drain whatever boot text
-        arrived and sync the shell parser.
+        Uses catnip-identical silence window (150ms) instead of a fixed sleep
+        + in_waiting check, which fails on Windows 11 usbser.sys because
+        in_waiting stays 0 immediately after sleep even when bytes have arrived.
         """
         import time
 
+        _SILENCE_S = 0.15
+
         with self._shell_lock:
             try:
-                # Wait for USB CDC setup and firmware init to settle (800ms)
+                # Give USB CDC and firmware time to enumerate and emit boot text
                 time.sleep(0.8)
-                # Drain all boot text
-                if self._shell.in_waiting:
-                    self._shell.read(self._shell.in_waiting)
+                # Drain boot text with catnip silence window
+                deadline = time.monotonic() + 2.0
+                last_rx = None
+                while time.monotonic() < deadline:
+                    waiting = self._shell.in_waiting
+                    if waiting:
+                        self._shell.read(waiting)
+                        last_rx = time.monotonic()
+                        time.sleep(0.02)
+                    else:
+                        if last_rx is not None and (time.monotonic() - last_rx) >= _SILENCE_S:
+                            break
+                        time.sleep(0.02)
                 self._shell.reset_input_buffer()
                 # Send bare newline to sync shell parser
                 self._shell.write(b"\r\n")
                 self._shell.flush()
                 time.sleep(0.05)
-                # Drain the shell's response to the empty line
-                if self._shell.in_waiting:
-                    self._shell.read(self._shell.in_waiting)
+                # Drain the shell's response to the empty line (silence window)
+                deadline2 = time.monotonic() + 0.5
+                last_rx2 = None
+                while time.monotonic() < deadline2:
+                    waiting = self._shell.in_waiting
+                    if waiting:
+                        self._shell.read(waiting)
+                        last_rx2 = time.monotonic()
+                        time.sleep(0.02)
+                    else:
+                        if last_rx2 is not None and (time.monotonic() - last_rx2) >= _SILENCE_S:
+                            break
+                        time.sleep(0.02)
                 self._shell.reset_input_buffer()
             except Exception:
                 pass
+
 
     def disconnect(self):
         """Close all serial ports, locking individually to prevent races and deadlocks."""
@@ -339,7 +361,13 @@ class FlatSatDevice:
                 return None
 
     def send_radio_tx(self, radio_idx: int, data: bytes) -> str | None:
-        """Send data via selected Radio using TX command (LoRa command mode)."""
+        """Send data via selected Radio using TX command (LoRa command mode).
+
+        Uses catnip-identical read pattern: timeout=1.0, in_waiting polling
+        every 20ms, 150ms silence window — avoids readline() blocking 3s on
+        Windows 11 usbser.sys when the firmware response has already arrived.
+        Also sends a leading \r\n to flush any stale partial command on the board.
+        """
         radio = self._radio1 if radio_idx == 1 else self._radio0
         lock = self._radio1_lock if radio_idx == 1 else self._radio0_lock
         if not radio or not radio.is_open:
@@ -347,25 +375,37 @@ class FlatSatDevice:
         with lock:
             try:
                 import time
-                radio.timeout = 3.0
-                
-                # Send a newline to clear/terminate any garbage command in progress on the board
+
+                _SILENCE_S = 0.15  # 150ms silence window — same as catnip ShellConnection
+                radio.timeout = 1.0  # non-zero required by usbser.sys on Windows 11
+
+                # Flush any stale partial command on the board
                 radio.write(b"\r\n")
                 radio.flush()
-                time.sleep(0.1)
-                
-                # Drain the response to the empty command/newline
-                if radio.in_waiting:
-                    radio.read(radio.in_waiting)
-                
-                # Send the real command
+                time.sleep(0.05)
                 radio.reset_input_buffer()
+                radio.reset_output_buffer()
+
+                # Send the TX command
                 radio.write(f"TX {data.hex()}\r\n".encode("ascii"))
                 radio.flush()
-                response = radio.readline()
-                if response:
-                    return response.decode("ascii", errors="ignore").strip()
-                return None
+
+                # Read response with catnip silence-window pattern
+                buf = b""
+                deadline = time.monotonic() + 3.0
+                last_rx = None
+                while time.monotonic() < deadline:
+                    waiting = radio.in_waiting
+                    if waiting:
+                        buf += radio.read(waiting)
+                        last_rx = time.monotonic()
+                        time.sleep(0.02)
+                    else:
+                        if last_rx is not None and (time.monotonic() - last_rx) >= _SILENCE_S:
+                            break
+                        time.sleep(0.02)
+
+                return buf.decode("ascii", errors="ignore").strip() if buf else None
             except Exception:
                 return None
 

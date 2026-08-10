@@ -30,40 +30,82 @@ def send_raw(port: str, data: bytes):
 
     The ground station radio is in command mode (lora_mode command),
     so we send 'TX <hex>\\r\\n' instead of raw bytes.
+
+    Windows 11 fixes (mirrors catnip usb_connection.py):
+    - dtr=True:  Zephyr CDC ACM requires DTR asserted to accept data from host.
+    - timeout=1.0 + in_waiting polling + 150ms silence: avoids in_waiting=0 bug
+      with usbser.sys that occurs when timeout=0 or using readline() with timeout=3.
     """
     import time
-
     import serial
 
-    ser = serial.Serial(port, 115200, timeout=3, dsrdtr=False, rtscts=False)
-    time.sleep(1)
+    _SILENCE_S = 0.15
+    ser = serial.Serial(port, 115200, timeout=1.0, dsrdtr=False, rtscts=False)
+    ser.dtr = True          # CRITICAL: Zephyr CDC ACM ignores data without DTR on Windows 11
+    time.sleep(0.3)         # let the driver finish CDC enumeration
     ser.reset_input_buffer()
+    ser.reset_output_buffer()
+
     cmd = f"TX {data.hex().upper()}\r\n"
     ser.write(cmd.encode("ascii"))
     ser.flush()
-    time.sleep(2)
-    resp = ser.read(ser.in_waiting or 256)
-    if resp:
-        print(f"[<] Response: {resp.decode(errors='replace').strip()}")
+
+    # Read response with catnip 150ms silence window
+    buf = b""
+    deadline = time.monotonic() + 3.0
+    last_rx = None
+    while time.monotonic() < deadline:
+        waiting = ser.in_waiting
+        if waiting:
+            buf += ser.read(waiting)
+            last_rx = time.monotonic()
+            time.sleep(0.02)
+        else:
+            if last_rx is not None and (time.monotonic() - last_rx) >= _SILENCE_S:
+                break
+            time.sleep(0.02)
+
+    if buf:
+        print(f"[<] Response: {buf.decode(errors='replace').strip()}")
     else:
         print("[<] No response")
     ser.close()
 
 
 def inject_via_shell(port: str, data: bytes):
-    """Send inject_tc command to shell port (loopback, no LoRa)"""
-    import time
+    """Send inject_tc command to shell port (loopback, no LoRa).
 
+    Windows 11 fixes: dtr=True + catnip 150ms silence window.
+    """
+    import time
     import serial
 
-    ser = serial.Serial(port, 115200, timeout=2, dsrdtr=False, rtscts=False)
-    time.sleep(0.5)
+    _SILENCE_S = 0.15
+    ser = serial.Serial(port, 115200, timeout=1.0, dsrdtr=False, rtscts=False)
+    ser.dtr = True          # CRITICAL: Zephyr CDC ACM requires DTR on Windows 11
+    time.sleep(0.3)
     ser.reset_input_buffer()
+    ser.reset_output_buffer()
+
     cmd = f"inject_tc {data.hex()}\r\n"
     ser.write(cmd.encode())
-    time.sleep(0.8)
-    resp = ser.read(ser.in_waiting or 1)
-    print(f"[<] Shell response:\n{resp.decode(errors='replace')}")
+    ser.flush()
+
+    buf = b""
+    deadline = time.monotonic() + 2.0
+    last_rx = None
+    while time.monotonic() < deadline:
+        waiting = ser.in_waiting
+        if waiting:
+            buf += ser.read(waiting)
+            last_rx = time.monotonic()
+            time.sleep(0.02)
+        else:
+            if last_rx is not None and (time.monotonic() - last_rx) >= _SILENCE_S:
+                break
+            time.sleep(0.02)
+
+    print(f"[<] Shell response:\n{buf.decode(errors='replace')}")
     ser.close()
 
 
