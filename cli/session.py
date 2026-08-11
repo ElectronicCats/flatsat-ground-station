@@ -47,11 +47,18 @@ def get_selected_device(device=None, port=None):
     if not devices:
         if port:
             # Fallback to direct port if provided, mock a DiscoveredDevice structure
-            from core.serial_manager import ENDPOINT_RADIO0, ENDPOINT_SHELL, DeviceIdentity, DiscoveredDevice
+            from core.serial_manager import (
+                ENDPOINT_RADIO0,
+                ENDPOINT_SHELL,
+                DeviceIdentity,
+                DiscoveredDevice,
+                _normalize_port_path,
+            )
 
-            print_info(f"No devices auto-discovered. Attempting direct shell connection on: {port}")
+            norm_port = _normalize_port_path(port)
+            print_info(f"No devices auto-discovered. Attempting direct shell connection on: {norm_port}")
             identity = DeviceIdentity(serial_number="direct")
-            ports = {ENDPOINT_SHELL: port, ENDPOINT_RADIO0: port}  # Minimal endpoints mapping
+            ports = {ENDPOINT_SHELL: norm_port, ENDPOINT_RADIO0: norm_port}  # Minimal endpoints mapping
             return FlatSatDevice(DiscoveredDevice(identity=identity, ports=ports))
         print_error("No FlatSat boards detected. Is it plugged in?")
         sys.exit(1)

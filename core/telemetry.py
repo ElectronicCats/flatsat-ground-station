@@ -26,6 +26,8 @@ def decode_heartbeat(payload: bytes) -> dict:
     Firmware sends packed struct in native (little-endian) byte order.
     CCSDS headers are big-endian, but payloads are RP2040 native = LE.
     """
+    if len(payload) < 13:
+        return {}
     sc_id, uptime, battery_mv, flight_mode, difficulty, tc_count, error_count = struct.unpack("<BIHBBHH", payload[:13])
     return {
         "sc_id": sc_id,
@@ -45,6 +47,8 @@ def decode_bme280(payload: bytes) -> dict:
     Firmware sends press_x10 in deci-Pascals (press_pa * 10), so sea level is
     1013250. Divide by 1000 to get the hPa used across the pipeline and UI.
     """
+    if len(payload) < 7:
+        return {}
     temp_x100, press_x10, humidity = struct.unpack("<hIB", payload[:7])
     return {
         "temperature": temp_x100 / 100.0,
@@ -55,6 +59,8 @@ def decode_bme280(payload: bytes) -> dict:
 
 def decode_lis2dh(payload: bytes) -> dict:
     """Decode LIS2DH accelerometer TM payload (APID 0x011). Little-endian."""
+    if len(payload) < 6:
+        return {}
     accel_x, accel_y, accel_z = struct.unpack("<hhh", payload[:6])
     return {
         "accel_x": accel_x,

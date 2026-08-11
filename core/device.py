@@ -146,9 +146,11 @@ class FlatSatDevice:
             else:
                 result[name] = False
 
-        # If mandatory ports failed, clean up the ones that opened
+        # If mandatory ports failed, clean up the ones that opened and sync result dict
         if not result.get("radio0") or not result.get("shell"):
             self.disconnect()
+            for k in result:
+                result[k] = False
         elif self._shell and self._shell.is_open:
             self._drain_boot_banner()
             # Force the device to the selected mode (sat or gs) if explicitly requested
@@ -169,32 +171,29 @@ class FlatSatDevice:
         + in_waiting check, which fails on Windows 11 usbser.sys because
         in_waiting stays 0 immediately after sleep even when bytes have arrived.
         """
-        import time
-
-        _SILENCE_S = 0.15
-
         with self._shell_lock:
             try:
-                # Give USB CDC and firmware time to enumerate and emit boot text
-                time.sleep(0.8)
-                # Drain boot text with catnip silence window
-                deadline = time.monotonic() + 2.0
+                # Fast check: only drain if firmware actually emitted boot text
+                if not self._shell or not self._shell.is_open:
+                    return
+                # Drain boot text if present with silence window
+                deadline = time.monotonic() + 0.3
                 last_rx = None
                 while time.monotonic() < deadline:
                     waiting = self._shell.in_waiting
                     if waiting:
                         self._shell.read(waiting)
                         last_rx = time.monotonic()
-                        time.sleep(0.02)
+                        time.sleep(0.01)
                     else:
-                        if last_rx is not None and (time.monotonic() - last_rx) >= _SILENCE_S:
+                        if last_rx is not None and (time.monotonic() - last_rx) >= 0.05:
                             break
-                        time.sleep(0.02)
+                        time.sleep(0.01)
                 self._shell.reset_input_buffer()
                 # Send bare newline to sync shell parser
                 self._shell.write(b"\r\n")
                 self._shell.flush()
-                time.sleep(0.05)
+                time.sleep(0.02)
                 # Drain the shell's response to the empty line (silence window)
                 deadline2 = time.monotonic() + 0.5
                 last_rx2 = None
