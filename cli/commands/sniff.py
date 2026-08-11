@@ -31,14 +31,15 @@ def _frame_entry(parsed_rx, difficulty):
     except ValueError:
         return None
 
-    if difficulty >= 2:
-        raw_bytes = sdls_unprotect_frame(raw_bytes, difficulty)
-
     pkt = parse_frame(raw_bytes)
     if pkt is None:
         return None
     if not pkt.crc_valid and raw_bytes[-2:] != b"\x00\x00":
         return None
+
+    if difficulty >= 2:
+        raw_bytes = sdls_unprotect_frame(raw_bytes, difficulty)
+        pkt = parse_frame(raw_bytes) or pkt
 
     return {
         "timestamp": datetime.now().isoformat(),

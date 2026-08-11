@@ -42,8 +42,8 @@ class RadioBridge:
             has_radio1 = getattr(self._state.device, "has_radio1", True)
             active_radio = getattr(self._state, "active_radio", 2)
 
-            # Use dual mode if active_radio is 2 (Dual), or if the device has radio1 and the active_radio is not forced to 0 or 1.
-            use_dual = (active_radio == 2) or (has_radio1 and active_radio not in (0, 1))
+            # Use dual mode ONLY if device actually has radio1 and active_radio permits dual mode.
+            use_dual = has_radio1 and (active_radio == 2 or active_radio not in (0, 1))
 
             if use_dual:
                 # DUAL RADIO MODE:
@@ -60,8 +60,10 @@ class RadioBridge:
                 with self._state.radio_tx_lock:
                     self._state.tx_in_progress = True
                     try:
-                        # Switch physical board to radio1 antenna and clear buffers
+                        # Switch physical board to radio1 antenna, set command mode and clear buffers
                         self._state.device.send_shell_command_full("radio1")
+                        self._state.device.send_shell_command_full("lora_mode R1 command")
+                        self._state.device.send_shell_command_full("lora_apply R1")
                         self._state.device.reset_radio_input_buffers()
 
                         # Try sending using command mode TX first
@@ -82,8 +84,10 @@ class RadioBridge:
                     except Exception as e:
                         status_dict = {"status": "error", "error": str(e)}
                     finally:
-                        # Always revert the physical board back to Radio 0 (Telemetry
-                        # RX) so downlinks on 915 MHz keep arriving.
+                        # Always revert Radio 1 to stream mode and switch back to Radio 0
+                        # (Telemetry RX) so downlinks on 915 MHz keep arriving.
+                        self._state.device.send_shell_command_full("lora_mode R1 stream")
+                        self._state.device.send_shell_command_full("lora_apply R1")
                         self._state.device.send_shell_command_full("radio0")
                         self._state.device.reset_radio_input_buffers()
                         self._state.tx_in_progress = False
@@ -91,7 +95,7 @@ class RadioBridge:
                 # SINGLE RADIO MODE (CatSniffer/GS-only or manual override of specific radio):
                 # On a single-radio board TX and RX share one physical radio, so the
                 # RX loop must pause while we flip it into command mode and back.
-                tx_radio = 1 if active_radio == 1 else 0
+                tx_radio = 1 if (has_radio1 and active_radio == 1) else 0
                 with self._state.radio_tx_lock:
                     self._state.tx_in_progress = True
                     try:

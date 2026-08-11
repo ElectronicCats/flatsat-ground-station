@@ -11,7 +11,7 @@ from core.serial_manager import (
     DiscoveredDevice,
     _extract_serial_number,
     _group_ports_by_device,
-    _map_endpoints_intelligent,
+    _map_endpoints,
     discover_devices,
 )
 
@@ -66,7 +66,7 @@ def test_map_endpoints_by_description():
         MagicMock(device="/dev/ttyACM1", description="Flat-Sat - Cat-Radio1"),
         MagicMock(device="/dev/ttyACM2", description="Flat-Sat - Cat-Shell"),
     ]
-    result = _map_endpoints_intelligent(ports)
+    result = _map_endpoints(ports)
     assert result[ENDPOINT_RADIO0] == "/dev/ttyACM0"
     assert result[ENDPOINT_RADIO1] == "/dev/ttyACM1"
     assert result[ENDPOINT_SHELL] == "/dev/ttyACM2"
@@ -78,7 +78,7 @@ def test_map_endpoints_positional_fallback():
         MagicMock(device="/dev/ttyACM1", description="Unknown CDC"),
         MagicMock(device="/dev/ttyACM2", description="Unknown CDC"),
     ]
-    result = _map_endpoints_intelligent(ports)
+    result = _map_endpoints(ports)
     assert result[ENDPOINT_RADIO0] == "/dev/ttyACM0"
     assert result[ENDPOINT_RADIO1] == "/dev/ttyACM1"
     assert result[ENDPOINT_SHELL] == "/dev/ttyACM2"

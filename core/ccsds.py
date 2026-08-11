@@ -116,11 +116,12 @@ def _sdls_transform_payload(
 
 
 def sdls_protect_frame(frame: bytes, difficulty: int) -> bytes:
-    """Encrypt outgoing TC payload to match firmware sdls_unprotect_frame().
+    """Encrypt outgoing TC payload to match firmware main.c process_incoming_telecommand().
 
     Level 0-1: plaintext.  Level 2: XOR.  Level 3+: AES-128-CTR.
-    Only payload bytes are encrypted; header and CRC are untouched.
-    Firmware decrypts before CRC check, so CRC must match plaintext.
+    Only payload bytes are encrypted. Per CCSDS 133.0-B-2 and firmware main.c line 356,
+    the CRC is recalculated over the transmitted frame (ciphertext payload) so
+    expected_crc == actual_crc on the receiving end.
     """
     if difficulty < 2:
         return frame
@@ -130,7 +131,10 @@ def sdls_protect_frame(frame: bytes, difficulty: int) -> bytes:
     # Extract timestamp from secondary header for CTR IV
     timestamp = struct.unpack(">I", frame[CCSDS_HDR_SIZE : CCSDS_HDR_SIZE + 4])[0]
     _sdls_transform_payload(payload, difficulty, decrypt=False, timestamp=timestamp)
-    return frame[:payload_start] + bytes(payload) + frame[payload_end:]
+
+    frame_no_crc = frame[:payload_start] + bytes(payload)
+    new_crc = ccsds_crc16(frame_no_crc)
+    return frame_no_crc + struct.pack(">H", new_crc)
 
 
 def sdls_unprotect_frame(frame: bytes, difficulty: int) -> bytes:

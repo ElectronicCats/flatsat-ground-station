@@ -49,11 +49,10 @@ def _detect_local_role(dev):
     else:
         local_mode = mode
 
-    # Dual-radio boards default to the ground station role unless the firmware
-    # is explicitly in satellite/mission mode.
-    if getattr(dev, "has_radio1", True) and local_mode not in ("satellite", "mission"):
+    # If board is in gs/ground_station mode, or is a dual-radio board not in satellite/mission mode, it acts as a ground station.
+    if local_mode in ("ground_station", "gs") or (getattr(dev, "has_radio1", True) and local_mode not in ("satellite", "mission")):
         return "ground_station"
-    return "satellite" if local_mode in ("satellite", "mission", "unknown") else "ground_station"
+    return "satellite" if local_mode in ("satellite", "mission") else "ground_station"
 
 
 def _send_flight_over_rf(dev, value, difficulty):

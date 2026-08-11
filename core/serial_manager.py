@@ -145,7 +145,7 @@ def _extract_serial_number(hwid: str) -> str | None:
     """Extract serial number from HWID string (SER=XXXX or SER:XXXX)."""
     if not hwid:
         return None
-    m = re.search(r"SER[=:]([A-Fa-f0-9]+)", hwid)
+    m = re.search(r"SER[=:]([A-Za-z0-9_-]+)", hwid)
     return m.group(1) if m else None
 
 
@@ -164,25 +164,25 @@ def _group_ports_by_device(cat_ports: list) -> dict[str, list]:
     for port in cat_ports:
         key = "unknown"
 
-        if port.hwid:
-            m = re.search(r"SER[=:]([A-Fa-f0-9]+)", port.hwid)
-            if m:
+        if port.hwid and isinstance(port.hwid, str):
+            m = re.search(r"SER[=:]([A-Za-z0-9_-]+)", port.hwid)
+            if m and m.group(1).upper() != "UNKNOWN":
                 key = m.group(1)
-            elif port.serial_number:
+            elif port.serial_number and isinstance(port.serial_number, str):
                 key = port.serial_number
-        elif port.serial_number:
+        elif port.serial_number and isinstance(port.serial_number, str):
             key = port.serial_number
 
         # Location fallback — only the prefix before ':' so all interfaces of
         # the same device share the same key.
-        if key == "unknown" and port.location and ":" in port.location:
+        if key == "unknown" and port.location and isinstance(port.location, str) and ":" in port.location:
             key = port.location.split(":")[0]
 
         # Last resort: unique per port (device won't be "complete" but won't crash)
         if key == "unknown":
             key = f"unknown-{port.device}"
 
-        groups.setdefault(key, []).append(port)
+        groups.setdefault(str(key), []).append(port)
 
     return groups
 
@@ -204,10 +204,10 @@ def _map_endpoints(ports: list) -> dict[str, str]:
 
     # Strategy 1a — description substring
     for port in ports:
-        desc = (port.description or "").lower()
+        desc = str(getattr(port, "description", "") or "").lower()
         for kw, ep in _DESC_TO_ENDPOINT.items():
             if kw in desc and ep not in result:
-                result[ep] = port.device
+                result[ep] = str(port.device)
                 break
 
     # Strategy 1b — pyserial 'interface' attribute
@@ -220,10 +220,10 @@ def _map_endpoints(ports: list) -> dict[str, str]:
             "bridge": ENDPOINT_RADIO1,   # CatSniffer Bridge → Radio1 fallback
         }
         for port in ports:
-            intf_name = (getattr(port, "interface", None) or "").lower()
+            intf_name = str(getattr(port, "interface", None) or "").lower()
             for kw, ep in _intf_kw.items():
                 if kw in intf_name and ep not in result:
-                    result[ep] = port.device
+                    result[ep] = str(port.device)
                     break
 
     # Strategy 1c — LOCATION= field embedded inside HWID (Windows PySerial format)
@@ -231,13 +231,14 @@ def _map_endpoints(ports: list) -> dict[str, str]:
     # The interface number after the final '.' is the USB interface index.
     if len(result) < 3:
         for port in ports:
-            if not port.hwid:
+            hwid = getattr(port, "hwid", "") or ""
+            if not isinstance(hwid, str):
                 continue
-            m = re.search(r"LOCATION=\S+:(?:\w+)\.(\d+)", port.hwid, re.IGNORECASE)
+            m = re.search(r"LOCATION=\S+:(?:\w+)\.(\d+)", hwid, re.IGNORECASE)
             if m:
                 ep = _INTF_TO_ENDPOINT.get(int(m.group(1)))
                 if ep and ep not in result:
-                    result[ep] = port.device
+                    result[ep] = str(port.device)
 
     # Strategy 2 — port.location interface index
     if len(result) < 3:

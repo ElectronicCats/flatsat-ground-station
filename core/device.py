@@ -17,6 +17,8 @@ from core.constants import (
 )
 from core.serial_manager import DiscoveredDevice
 
+_SILENCE_S = 0.15  # 150 ms silence window — same as catnip
+
 
 def parse_lora_rx(line: str) -> dict | None:
     """Parse LoRa/FSK RX line into structured data.
@@ -63,7 +65,7 @@ class FlatSatDevice:
         self._shell_lock = threading.Lock()
         self._radio0_lock = threading.Lock()
         self._radio1_lock = threading.Lock()
-        self.has_radio1 = True
+        self.has_radio1 = bool(discovered.radio1_port)
 
     @property
     def serial_number(self) -> str:
@@ -106,6 +108,9 @@ class FlatSatDevice:
           and explicitly drives the board's role.
         """
         self.disconnect()
+
+        # Update has_radio1 based on whether a radio1 port exists
+        self.has_radio1 = bool(self._discovered.radio1_port)
 
         # Gather targets
         targets = {"radio0": self._discovered.radio0_port, "shell": self._discovered.shell_port}
