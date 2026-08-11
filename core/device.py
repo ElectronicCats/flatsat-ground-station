@@ -8,6 +8,7 @@ import os
 import re
 import sys
 import threading
+import time
 
 import serial
 
@@ -157,7 +158,6 @@ class FlatSatDevice:
                     resp = self.send_shell_command_full(cmd, timeout=0.5)
                     if resp is not None:
                         break
-                    import time
                     time.sleep(0.1)
 
         return result
