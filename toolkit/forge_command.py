@@ -25,24 +25,40 @@ COMMANDS = {
 }
 
 
+def _normalize_port(port: str) -> str:
+    import sys
+    if sys.platform == "win32" and port:
+        p_up = port.upper()
+        if p_up.startswith("COM"):
+            try:
+                if int(p_up[3:]) >= 10:
+                    return rf"\\.\{p_up}"
+            except ValueError:
+                pass
+    return port
+
+
 def send_raw(port: str, data: bytes):
-    """Send frame via CDC Radio port using LoRa command-mode TX.
-
-    The ground station radio is in command mode (lora_mode command),
-    so we send 'TX <hex>\\r\\n' instead of raw bytes.
-
-    Windows 11 fixes (mirrors catnip usb_connection.py):
-    - dtr=True:  Zephyr CDC ACM requires DTR asserted to accept data from host.
-    - timeout=1.0 + in_waiting polling + 150ms silence: avoids in_waiting=0 bug
-      with usbser.sys that occurs when timeout=0 or using readline() with timeout=3.
-    """
+    """Send frame via CDC Radio port using LoRa command-mode TX."""
+    import sys
     import time
     import serial
 
+    port_path = _normalize_port(port)
     _SILENCE_S = 0.15
-    ser = serial.Serial(port, 115200, timeout=1.0, dsrdtr=False, rtscts=False)
-    ser.dtr = True          # CRITICAL: Zephyr CDC ACM ignores data without DTR on Windows 11
-    time.sleep(0.3)         # let the driver finish CDC enumeration
+
+    ser = serial.Serial()
+    ser.port = port_path
+    ser.baudrate = 115200
+    ser.timeout = 1.0
+    ser.write_timeout = 1.0
+    ser.dtr = False
+    ser.rts = False
+    ser.open()
+
+    if sys.platform == "win32":
+        time.sleep(0.15)
+
     ser.reset_input_buffer()
     ser.reset_output_buffer()
 
@@ -73,17 +89,26 @@ def send_raw(port: str, data: bytes):
 
 
 def inject_via_shell(port: str, data: bytes):
-    """Send inject_tc command to shell port (loopback, no LoRa).
-
-    Windows 11 fixes: dtr=True + catnip 150ms silence window.
-    """
+    """Send inject_tc command to shell port (loopback, no LoRa)."""
+    import sys
     import time
     import serial
 
+    port_path = _normalize_port(port)
     _SILENCE_S = 0.15
-    ser = serial.Serial(port, 115200, timeout=1.0, dsrdtr=False, rtscts=False)
-    ser.dtr = True          # CRITICAL: Zephyr CDC ACM requires DTR on Windows 11
-    time.sleep(0.3)
+
+    ser = serial.Serial()
+    ser.port = port_path
+    ser.baudrate = 115200
+    ser.timeout = 1.0
+    ser.write_timeout = 1.0
+    ser.dtr = False
+    ser.rts = False
+    ser.open()
+
+    if sys.platform == "win32":
+        time.sleep(0.15)
+
     ser.reset_input_buffer()
     ser.reset_output_buffer()
 

@@ -123,20 +123,21 @@ class FlatSatDevice:
                         result[name] = True
                         continue
 
-                    ser = serial.Serial(
-                        path,
-                        BAUDRATE,
-                        timeout=1.0,
-                        write_timeout=1.0,
-                        dsrdtr=False,
-                        rtscts=False,
-                    )
-                    # Explicitly assert DTR and RTS to enable virtual COM port CDC ACM communications.
-                    try:
-                        ser.dtr = True
-                        ser.rts = True
-                    except Exception:
-                        pass
+                    ser = serial.Serial()
+                    ser.port = path
+                    ser.baudrate = BAUDRATE
+                    ser.timeout = 1.0
+                    ser.write_timeout = 1.0
+                    ser.dtr = False
+                    ser.rts = False
+                    ser.open()
+
+                    if sys.platform == "win32":
+                        time.sleep(0.15)
+
+                    ser.reset_input_buffer()
+                    ser.reset_output_buffer()
+
                     setattr(self, f"_{name}", ser)
                     result[name] = True
                 except serial.SerialException:
