@@ -30,8 +30,11 @@ venv/
 # Temporary detailed problems document
 /problemas_detallados.md
 
-# Exploits
+# Exploits & Dumps
 exploit_*.py
+*cookies.txt
+*.tar.gz
 
 # Builds
 build_*/
+

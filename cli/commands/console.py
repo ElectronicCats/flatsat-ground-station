@@ -4,7 +4,7 @@ import sys
 import click
 
 from cli.session import send_cmd, with_device
-from cli.ui.output import print_info, print_success, print_warning
+from cli.ui.output import print_info, print_success, print_warning, print_response, print_empty_line
 
 
 @click.command("console")
@@ -13,7 +13,8 @@ def console(dev):
     """Open a persistent interactive serial console session with the FlatSat board."""
     print_success("Connected to FlatSat interactive console.")
     print_info("Type any command (e.g. status, identify, mode gs, flight nominal) and press Enter.")
-    print_info("Type 'exit' or 'quit' to close the session.\n")
+    print_info("Type 'exit' or 'quit' to close the session.")
+    print_empty_line()
 
     while True:
         try:
@@ -22,7 +23,7 @@ def console(dev):
             try:
                 user_input = input(prompt_str)
             except (KeyboardInterrupt, EOFError):
-                print("\n")
+                print_empty_line()
                 print_info("Closing interactive console session...")
                 break
 
@@ -45,9 +46,10 @@ def console(dev):
 
             output = send_cmd(dev, cmd_str)
             if output:
-                print(output)
+                print_response(output)
             else:
                 print_warning(f"No response received for '{cmd_str}'.")
+
 
         except Exception as e:
             print_warning(f"Console error: {e}")

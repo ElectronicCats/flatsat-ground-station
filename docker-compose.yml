@@ -5,43 +5,65 @@
 #   docker compose up            → Inicia en modo simulado
 #   docker compose up --build    → Reconstruye la imagen antes de iniciar
 #
-# Para modo hardware (FlatSat conectado por USB):
-#   Descomenta la sección 'devices' con los puertos correctos de tu sistema.
-#   Ejecuta primero: ls /dev/ttyACM* para identificar los puertos.
+# Modo Hardware (FlatSat o CatSniffer conectado por USB):
+#   Ver opciones detalladas al final de este archivo.
 # ──────────────────────────────────────────────────────────────────────────────
 
 services:
   ground-station:
-    build: .
+    build:
+      context: .
+      dockerfile: Dockerfile
+      network: host
+
     image: flatsat-gs:latest
     container_name: flatsat-ground-station
     ports:
       - "5000:5000"
 
-    # Persistir la base de datos SQLite entre reinicios del contenedor
+    # Persistencia de base de datos SQLite entre reinicios del contenedor
+    # Opción A: Bind mount local (predeterminado)
     volumes:
       - ./db:/app/db
 
+    # Opción B: Named volume (recomendado si hay conflictos de permisos en el host)
+    # volumes:
+    #   - flatsat_db:/app/db
+
     environment:
       - PYTHONUNBUFFERED=1
+      - PYTHONDONTWRITEBYTECODE=1
       - FLATSAT_LEVEL=3          # 1=Fácil  2=Medio  3=Difícil
+      - FLATSAT_PORT=5000
+      - FLATSAT_DEBUG=0          # 0=Desactiva reloader duplicado en Docker, 1=Debug
 
-    # ── Modo Hardware (FlatSat conectado por USB) ──────────────────────────
-    # Descomenta las líneas siguientes si el FlatSat está conectado.
-    # Ajusta los puertos según tu sistema (usa: ls /dev/ttyACM*)
+    healthcheck:
+      test: ["CMD-SHELL", "python -c \"import urllib.request; urllib.request.urlopen('http://127.0.0.1:5000/login')\" || exit 1"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+
+    # ── Modo Hardware (USB Pass-through) ──────────────────────────────────
+    # Para acceso completo a hardware USB (FlatSat/CatSniffer) con autodescubrimiento udev:
     #
-    # Flat-Sat Ground Station (serial_number: 5033423532300010)
-    #   devices:
-    #     - /dev/ttyACM6:/dev/ttyACM6   # Radio 0 (RX telemetría del SAT)
-    #     - /dev/ttyACM7:/dev/ttyACM7   # Radio 1 (TX telecomandos al SAT)
-    #     - /dev/ttyACM8:/dev/ttyACM8   # Shell de configuración
+    # privileged: true
+    # volumes:
+    #   - ./db:/app/db
+    #   - /dev:/dev
+    #   - /sys:/sys:ro
+    #   - /run/udev:/run/udev:ro
     #
-    # Flat-Sat Satellite (solo si también quieres acceso a su shell)
-    #   - /dev/ttyACM0:/dev/ttyACM0
-    #   - /dev/ttyACM1:/dev/ttyACM1
-    #   - /dev/ttyACM2:/dev/ttyACM2
+    # O mapeo individual de dispositivos:
+    # devices:
+    #   - /dev/ttyACM0:/dev/ttyACM0   # Radio 0
+    #   - /dev/ttyACM1:/dev/ttyACM1   # Radio 1
+    #   - /dev/ttyACM2:/dev/ttyACM2   # Shell
     #
-    # Nota: también se necesita acceso al subsistema udev para descubrimiento USB
-    # privileged: true   # Alternativa más permisiva (solo para desarrollo)
+    # group_add:
+    #   - "20"  # GID del grupo dialout/uucp en el host
 
     restart: unless-stopped
+
+# volumes:
+#   flatsat_db:

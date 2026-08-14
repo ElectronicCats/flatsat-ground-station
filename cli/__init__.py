@@ -7,4 +7,7 @@ Layered structure (mirrors the CatSniffer/catnip pattern):
   cli.ui        -> presentation helpers (banner, tables, console output)
 """
 
-__version__ = "1.0.0"
+from cli._version import __version__
+
+__all__ = ["__version__"]
+

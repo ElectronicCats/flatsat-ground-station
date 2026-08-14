@@ -1693,5 +1693,7 @@ if __name__ == "__main__":
     import os
     app = create_app()
     port = int(os.environ.get("FLATSAT_PORT", 5000))
-    print(f"PwnSat2 Ground Station running on http://localhost:{port}")
-    socketio.run(app, host="0.0.0.0", port=port, debug=True, allow_unsafe_werkzeug=True)
+    debug_mode = os.environ.get("FLATSAT_DEBUG", "1") in ("1", "true", "True")
+    print(f"PwnSat2 Ground Station running on http://0.0.0.0:{port} (debug={debug_mode})")
+    socketio.run(app, host="0.0.0.0", port=port, debug=debug_mode, allow_unsafe_werkzeug=True)
+

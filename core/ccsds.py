@@ -156,7 +156,11 @@ def sdls_unprotect_frame(frame: bytes, difficulty: int) -> bytes:
     payload = bytearray(frame[payload_start:payload_end])
     timestamp = struct.unpack(">I", frame[CCSDS_HDR_SIZE : CCSDS_HDR_SIZE + 4])[0]
     _sdls_transform_payload(payload, difficulty, decrypt=True, timestamp=timestamp)
-    return frame[:payload_start] + bytes(payload) + frame[payload_end:]
+    frame_no_crc = frame[:payload_start] + bytes(payload)
+    new_crc = ccsds_crc16(frame_no_crc)
+    return frame_no_crc + struct.pack(">H", new_crc)
+
+
 
 
 def build_packet_id(pkt_type: int, apid: int) -> int:

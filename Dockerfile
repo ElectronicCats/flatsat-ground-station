@@ -13,7 +13,10 @@ ENV DEBIAN_FRONTEND=noninteractive \
     PYTHONUNBUFFERED=1 \
     PYTHONDONTWRITEBYTECODE=1 \
     PIP_NO_CACHE_DIR=1 \
-    FLATSAT_LEVEL=3
+    FLATSAT_LEVEL=3 \
+    FLATSAT_PORT=5000 \
+    FLATSAT_DEBUG=0
+
 
 WORKDIR /app
 
@@ -28,6 +31,7 @@ RUN apt-get update && \
         libudev-dev \
         libusb-1.0-0 \
         udev \
+        gosu \
     && apt-get clean \
     && rm -rf /var/lib/apt/lists/*
 
@@ -45,16 +49,19 @@ RUN mkdir -p /app/db && chmod 777 /app/db
 #    (el grupo 'dialout' es necesario para acceder a /dev/ttyACM*)
 RUN groupadd -r appuser && \
     useradd -r -g appuser -G dialout appuser && \
+    chmod +x /app/docker-entrypoint.sh && \
     chown -R appuser:appuser /app
 
-USER appuser
 
 # 8. Puerto de la webapp
 EXPOSE 5000
 
 # 9. Health check — verifica que el servidor responde
 HEALTHCHECK --interval=30s --timeout=5s --start-period=10s --retries=3 \
-    CMD python -c "import urllib.request; urllib.request.urlopen('http://localhost:5000/login')" || exit 1
+    CMD python -c "import os, urllib.request; p=os.environ.get('FLATSAT_PORT','5000'); urllib.request.urlopen(f'http://127.0.0.1:{p}/login')" || exit 1
 
-# 10. Ejecutar la webapp
+
+# 10. Entrypoint y comando por defecto para ejecutar la webapp
+ENTRYPOINT ["/app/docker-entrypoint.sh"]
 CMD ["python", "-m", "webapp.app"]
+

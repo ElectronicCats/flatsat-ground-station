@@ -19,6 +19,19 @@ docs/superpowers/
 cookies.txt
 admin_cookies.txt
 *.txt
+!requirements.txt
+!webapp/*flag.txt
+
 
 # Archivos creados por accidente
 :5000
+
+# Archivos de compilación host, pruebas y exploits
+build_gs/
+scratch/
+tests/
+*.ps1
+exploit_*.py
+check_status.py
+forge_token.py
+
