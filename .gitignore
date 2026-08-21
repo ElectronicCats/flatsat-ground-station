@@ -34,7 +34,9 @@ venv/
 exploit_*.py
 *cookies.txt
 *.tar.gz
+tree.txt
 
 # Builds
 build_*/
+
 
