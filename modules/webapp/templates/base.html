@@ -1,0 +1,22 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>PwnSat2 Ground Station — {% block title %}{% endblock %}</title>
+    <link rel="stylesheet" href="/static/css/base.css">
+    {% block head %}{% endblock %}
+</head>
+<body>
+{% block nav %}
+<nav>
+    <a href="/dashboard">Dashboard</a> |
+    <a href="/logs">Logs</a> |
+    <a href="/satellite">Satellite</a> |
+    {% if g.role == 'admin' %}
+    <a href="/config">Config</a> |
+    {% endif %}
+    <a href="/logout">Logout ({{ g.username }})</a>
+</nav>
+{% endblock %}
+{% block content %}{% endblock %}
+</body>
+</html>

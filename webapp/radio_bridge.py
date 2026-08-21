@@ -1,10 +1,7 @@
-"""Backward-compatible re-export.
+"""Backward-compatibility shim for webapp.radio_bridge -> modules.webapp.radio_bridge."""
+import sys
+import importlib
 
-RadioBridge moved to `core/radio_bridge.py` so the webapp and the CLI share the
-same RF transmit path. Existing imports (`from webapp.radio_bridge import
-RadioBridge`) keep working through this shim.
-"""
-
-from core.radio_bridge import RadioBridge
-
-__all__ = ["RadioBridge"]
+_target = importlib.import_module("modules.webapp.radio_bridge")
+globals().update({k: getattr(_target, k) for k in getattr(_target, "__all__", dir(_target)) if not k.startswith("__")})
+sys.modules[__name__] = _target

@@ -1,0 +1,118 @@
+{% extends "base.html" %}
+{% block title %}Dashboard{% endblock %}
+{% block head %}
+<script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.7.5/socket.io.min.js"></script>
+<link rel="stylesheet" href="/static/css/dashboard.css">
+{% endblock %}
+{% block content %}
+<h1>Mission Dashboard</h1>
+
+<div id="hw-status">
+    <span id="hw-indicator" class="ind-idle"></span>
+    <span id="hw-mode" style="font-weight:bold; color:#888;">IDLE</span>
+    <span id="hw-serial"></span>
+    <span id="hw-rssi"></span>
+    <span id="pkt-counter"></span>
+    <span id="last-seen"></span>
+    <div style="margin-top:8px;">
+        <button id="btn-simulate" onclick="hwSimulate()">Simulate</button>
+        <button id="btn-stop" onclick="hwStop()" disabled>Stop</button>
+        <span style="margin:0 10px; color:#555;">|</span>
+        <button id="btn-scan" onclick="hwScan()">Scan USB</button>
+        <select id="hw-devices" style="display:none;"></select>
+        <button id="btn-connect" onclick="hwConnect()" disabled>Connect</button>
+        <button id="btn-disconnect" onclick="hwDisconnect()" disabled>Disconnect</button>
+    </div>
+</div>
+
+<p>Spacecraft ID: 0x02 | User: {{ g.username }} ({{ g.role }})</p>
+
+<details id="cmd-panel" style="margin-bottom:15px; border:1px solid #333; background:#111;">
+    <summary style="padding:10px; cursor:pointer; color:#00ccff; font-weight:bold;">Telecommand Panel</summary>
+    <div style="padding:10px;">
+        <form id="tc-form" style="display:flex; gap:10px; align-items:center; flex-wrap:wrap;">
+            <label>Command:
+                <select name="opcode" id="opcode">
+                    <option value="10">PING (0x10)</option>
+                    <option value="20">READ_SENSOR (0x20)</option>
+                    {% if g.role == 'admin' %}
+                    <option value="01">SET_SAFE_MODE (0x01)</option>
+                    <option value="02">SET_NOMINAL (0x02)</option>
+                    <option value="42">READ_FLAG (0x42)</option>
+                    {% endif %}
+                </select>
+            </label>
+            {% if g.role == 'admin' %}
+            <label>Data (hex): <input name="data" id="tc-data" placeholder="optional" style="width:120px;"></label>
+            {% endif %}
+            <button type="submit">Send TC</button>
+        </form>
+        <pre id="tc-response" style="margin-top:8px; max-height:150px; overflow-y:auto; font-size:0.85em;"></pre>
+    </div>
+</details>
+
+<h2>Live Telemetry <button onclick="clearTelemetry()" style="font-size:0.7em; margin-left:10px;">Clear</button></h2>
+<div id="telemetry-status">Connecting...</div>
+<div id="tm-column-controls">
+    <span class="tm-column-title">Columns:</span>
+    <div id="tm-col-dropdown">
+        <button id="tm-col-btn" type="button" onclick="document.getElementById('tm-col-menu').classList.toggle('open')">Select columns</button>
+        <div id="tm-col-menu">
+            <label><input type="checkbox" data-col-toggle="recv_time" checked>Recv Time</label>
+            <label><input type="checkbox" data-col-toggle="frame_ts">Frame TS</label>
+            <label><input type="checkbox" data-col-toggle="apid" checked>APID</label>
+            <label><input type="checkbox" data-col-toggle="seq">Seq</label>
+            <label><input type="checkbox" data-col-toggle="sc_id">SC ID</label>
+            <label><input type="checkbox" data-col-toggle="flight">Flight</label>
+            <label><input type="checkbox" data-col-toggle="difficulty">Difficulty</label>
+            <label><input type="checkbox" data-col-toggle="battery" checked>Battery</label>
+            <label><input type="checkbox" data-col-toggle="uptime">Uptime</label>
+            <label><input type="checkbox" data-col-toggle="tc_count">TC Count</label>
+            <label><input type="checkbox" data-col-toggle="error_count">Error Count</label>
+            <label><input type="checkbox" data-col-toggle="temp" checked>Temp</label>
+            <label><input type="checkbox" data-col-toggle="pressure" checked>Pressure</label>
+            <label><input type="checkbox" data-col-toggle="humidity" checked>Humidity</label>
+            <label><input type="checkbox" data-col-toggle="accel_x" checked>Accel X</label>
+            <label><input type="checkbox" data-col-toggle="accel_y" checked>Accel Y</label>
+            <label><input type="checkbox" data-col-toggle="accel_z" checked>Accel Z</label>
+            <label><input type="checkbox" data-col-toggle="solar">Solar</label>
+            <label><input type="checkbox" data-col-toggle="current">Current</label>
+            <label><input type="checkbox" data-col-toggle="lat">Lat</label>
+            <label><input type="checkbox" data-col-toggle="lon">Lon</label>
+            <label><input type="checkbox" data-col-toggle="alt">Alt</label>
+            <label><input type="checkbox" data-col-toggle="rssi" checked>RSSI</label>
+            <label><input type="checkbox" data-col-toggle="snr" checked>SNR</label>
+            <label><input type="checkbox" data-col-toggle="raw">Raw</label>
+        </div>
+    </div>
+    <button id="tm-columns-reset" type="button">Default</button>
+    <span style="margin-left:auto;"></span>
+    <input id="tm-filter" type="text" placeholder="Filter rows..." oninput="tmFilter(this.value)" style="background:#0a0a0a; color:#00ff41; border:1px solid #333; padding:4px 8px; width:180px;">
+</div>
+<div id="tm-container">
+<table id="telemetry-table">
+    <thead>
+        <tr>
+            <th data-col="recv_time">Recv Time</th><th data-col="frame_ts">Frame TS</th><th data-col="apid">APID</th><th data-col="seq">Seq</th>
+            <th data-col="sc_id">SC ID</th><th data-col="flight">Flight</th><th data-col="difficulty">Difficulty</th><th data-col="battery">Battery</th>
+            <th data-col="uptime">Uptime</th><th data-col="tc_count">TC Count</th><th data-col="error_count">Error Count</th>
+            <th data-col="temp">Temp</th><th data-col="pressure">Pressure</th><th data-col="humidity">Humidity</th>
+            <th data-col="accel_x">Accel X</th><th data-col="accel_y">Accel Y</th><th data-col="accel_z">Accel Z</th>
+            <th data-col="solar">Solar</th><th data-col="current">Current</th>
+            <th data-col="lat">Lat</th><th data-col="lon">Lon</th><th data-col="alt">Alt</th>
+            <th data-col="rssi">RSSI</th><th data-col="snr">SNR</th><th data-col="raw">Raw</th>
+        </tr>
+    </thead>
+    <tbody id="telemetry-body"></tbody>
+</table>
+<div id="tm-empty">No packets received yet in this session.</div>
+</div>
+<div id="tm-pagination" style="display:flex; align-items:center; gap:10px; margin-top:8px; font-size:0.9em;">
+    <button id="tm-page-prev" onclick="tmPagePrev()" disabled>&laquo; Prev</button>
+    <span id="tm-page-info" style="color:#888;">Page 1/1 | 0 rows</span>
+    <button id="tm-page-next" onclick="tmPageNext()" disabled>Next &raquo;</button>
+</div>
+
+<script src="/static/js/dashboard.js"></script>
+<script src="/static/js/telemetry.js"></script>
+{% endblock %}

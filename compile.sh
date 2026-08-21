@@ -3,14 +3,20 @@ set -e
 
 echo "[*] Building FlatSat Ground Station CLI binary using PyInstaller..."
 
-PYTHON_BIN="${PYTHON:-python3}"
-
-if ! "$PYTHON_BIN" -m PyInstaller --version > /dev/null 2>&1; then
-    echo "[!] PyInstaller not found. Installing pyinstaller..."
-    "$PYTHON_BIN" -m pip install pyinstaller
+if [ -z "$PYTHON" ]; then
+    if [ -f ".venv/bin/python" ]; then
+        PYTHON=".venv/bin/python"
+    else
+        PYTHON="python3"
+    fi
 fi
 
-"$PYTHON_BIN" -m PyInstaller --clean flatsat.spec
+if ! "$PYTHON" -m PyInstaller --version > /dev/null 2>&1; then
+    echo "[!] PyInstaller not found. Installing pyinstaller..."
+    "$PYTHON" -m pip install pyinstaller
+fi
+
+"$PYTHON" -m PyInstaller --clean flatsat.spec
 
 echo "[+] Compilation finished successfully!"
 echo "[+] Binary output: dist/flatsat"

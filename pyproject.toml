@@ -45,16 +45,23 @@ Homepage = "https://github.com/ElectronicCats/flat-sat-fw-interno"
 Repository = "https://github.com/ElectronicCats/flat-sat-fw-interno"
 
 [project.scripts]
-flatsat = "cli.app:main"
+flatsat = "modules.core.cli:main_cli"
+
+
+
 
 [tool.setuptools]
-py-modules = ["flatsat_cli"]
+py-modules = ["flatsat", "flatsat_cli"]
+
 
 [tool.setuptools.dynamic]
 version = { file = "VERSION" }
 
 [tool.setuptools.packages.find]
-include = ["cli*", "core*", "webapp*", "db*"]
+include = ["cli*", "core*", "webapp*", "db*", "modules*"]
+
+
+
 
 [tool.setuptools.package-data]
 webapp = ["templates/**/*", "static/**/*"]

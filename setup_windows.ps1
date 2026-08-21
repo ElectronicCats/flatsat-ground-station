@@ -32,7 +32,7 @@ $CodeBlock = @"
 `$TUI_DIR = "$tui_path"
 
 function flatsat {
-    `$cli_path = "`$GS_DIR\flatsat_cli.py"
+    `$cli_path = "`$GS_DIR\flatsat.py"
     `$python_path = "`$GS_DIR\.venv\Scripts\python.exe"
     if (-not (Test-Path -LiteralPath "`$python_path")) {
         `$python_path = "python"
@@ -40,7 +40,7 @@ function flatsat {
     if (Test-Path -LiteralPath "`$cli_path") {
         & `$python_path "`$cli_path" `@args
     } else {
-        Write-Host "Error: No se encontro flatsat_cli.py en `$cli_path" -ForegroundColor Red
+        Write-Host "Error: No se encontro flatsat.py en `$cli_path" -ForegroundColor Red
     }
 }
 

@@ -11,11 +11,16 @@ hiddenimports = [
     'serial.tools.list_ports_posix',
     'serial.tools.list_ports_linux',
     'serial.tools.list_ports_osx',
-    'core',
+    'modules',
+    'modules.core',
+    'modules.webapp',
+    'modules.utils',
+    'modules.firmware',
     'cli',
+    'core',
+    'webapp',
 ]
 
-# Collect datas, binaries, and hidden imports for heavy packages
 for package in ['rich', 'requests', 'Crypto']:
     tmp_ret = collect_all(package)
     datas += tmp_ret[0]
@@ -23,7 +28,7 @@ for package in ['rich', 'requests', 'Crypto']:
     hiddenimports += tmp_ret[2]
 
 a = Analysis(
-    ['flatsat_cli.py'],
+    ['flatsat.py'],
     pathex=['.'],
     binaries=binaries,
     datas=datas,

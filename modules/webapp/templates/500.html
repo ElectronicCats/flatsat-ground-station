@@ -1,0 +1,47 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>PwnSat2 Ground Station — System Fault</title>
+    <link rel="stylesheet" href="/static/css/base.css">
+    <style>
+        .error-container { text-align: center; margin-top: 60px; }
+        .fault-box {
+            display: inline-block; text-align: left; padding: 20px 30px;
+            border: 2px solid #ff4444; background: #1a0000; margin: 20px 0;
+        }
+        .fault-header { color: #ff4444; font-size: 20px; text-align: center; margin-bottom: 10px; }
+        .fault-row { margin: 4px 0; }
+        .fault-label { color: #888; display: inline-block; width: 140px; }
+        .fault-val { color: #ffaa00; }
+        .fault-val.critical { color: #ff4444; }
+        .error-code { font-size: 48px; color: #ff4444; margin: 20px 0 5px; }
+        .terminal-log { text-align: left; display: inline-block; margin: 20px 0; }
+        .terminal-log span { color: #888; }
+        .terminal-log .warn { color: #ffaa00; }
+        .terminal-log .err { color: #ff4444; }
+        .blink { animation: blink 1s step-end infinite; }
+        @keyframes blink { 50% { opacity: 0; } }
+        .back-link { font-size: 16px; margin-top: 20px; display: inline-block; }
+    </style>
+</head>
+<body>
+<div class="error-container">
+    <div class="error-code"><span class="blink">500</span></div>
+    <div class="fault-box">
+        <div class="fault-header">GROUND STATION FAULT</div>
+        <hr style="border-color: #333;">
+        <div class="fault-row"><span class="fault-label">Subsystem:</span> <span class="fault-val">INTERNAL</span></div>
+        <div class="fault-row"><span class="fault-label">Severity:</span> <span class="fault-val critical">CRITICAL</span></div>
+        <div class="fault-row"><span class="fault-label">Mode:</span> <span class="fault-val critical">SAFE MODE</span></div>
+        <div class="fault-row"><span class="fault-label">TC Transmission:</span> <span class="fault-val">SUSPENDED</span></div>
+    </div>
+    <pre class="terminal-log">
+<span>[T+05:00:00]</span> <span class="err">FAULT:</span> Unhandled exception in ground segment
+<span>[T+05:00:00]</span> <span class="warn">SAFE:</span>  All telecommand transmission suspended
+<span>[T+05:00:01]</span> INFO:  Awaiting operator intervention
+    </pre>
+    <a class="back-link" href="/dashboard">&gt; Contact Mission Control</a>
+</div>
+<!-- ground station internals might be interesting to explore... -->
+</body>
+</html>

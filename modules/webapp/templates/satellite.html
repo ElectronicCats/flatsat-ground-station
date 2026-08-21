@@ -1,0 +1,189 @@
+{% extends "base.html" %}
+{% block title %}Satellite{% endblock %}
+{% block head %}
+<link rel="stylesheet" href="/static/css/satellite.css">
+{% endblock %}
+{% block content %}
+<h1>Satellite Control <span id="local-role-badge" class="role-badge" style="display:none;"></span></h1>
+
+<div id="no-hw" style="display:none; color:#ff4444; font-size:1.2em; padding:20px;">
+    No satellite connected — <a href="/dashboard">connect from Dashboard</a>.
+</div>
+
+<div id="sat-sync-banner" class="sync-banner">Synchronizing with satellite...</div>
+
+<div id="sat-content">
+<div class="grid">
+
+<!-- Info Panel -->
+<div class="panel panel-syncing" id="panel-info">
+    <h2>Satellite Status <span class="panel-status" id="panel-info-status">Syncing...</span></h2>
+    <div class="field"><label>Data Source:</label> <span id="sat-source" class="loading-value">Loading...</span></div>
+    <div class="field"><label>Spacecraft ID:</label> <span id="sc-id" class="loading-value">Loading...</span></div>
+    <div class="field"><label>Serial Number:</label> <span id="hw-sn" class="loading-value">Loading...</span></div>
+    <div class="field"><label>Flight:</label> <span id="cur-flight" class="loading-value">Loading...</span></div>
+    <div class="field"><label>Difficulty:</label> <span id="cur-diff" class="loading-value">Loading...</span></div>
+    <div class="field"><label>Last Seen:</label> <span id="sat-last-seen" class="loading-value">Loading...</span></div>
+    <div class="field"><label>Uptime:</label> <span id="sat-uptime" class="loading-value">Loading...</span></div>
+    <div class="field"><label>TC Count:</label> <span id="sat-tc-count" class="loading-value">Loading...</span></div>
+    <div class="field"><label>Error Count:</label> <span id="sat-error-count" class="loading-value">Loading...</span></div>
+    <div class="field"><label>Link RSSI:</label> <span id="sat-rssi" class="loading-value">Loading...</span></div>
+    <div class="field"><label>Link SNR:</label> <span id="sat-snr" class="loading-value">Loading...</span></div>
+</div>
+
+<!-- Battery Panel -->
+<div class="panel panel-syncing" id="panel-battery">
+    <h2>Battery <span class="panel-status" id="panel-battery-status">Syncing...</span></h2>
+    <div class="field">
+        <label>Voltage:</label> <span id="batt-mv" class="loading-value">Loading...</span> mV
+    </div>
+    <div class="battery-bar"><div id="batt-fill" class="battery-fill batt-green" style="width:100%"></div></div>
+    <div style="margin-top:10px;">
+        <label><input type="checkbox" id="countdown-toggle" onchange="toggleCountdown()"> Enable Countdown</label>
+    </div>
+    <div id="countdown-display" style="display:none;">
+        <div class="countdown" id="countdown-timer">--:--</div>
+        <div style="color:#888;">before forced SAFE mode</div>
+    </div>
+</div>
+
+<!-- LoRa Config Panel — Radio 0 -->
+<div class="panel panel-syncing" id="panel-r0">
+    <h2>Local Radio 0 — Telemetry RX/TX <span class="panel-status" id="panel-r0-status">Syncing...</span></h2>
+    <div class="field"><label>Frequency:</label> <span id="lora-r0-freq" class="loading-value">Loading...</span> Hz</div>
+    <div class="field"><label>SF:</label> <span id="lora-r0-sf" class="loading-value">Loading...</span></div>
+    <div class="field"><label>BW:</label> <span id="lora-r0-bw" class="loading-value">Loading...</span> kHz</div>
+    <div class="field"><label>Power:</label> <span id="lora-r0-power" class="loading-value">Loading...</span> dBm</div>
+    <hr style="border-color:#333;">
+    {% if g.role == 'admin' %}
+    <div class="field"><label>Set Freq (Hz):</label> <input id="set-r0-freq" type="number" value="915000000" style="width:130px;"></div>
+    <div class="field"><label>Set SF:</label> <input id="set-r0-sf" type="number" min="7" max="12" value="7" style="width:60px;"></div>
+    <div class="field"><label>Set BW (kHz):</label> <select id="set-r0-bw"><option>125</option><option>250</option><option>500</option></select></div>
+    <div class="field"><label>Set Power (dBm):</label> <input id="set-r0-power" type="number" min="-9" max="22" value="20" style="width:60px;"></div>
+    <button onclick="applyLora('R0')">Apply R0</button>
+    {% else %}
+    <div style="background: rgba(255, 165, 0, 0.1); border: 1px solid orange; color: orange; padding: 10px; border-radius: 4px; font-size: 0.9em; text-align: center;">
+      ⚠️ Configuración bloqueada para Operadores. Usa el CLI: <code>flatsat config --radio 0 ...</code> en tu terminal.
+    </div>
+    {% endif %}
+</div>
+
+<!-- LoRa Config Panel — Radio 1 -->
+<div class="panel panel-syncing" id="panel-r1">
+    <h2>Local Radio 1 — Telecommand TX/RX <span class="panel-status" id="panel-r1-status">Syncing...</span></h2>
+    <div class="field"><label>Frequency:</label> <span id="lora-r1-freq" class="loading-value">Loading...</span> Hz</div>
+    <div class="field"><label>SF:</label> <span id="lora-r1-sf" class="loading-value">Loading...</span></div>
+    <div class="field"><label>BW:</label> <span id="lora-r1-bw" class="loading-value">Loading...</span> kHz</div>
+    <div class="field"><label>Power:</label> <span id="lora-r1-power" class="loading-value">Loading...</span> dBm</div>
+    <hr style="border-color:#333;">
+    {% if g.role == 'admin' %}
+    <div class="field"><label>Set Freq (Hz):</label> <input id="set-r1-freq" type="number" value="916000000" style="width:130px;"></div>
+    <div class="field"><label>Set SF:</label> <input id="set-r1-sf" type="number" min="7" max="12" value="7" style="width:60px;"></div>
+    <div class="field"><label>Set BW (kHz):</label> <select id="set-r1-bw"><option>125</option><option>250</option><option>500</option></select></div>
+    <div class="field"><label>Set Power (dBm):</label> <input id="set-r1-power" type="number" min="-9" max="22" value="20" style="width:60px;"></div>
+    <button onclick="applyLora('R1')">Apply R1</button>
+    {% else %}
+    <div style="background: rgba(255, 165, 0, 0.1); border: 1px solid orange; color: orange; padding: 10px; border-radius: 4px; font-size: 0.9em; text-align: center;">
+      ⚠️ Configuración bloqueada para Operadores. Usa el CLI: <code>flatsat config --radio 1 ...</code> en tu terminal.
+    </div>
+    {% endif %}
+</div>
+
+<!-- Sensors Panel -->
+<div class="panel panel-syncing" id="panel-sensors">
+    <h2>Satellite Sensors <span class="panel-status" id="panel-sensors-status">Syncing...</span></h2>
+    <div class="field"><label>Temperature:</label> <span id="sens-temp" class="loading-value">Loading...</span> C</div>
+    <div class="field"><label>Pressure:</label> <span id="sens-press" class="loading-value">Loading...</span> hPa</div>
+    <div class="field"><label>Humidity:</label> <span id="sens-humid" class="loading-value">Loading...</span>%</div>
+    <div class="field"><label>Accel X:</label> <span id="sens-ax" class="loading-value">Loading...</span> mg</div>
+    <div class="field"><label>Accel Y:</label> <span id="sens-ay" class="loading-value">Loading...</span> mg</div>
+    <div class="field"><label>Accel Z:</label> <span id="sens-az" class="loading-value">Loading...</span> mg</div>
+</div>
+
+<!-- Local Device Panel -->
+<div class="panel panel-syncing" id="panel-local">
+    <h2>Connected Device <span class="panel-status" id="panel-local-status">Syncing...</span></h2>
+    <div class="field"><label>Role:</label> <span id="local-role" class="loading-value">Loading...</span></div>
+    <div class="field"><label>Firmware:</label> <span id="fw-version" class="loading-value">Loading...</span></div>
+    <div class="field"><label>Git:</label> <span id="fw-git" class="loading-value">Loading...</span></div>
+    <div class="field"><label>Build:</label> <span id="fw-build" class="loading-value">Loading...</span></div>
+    <div class="field"><label>Device Mode:</label> <span id="local-mode" class="loading-value">Loading...</span></div>
+    <div class="field"><label>Flight:</label> <span id="local-flight" class="loading-value">Loading...</span></div>
+    <div class="field"><label>Difficulty:</label> <span id="local-diff" class="loading-value">Loading...</span></div>
+    <div class="field"><label>Spacecraft ID:</label> <span id="local-sc-id" class="loading-value">Loading...</span></div>
+</div>
+
+</div><!-- grid -->
+
+<!-- Controls Panel (full width) -->
+<div class="panel panel-syncing controls-disabled" id="panel-controls">
+    <h2>Connected Device Controls <span class="panel-status" id="panel-controls-status">Syncing...</span></h2>
+    <div id="controls-note" style="margin-bottom:12px; color:#888;">Loading connected device context...</div>
+
+    {% if g.role == 'admin' %}
+    <div style="margin-bottom:10px;">
+        <label style="color:#888;">Mode:</label>
+        <div class="btn-group" id="mode-btns">
+            <button onclick="setMode('raw')">Raw</button>
+            <button onclick="setMode('mission')">Mission</button>
+            <button onclick="setMode('ground_station')">Ground Station</button>
+            <button onclick="setMode('tinygs')">TinyGS</button>
+        </div>
+    </div>
+
+    <div style="margin-bottom:10px;">
+        <label style="color:#888;">Flight:</label>
+        <div class="btn-group" id="flight-btns">
+            <button onclick="setFlight('idle')">Idle</button>
+            <button onclick="setFlight('nominal')">Nominal</button>
+            <button onclick="setFlight('safe')">Safe</button>
+            <button onclick="setFlight('debug')">Debug</button>
+        </div>
+    </div>
+
+    <div style="margin-bottom:10px;">
+        <label style="color:#888;">TinyGS:</label>
+        <select id="tinygs-profile">
+            <option value="norbi">Norbi (436.703 MHz)</option>
+            <option value="fossasat2">FossaSat-2 (436.7 MHz)</option>
+            <option value="vr3x">VR3X (915.6 MHz)</option>
+        </select>
+        <button id="btn-spoof" onclick="tinygsSpoof()">Spoof</button>
+        <button id="btn-tinygs-stop" onclick="tinygsStop()">Stop</button>
+    </div>
+
+    <div style="margin-bottom:10px;">
+        <label style="color:#888;">Active Radio:</label>
+        <div class="btn-group" id="radio-btns">
+            <button onclick="setActiveRadio(2)">Dual (TX: R1, RX: R0)</button>
+            <button onclick="setActiveRadio(0)">Radio 0 (CDC0)</button>
+            <button onclick="setActiveRadio(1)">Radio 1 (CDC1)</button>
+        </div>
+    </div>
+
+    <div style="margin-bottom:10px;">
+        <label style="color:#888;">Difficulty:</label>
+        <select id="diff-select" onchange="setDifficulty(this.value)">
+            <option value="0">0 — Training</option>
+            <option value="1">1 — Normal</option>
+            <option value="2">2 — Hardened</option>
+            <option value="3">3 — Blue Team</option>
+        </select>
+    </div>
+
+    <div>
+        <button onclick="resetDefaults()" style="background:#442; border-color:#664;">Reset Defaults</button>
+    </div>
+    {% else %}
+    <div style="background: rgba(255, 165, 0, 0.1); border: 1px solid orange; color: orange; padding: 15px; border-radius: 4px; text-align: center;">
+      ⚠️ Controles del satélite bloqueados para Operadores. Usa la herramienta de terminal <code>flatsat</code> para modificar los parámetros operativos del satélite (ej: <code>flatsat mode</code>, <code>flatsat flight</code>, <code>flatsat difficulty</code>, etc.).
+    </div>
+    {% endif %}
+</div>
+
+</div><!-- sat-content -->
+
+<div id="toast" class="toast"></div>
+
+<script src="/static/js/satellite.js"></script>
+{% endblock %}
