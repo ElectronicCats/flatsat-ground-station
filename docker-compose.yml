@@ -1,17 +1,69 @@
+# ──────────────────────────────────────────────────────────────────────────────
+# PwnSat2 Ground Station — Docker Compose
+# ──────────────────────────────────────────────────────────────────────────────
+# Uso:
+#   docker compose up            → Inicia en modo simulado
+#   docker compose up --build    → Reconstruye la imagen antes de iniciar
+#
+# Modo Hardware (FlatSat o CatSniffer conectado por USB):
+#   Ver opciones detalladas al final de este archivo.
+# ──────────────────────────────────────────────────────────────────────────────
+
 services:
   ground-station:
-    build: .
+    build:
+      context: .
+      dockerfile: Dockerfile
+      network: host
+
+    image: flatsat-gs:latest
+    container_name: flatsat-ground-station
     ports:
       - "5000:5000"
+
+    # Persistencia de base de datos SQLite entre reinicios del contenedor
+    # Opción A: Bind mount local (predeterminado)
     volumes:
       - ./db:/app/db
-    # USB passthrough for FlatSat hardware (VID:PID 1209:babc)
-    # Comment out the 'devices' section to run in simulated mode only
-    devices:
-      - /dev/ttyACM0:/dev/ttyACM0
-      - /dev/ttyACM1:/dev/ttyACM1
-      - /dev/ttyACM2:/dev/ttyACM2
-    # Required for USB device discovery via pyudev
-    volumes_from: []
+
+    # Opción B: Named volume (recomendado si hay conflictos de permisos en el host)
+    # volumes:
+    #   - flatsat_db:/app/db
+
     environment:
       - PYTHONUNBUFFERED=1
+      - PYTHONDONTWRITEBYTECODE=1
+      - FLATSAT_LEVEL=3          # 1=Fácil  2=Medio  3=Difícil
+      - FLATSAT_PORT=5000
+      - FLATSAT_DEBUG=0          # 0=Desactiva reloader duplicado en Docker, 1=Debug
+
+    healthcheck:
+      test: ["CMD-SHELL", "python -c \"import urllib.request; urllib.request.urlopen('http://127.0.0.1:5000/login')\" || exit 1"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+
+    # ── Modo Hardware (USB Pass-through) ──────────────────────────────────
+    # Para acceso completo a hardware USB (FlatSat/CatSniffer) con autodescubrimiento udev:
+    #
+    # privileged: true
+    # volumes:
+    #   - ./db:/app/db
+    #   - /dev:/dev
+    #   - /sys:/sys:ro
+    #   - /run/udev:/run/udev:ro
+    #
+    # O mapeo individual de dispositivos:
+    # devices:
+    #   - /dev/ttyACM0:/dev/ttyACM0   # Radio 0
+    #   - /dev/ttyACM1:/dev/ttyACM1   # Radio 1
+    #   - /dev/ttyACM2:/dev/ttyACM2   # Shell
+    #
+    # group_add:
+    #   - "20"  # GID del grupo dialout/uucp en el host
+
+    restart: unless-stopped
+
+# volumes:
+#   flatsat_db:

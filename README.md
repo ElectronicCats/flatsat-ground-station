@@ -1,221 +1,216 @@
-# PwnSat2 Ground Station
+# FlatSat Ground Station
 
-A Flask-based ground station for communicating with PwnSat2 FlatSat hardware via LoRa radio. Designed for educational CTF (Capture The Flag) exercises where participants interact with real satellite hardware through a web dashboard.
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
+[![Python Version](https://img.shields.io/badge/python-3.11%2B-blue.svg)](https://www.python.org/)
+[![Docker Supported](https://img.shields.io/badge/docker-ready-brightgreen.svg)](Dockerfile)
+[![Build Status](https://img.shields.io/badge/tests-215%20passed-success.svg)](tests/)
 
-## Requirements
+A modern, web-based and CLI ground station software for communicating with **PwnSat2 FlatSat** satellite hardware and **CatSniffer** LoRa transceivers. Designed for space systems engineering, satellite communications research, and cybersecurity CTF (Capture The Flag) educational labs.
 
-- Python 3.11+
-- pip
+---
 
-Optional for hardware mode:
-- PwnSat2 FlatSat device (USB VID:PID `0x1209:0xBABC`)
-- Linux recommended for USB device discovery (uses `pyudev`)
+## 🌟 Features
 
-## Quick Start
+* **Real-time Web Dashboard**: Interactive telemetry telemetry monitoring, battery/sensor gauges, and live WebSocket graph streaming.
+* **Interactive CLI Tool (`flatsat`)**: Rich-powered terminal interface for device discovery, RF sniffing, payload forging, and shell access.
+* **CCSDS Space Packet Protocol**: Native support for CCSDS 133.0-B-2 primary/secondary packet headers and CRC-16-CCITT integrity checks.
+* **Space Data Link Security (SDLS)**: AES-128-CTR payload encryption with MET-derived IVs and XOR key transformations.
+* **Hardware & Simulation Modes**: Operates seamlessly in simulated mock mode without hardware, or connects to real USB hardware transceivers (RP2040 / SX1262).
+* **Multi-Level CTF Cybersecurity Lab**: Built-in 3-level difficulty system (Web, CCSDS Protocol, Firmware/Crypto) for space cybersecurity training.
+
+---
+
+## 🚀 Quick Start
+
+### Option 1: Run with Docker Compose (Recommended)
+
+Docker provides an isolated, cross-platform environment ready out-of-the-box.
 
 ```bash
-git clone <repo-url>
+# 1. Clone repository
+git clone https://github.com/ElectronicCats/flatsat-ground-station.git
 cd flatsat-ground-station
-python -m venv .venv
-source .venv/bin/activate   # Windows: .venv\Scripts\activate
+
+# 2. Create local database directory
+mkdir -p db
+
+# 3. Launch container
+docker compose up -d
+```
+
+Open your browser at **[http://localhost:5000](http://localhost:5000)**.
+
+#### Default Credentials:
+* **Admin:** `admin` / `password`
+* **Operator:** `operator` / `operator`
+
+---
+
+### Option 2: Run Natively with Python
+
+#### Linux (Ubuntu/Debian/Fedora)
+```bash
+git clone https://github.com/ElectronicCats/flatsat-ground-station.git
+cd flatsat-ground-station
+
+# Create & activate virtualenv
+python3 -m venv .venv
+source .venv/bin/activate
+
+# Install dependencies
 pip install -r requirements.txt
-export FLATSAT_LEVEL=1  # 1: Easy, 2: Medium, 3: Hard
+
+# Grant serial port permissions (logout & login required)
+sudo usermod -aG dialout $USER
+
+# Set CTF Level (1: Easy, 2: Medium, 3: Hard)
+export FLATSAT_LEVEL=1
+
+# Start Ground Station WebApp
+python3 -m webapp.app
+```
+
+#### macOS
+> **Note for macOS:** macOS Monterey and later uses port 5000 for AirPlay Receiver. Use `export FLATSAT_PORT=5001` to run on port 5001.
+
+```bash
+git clone https://github.com/ElectronicCats/flatsat-ground-station.git
+cd flatsat-ground-station
+
+python3 -m venv .venv
+source .venv/bin/activate
+pip install -r requirements.txt
+
+export FLATSAT_LEVEL=1
+export FLATSAT_PORT=5001
+python3 -m webapp.app
+```
+
+#### Windows (PowerShell / Command Prompt)
+Double-click `install_windows.bat` or run in PowerShell:
+
+```powershell
+git clone https://github.com/ElectronicCats/flatsat-ground-station.git
+cd flatsat-ground-station
+
+python -m venv .venv
+.\.venv\Scripts\Activate.ps1
+pip install -e .
+
+$env:FLATSAT_LEVEL="1"
 python -m webapp.app
 ```
 
-### CTF Difficulty Levels
+---
 
-This ground station supports three difficulty levels that toggle security vulnerabilities and protocol complexity:
+## 🖥️ Interactive CLI (`flatsat`)
 
-- **Level 1 (Easy):** Web vulnerabilities (SQLi, Auth Bypass) are fully exploitable. Radio communication is in plaintext.
-- **Level 2 (Medium):** Web vulnerabilities are harder (LFI, RCE). Radio requires CCSDS Space Packets.
-- **Level 3 (Hard):** Web security is hardened (Signed tokens, input validation). Focus shifts to firmware exploitation (Buffer Overflows) and SDLS/AES crypto.
-
-Change the level using the `FLATSAT_LEVEL` environment variable before starting the app.
-
-Open `http://localhost:5000` in your browser.
-
-The database is created automatically on first run. No manual setup needed.
-
-> **Credentials:** Ask your instructor for login details.
-
-### Simulated Mode
-
-Click **Simulate** on the dashboard to generate mock telemetry without hardware. Useful for development and CTF setup.
-
-### Hardware Mode
-
-1. Connect a FlatSat device via USB
-2. Click **Scan USB** on the dashboard
-3. Select the device and click **Connect**
-
-> **Linux USB permissions:** If the device is not detected, you may need to add a udev rule or run with appropriate permissions. See [Troubleshooting](#troubleshooting).
-
-## Docker
+The repository includes a full-featured terminal CLI for satellite operators.
 
 ```bash
-docker compose up
+# Install CLI in editable mode
+pip install -e .
+
+# Launch interactive terminal shell
+flatsat
+
+# Standalone CLI commands:
+flatsat devices               # Scan and list connected USB devices
+flatsat status                # Query ground station status
+flatsat transmit --opcode 0x10 # Send PING telecommand frame
 ```
 
-Open `http://localhost:5000`. To use hardware mode, ensure the FlatSat is connected before starting the container.
+---
 
-See [docker-compose.yml](docker-compose.yml) for USB device mapping configuration.
+## 🛰️ Hardware Setup & Modes
 
-## Architecture
+### Supported Hardware
+1. **PwnSat2 / FlatSat Hardware** (Dual LoRa Radios: RX + TX, USB VID:PID `0x1209:0xBABC`).
+2. **CatSniffer Hardware** (Single LoRa Radio: RX/TX overlay mode).
 
+### Hardware Pass-Through in Docker
+To enable physical USB hardware scanning inside Docker:
+
+Uncomment the privileged hardware section in `docker-compose.yml`:
+```yaml
+    privileged: true
+    volumes:
+      - ./db:/app/db
+      - /dev:/dev
+      - /sys:/sys:ro
+      - /run/udev:/run/udev:ro
 ```
-browser  <->  webapp/ (Flask + SocketIO)  <->  core/ (protocol + serial)  <->  FlatSat USB
-                 |
-              db/ (SQLite)
-```
+Then restart Docker Compose: `docker compose up -d`.
 
-### Core Library (`core/`)
+---
 
-| Module             | Purpose                                           |
-|--------------------|---------------------------------------------------|
-| `ccsds.py`         | CCSDS Space Packet encoder/decoder with SDLS       |
-| `serial_manager.py`| USB device discovery by VID:PID                    |
-| `device.py`        | Threadsafe serial wrapper for 3 CDC endpoints      |
-| `telemetry.py`     | Telemetry payload decoder (Heartbeat, BME280, LIS2DH) |
-| `telecommand.py`   | Telecommand frame builder with SDLS encryption     |
-| `state.py`         | Ground station state machine (IDLE/HARDWARE/SIMULATED) |
-| `shell_parser.py`  | Firmware shell response parsers                    |
-| `constants.py`     | Opcode definitions and protocol constants          |
+## 🎯 CTF Cybersecurity Challenges
 
-### Web Application (`webapp/`)
+The laboratory supports 3 progressive security training levels controlled by `FLATSAT_LEVEL`:
 
-| Module          | Purpose                                    |
-|-----------------|--------------------------------------------|
-| `app.py`        | Flask routes, API endpoints, SocketIO      |
-| `auth.py`       | Authentication (MD5 + base64 tokens)       |
-| `db.py`         | SQLite schema and helpers                  |
-| `radio_bridge.py`| Serial bridge for send operations         |
-| `seed.py`       | Database seed data                         |
-| `config.py`     | Flask configuration                        |
+* **Level 1 (Easy - Web & Cleartext)**: API enumeration, SQL injection, Base64 session forgery, cleartext radio telecommands.
+* **Level 2 (Medium - Systems & CCSDS)**: Local File Inclusion (LFI), Remote Code Execution (RCE), IDOR, CCSDS Space Packet framing.
+* **Level 3 (Hard - Firmware & Crypto)**: HMAC-SHA256 session signatures, SDLS AES-128-CTR payload encryption, RP2040 stack buffer overflows.
 
-### Database (`db/`)
+For detailed challenge solutions, hints, and curriculum plans:
+* 📖 [CTF Challenge & Walkthrough Guide](docs/ctf_walkthrough_guide.md)
+* 🎓 [Training Curriculum & Workshop Plan](docs/curriculum-plan.md)
 
-SQLite with tables: `users`, `telemetry`, `radio_config`, `secrets`, `logs`. Created automatically on first run.
+---
 
-## Webapp Pages
+## 📦 Maintainer Guide: Publishing GitHub Releases
 
-- **Dashboard** (`/dashboard`) — Live telemetry via WebSocket, hardware control (scan/connect/simulate), telecommand panel
-- **Satellite** (`/satellite`) — Satellite status, battery monitor, LoRa radio config (R0/R1), sensor readout, device controls
-- **Config** (`/config`) — Radio configuration with DB persistence
-- **Logs** (`/logs`) — System log viewer
+When preparing an official GitHub release for **FlatSat Ground Station**:
 
-## Toolkit
-
-Standalone scripts for interacting with FlatSat from the command line. Located in `toolkit/`.
-
-| Script | Category | Purpose |
-|--------|----------|---------|
-| `ccsds_tools.py` | Protocol | CCSDS frame parser/builder, TM decoders, SDLS encrypt/decrypt |
-| `forge_command.py` | Command | Telecommand forger — build and send TC frames |
-| `crack_xor.py` | Crypto | Known-plaintext attack to recover XOR key |
-| `crack_aes.py` | Crypto | AES key recovery via crypto oracle chosen-plaintext attack |
-| `replay_capture.py` | RF | Capture and replay CCSDS frames over LoRa |
-| `rf_scanner.py` | RF | LoRa frequency scanner — find the satellite's downlink |
-| `frame_fuzzer.py` | Protocol | Mutate CCSDS fields to find parser bugs |
-| `seq_predict.py` | Protocol | Predict sequence counters to bypass anti-replay |
-| `fw_dumper.py` | Firmware | Dump memory via DIAG_MEMORY and analyze firmware binaries |
-| `bus_sniffer.py` | Hardware | Decode SPI/I2C/UART captures from logic analyzers |
-| `power_analysis.py` | Hardware | Simple/differential power analysis from oscilloscope traces |
-| `neopixel_decode.py` | Mission | Decode covert channel data from Neopixel LED sequences |
-
+### 1. Tag a New Release
 ```bash
-cd toolkit
-
-# Parse a captured frame
-python ccsds_tools.py parse <hex>
-
-# Build and send a PING command
-python forge_command.py ping --send /dev/ttyACM1
-
-# Scan for the satellite frequency
-python rf_scanner.py quick /dev/ttyACM0 /dev/ttyACM1
-
-# Fuzz the frame parser
-python frame_fuzzer.py offline
-
-# Capture and replay frames
-python replay_capture.py capture /dev/ttyACM1 capture.json 30
-python replay_capture.py replay /dev/ttyACM1 capture.json --modify-seq
+git tag -a v1.0.0 -m "FlatSat Ground Station Release v1.0.0"
+git push origin v1.0.0
 ```
 
-## Tests
-
+### 2. Export Offline Docker Asset (Optional Release Attachment)
+To attach an offline Docker image archive to the GitHub Release:
 ```bash
-pytest
+docker build -t flatsat-gs:latest .
+docker save flatsat-gs:latest | gzip > flatsat-gs.tar.gz
 ```
+*Upload `flatsat-gs.tar.gz` and `docker-compose.yml` to the Release Assets section.*
 
-189 tests covering the core library, webapp routes, and vulnerability checks.
-
-## Directory Structure
-
-```
-├── core/                  # Protocol and hardware library
-│   ├── ccsds.py
-│   ├── constants.py
-│   ├── device.py
-│   ├── serial_manager.py
-│   ├── shell_parser.py
-│   ├── state.py
-│   ├── telecommand.py
-│   └── telemetry.py
-├── webapp/                # Flask web application
-│   ├── app.py
-│   ├── auth.py
-│   ├── config.py
-│   ├── db.py
-│   ├── radio_bridge.py
-│   ├── seed.py
-│   ├── static/
-│   │   ├── css/           # Stylesheets
-│   │   └── js/            # Client-side JavaScript
-│   └── templates/         # Jinja2 HTML templates
-├── toolkit/               # Standalone attack/analysis scripts (12 tools)
-│   ├── ccsds_tools.py     # CCSDS protocol library
-│   ├── forge_command.py   # TC frame forger
-│   ├── crack_xor.py       # XOR key cracker
-│   ├── crack_aes.py       # AES oracle attack
-│   ├── replay_capture.py  # Frame capture/replay
-│   ├── rf_scanner.py      # Frequency scanner
-│   ├── frame_fuzzer.py    # Protocol fuzzer
-│   ├── seq_predict.py     # Sequence predictor
-│   ├── fw_dumper.py       # Memory dumper
-│   ├── bus_sniffer.py     # Bus traffic decoder
-│   ├── power_analysis.py  # Power trace analysis
-│   └── neopixel_decode.py # Covert channel decoder
-├── tests/                 # pytest test suite
-├── db/                    # SQLite database files (auto-created)
-├── docs/                  # Design specs and plans
-├── Dockerfile
-├── docker-compose.yml
-└── requirements.txt
-```
-
-## Troubleshooting
-
-### FlatSat not detected on Linux
-
-Add a udev rule for the device:
-
+### 3. Build Standalone CLI Executables
+To generate standalone binaries for Linux and Windows:
 ```bash
-echo 'SUBSYSTEM=="usb", ATTR{idVendor}=="1209", ATTR{idProduct}=="babc", MODE="0666"' | sudo tee /etc/udev/rules.d/99-pwnsat.rules
-sudo udevadm control --reload-rules && sudo udevadm trigger
+# On Linux/macOS:
+./compile.sh
+
+# On Windows:
+build_windows.bat
+```
+*Executables will be generated in `dist/` and can be attached to the release.*
+
+---
+
+## 📁 Repository Structure
+
+```
+flatsat-ground-station/
+├── cli/                    # Click-based CLI application (`flatsat` command)
+├── core/                   # Core protocol engine (CCSDS, SDLS, device drivers, bridge)
+├── db/                     # SQLite database models & seed files
+├── docs/                   # Documentation & CTF walkthrough guides
+├── scripts/                # Installation and system helper scripts
+├── tests/                  # Pytest unit & integration test suite (215 tests)
+├── toolkit/                # Standalone RF analysis & security tools
+├── webapp/                 # Flask & SocketIO presentation dashboard
+├── Dockerfile              # Container definition with gosu entrypoint
+├── docker-compose.yml      # Container orchestration
+├── docker-entrypoint.sh    # Permission-safe entrypoint script
+└── LICENSE                 # Open-source MIT License
 ```
 
-Reconnect the FlatSat after applying the rule.
+---
 
-### Port 5000 already in use
+## 📜 License
 
-```bash
-python -m webapp.app  # defaults to port 5000
-```
+Distributed under the **MIT License**. See [`LICENSE`](LICENSE) for more information.
 
-Kill the existing process or change the port in `webapp/app.py`.
-
-### Database issues
-
-Delete `db/telemetry.db` and restart — it will be recreated with seed data automatically.
+Developed with ❤️ by **[Electronic Cats](https://electroniccats.com)**.

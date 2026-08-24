@@ -1,25 +1,31 @@
-"""FlatSat Ground Station — shared core library.
+"""Backward-compatibility shim for core -> modules.core."""
+import sys
+import importlib
 
-Usage:
-    from core import build_tm, parse_frame, generate_mock_telemetry
-    from core.constants import APID_TM_HEARTBEAT, TC_OP_PING
-"""
+_target = importlib.import_module("modules.core")
+sys.modules[__name__] = _target
+sys.modules["core"] = _target
 
-from core.ccsds import (
-    CcsdsPacket,
-    build_tc,
-    build_tm,
-    ccsds_crc16,
-    parse_frame,
-)
-from core.device import FlatSatDevice, parse_lora_rx
-from core.serial_manager import DeviceIdentity, DiscoveredDevice, discover_devices
-from core.state import GroundStationState
-from core.telecommand import (
-    build_command_tc,
-    build_privileged_tc,
-)
-from core.telemetry import (
-    decode_tm_payload,
-    generate_mock_telemetry,
-)
+_submodules = [
+    "ccsds",
+    "cli",
+    "constants",
+    "device",
+    "radio_bridge",
+    "serial_manager",
+    "session",
+    "shell_parser",
+    "state",
+    "telecommand",
+    "telemetry",
+]
+
+for _sub in _submodules:
+    try:
+        _mod = importlib.import_module(f"modules.core.{_sub}")
+        sys.modules[f"core.{_sub}"] = _mod
+        setattr(_target, _sub, _mod)
+    except Exception:
+        pass
+
+globals().update({k: getattr(_target, k) for k in getattr(_target, "__all__", dir(_target)) if not k.startswith("__")})

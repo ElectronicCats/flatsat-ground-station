@@ -26,3 +26,17 @@ venv/
 .idea/
 *.swp
 *.swo
+
+# Temporary detailed problems document
+/problemas_detallados.md
+
+# Exploits & Dumps
+exploit_*.py
+*cookies.txt
+*.tar.gz
+tree.txt
+
+# Builds
+build_*/
+
+

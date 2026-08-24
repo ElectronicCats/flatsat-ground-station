@@ -26,6 +26,13 @@ def app():
 @pytest.fixture
 def auth_client(app):
     client = app.test_client()
+    client.post("/login", data={"username": "admin", "password": "password"})
+    return client
+
+
+@pytest.fixture
+def operator_client(app):
+    client = app.test_client()
     client.post("/login", data={"username": "operator", "password": "operator123"})
     return client
 
@@ -47,6 +54,7 @@ def _setup_hardware(app):
     mock_dev = MagicMock()
     mock_dev.serial_number = "TEST123"
     mock_dev.is_connected = True
+    mock_dev.has_radio1 = False
     gs.set_hardware(mock_dev)
     return mock_dev
 
@@ -55,7 +63,7 @@ def test_satellite_info_connected(app, auth_client):
     mock_dev = _setup_hardware(app)
     mock_dev.send_shell_command_full.side_effect = lambda cmd, **kw: {
         "fw_version": "fw_versionFW: dev-test\nGit: abc1234 (dirty)\nBuilt: 2026-01-01\nCompiler: GNU",
-        "mode": "modemode: mission",
+        "mode": "role: satellite",
         "flight": "flightflight: NOMINAL  battery: 3650 mV  tm_rate: 10 sec",
         "difficulty": "difficultydifficulty: 1 (normal)",
         "sc_id": "sc_idspacecraft_id: 0x02",
@@ -66,7 +74,7 @@ def test_satellite_info_connected(app, auth_client):
     assert resp.status_code == 200
     data = resp.get_json()
     assert data["fw_version"] == "dev-test"
-    assert data["mode"] == "mission"
+    assert data["mode"] == "satellite"
     assert data["flight"] == "NOMINAL"
     assert data["battery_mv"] == 3650
     assert data["difficulty"] == 1
@@ -113,7 +121,7 @@ def test_satellite_status_ground_station_prefers_remote_tm(app, auth_client):
 def test_satellite_sensors_ground_station_use_remote_snapshot(app, auth_client):
     mock_dev = _setup_hardware(app)
     gs = app.config["GS_STATE"]
-    gs.update_remote_satellite(0x010, {"temperature": 22.75, "pressure": 101250.0, "humidity": 48}, rssi=-69, snr=7.5)
+    gs.update_remote_satellite(0x010, {"temperature": 22.75, "pressure": 1012.50, "humidity": 48}, rssi=-69, snr=7.5)
     gs.update_remote_satellite(0x011, {"accel_x": 12, "accel_y": -4, "accel_z": 1003}, rssi=-69, snr=7.5)
     mock_dev.send_shell_command_full.side_effect = lambda cmd, **kw: {
         "mode": "modemode: raw",
@@ -175,7 +183,7 @@ def test_satellite_mode_mission(app, auth_client):
     resp = auth_client.post("/api/satellite/mode", json={"mode": "mission"}, content_type="application/json")
     assert resp.status_code == 200
     calls = [c[0][0] for c in mock_dev.send_shell_command_full.call_args_list]
-    assert "mode mission" in calls
+    assert "mode sat" in calls
     assert "lora_mode ALL stream" in calls
 
 
@@ -185,7 +193,7 @@ def test_satellite_mode_ground_station(app, auth_client):
     resp = auth_client.post("/api/satellite/mode", json={"mode": "ground_station"}, content_type="application/json")
     assert resp.status_code == 200
     calls = [c[0][0] for c in mock_dev.send_shell_command_full.call_args_list]
-    assert "mode raw" in calls
+    assert "mode gs" in calls
     assert "lora_mode ALL command" in calls
 
 
@@ -230,4 +238,82 @@ def test_satellite_reset(app, auth_client):
     assert resp.status_code == 200
     calls = [c[0][0] for c in mock_dev.send_shell_command_full.call_args_list]
     assert "reset_defaults" in calls
-    assert len(calls) == 1  # firmware handles freq defaults, no workaround needed
+    assert len(calls) == 2  # queries 'mode' then 'reset_defaults'
+
+
+def test_satellite_duplicate_mode_ignored(app, auth_client):
+    mock_dev = _setup_hardware(app)
+    gs = app.config["GS_STATE"]
+    gs.local_device_info["mode"] = "mission"
+    
+    resp = auth_client.post("/api/satellite/mode", json={"mode": "mission"}, content_type="application/json")
+    assert resp.status_code == 200
+    assert resp.get_json().get("no_change") is True
+    mock_dev.send_shell_command_full.assert_not_called()
+
+
+def test_satellite_duplicate_flight_ignored(app, auth_client):
+    mock_dev = _setup_hardware(app)
+    gs = app.config["GS_STATE"]
+    gs.local_device_info["role"] = "satellite"
+    gs.local_device_info["flight"] = "NOMINAL"
+    
+    resp = auth_client.post("/api/satellite/flight", json={"flight": "nominal"}, content_type="application/json")
+    assert resp.status_code == 200
+    assert resp.get_json().get("no_change") is True
+    mock_dev.send_shell_command_full.assert_not_called()
+
+
+def test_satellite_duplicate_difficulty_ignored(app, auth_client):
+    mock_dev = _setup_hardware(app)
+    gs = app.config["GS_STATE"]
+    gs.difficulty = 2
+    
+    resp = auth_client.post("/api/satellite/difficulty", json={"level": 2}, content_type="application/json")
+    assert resp.status_code == 200
+    assert resp.get_json().get("no_change") is True
+    mock_dev.send_shell_command_full.assert_not_called()
+
+
+def test_satellite_duplicate_tinygs_ignored(app, auth_client):
+    mock_dev = _setup_hardware(app)
+    gs = app.config["GS_STATE"]
+    gs.local_device_info["mode"] = "tinygs"
+    gs.local_device_info["tinygs_profile"] = "norbi"
+    
+    resp = auth_client.post("/api/satellite/tinygs", json={"action": "spoof", "profile": "norbi"}, content_type="application/json")
+    assert resp.status_code == 200
+    assert resp.get_json().get("no_change") is True
+    mock_dev.send_shell_command_full.assert_not_called()
+
+
+def test_active_radio_duplicate_ignored(app, auth_client):
+    mock_dev = _setup_hardware(app)
+    gs = app.config["GS_STATE"]
+    gs.active_radio = 2
+    
+    resp = auth_client.post("/api/hardware/active_radio", json={"active_radio": 2}, content_type="application/json")
+    assert resp.status_code == 200
+    assert resp.get_json().get("no_change") is True
+    mock_dev.send_shell_command_full.assert_not_called()
+
+
+def test_satellite_config_operator_denied(app, operator_client):
+    _setup_hardware(app)
+    resp = operator_client.post("/api/satellite/lora_config", json={"radio": "R0", "frequency": 915000000}, content_type="application/json")
+    assert resp.status_code == 403
+
+    resp = operator_client.post("/api/satellite/mode", json={"mode": "mission"}, content_type="application/json")
+    assert resp.status_code == 403
+
+    resp = operator_client.post("/api/satellite/flight", json={"flight": "nominal"}, content_type="application/json")
+    assert resp.status_code == 403
+
+    resp = operator_client.post("/api/satellite/difficulty", json={"level": 2}, content_type="application/json")
+    assert resp.status_code == 403
+
+    resp = operator_client.post("/api/satellite/tinygs", json={"action": "spoof"}, content_type="application/json")
+    assert resp.status_code == 403
+
+    resp = operator_client.post("/api/satellite/reset")
+    assert resp.status_code == 403

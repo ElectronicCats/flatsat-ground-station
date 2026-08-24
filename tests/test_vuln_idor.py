@@ -52,4 +52,5 @@ def test_idor_nonexistent(operator_client):
 
 def test_config_page_renders(operator_client):
     resp = operator_client.get("/config")
-    assert resp.status_code == 200
+    assert resp.status_code == 302
+    assert "/dashboard" in resp.headers["Location"]

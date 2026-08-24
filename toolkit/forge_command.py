@@ -25,45 +25,112 @@ COMMANDS = {
 }
 
 
+def _normalize_port(port: str) -> str:
+    import sys
+    if sys.platform == "win32" and port:
+        p_up = port.upper()
+        if p_up.startswith("COM"):
+            try:
+                if int(p_up[3:]) >= 10:
+                    return rf"\\.\{p_up}"
+            except ValueError:
+                pass
+    return port
+
+
 def send_raw(port: str, data: bytes):
-    """Send frame via CDC Radio port using LoRa command-mode TX.
-
-    The ground station radio is in command mode (lora_mode command),
-    so we send 'TX <hex>\\r\\n' instead of raw bytes.
-    """
+    """Send frame via CDC Radio port using LoRa command-mode TX."""
+    import sys
     import time
-
     import serial
 
-    ser = serial.Serial(port, 115200, timeout=3, dsrdtr=False, rtscts=False)
-    time.sleep(1)
+    port_path = _normalize_port(port)
+    _SILENCE_S = 0.15
+
+    ser = serial.Serial()
+    ser.port = port_path
+    ser.baudrate = 115200
+    ser.timeout = 1.0
+    ser.write_timeout = 1.0
+    ser.dtr = False
+    ser.rts = False
+    ser.open()
+
+    if sys.platform == "win32":
+        time.sleep(0.15)
+
     ser.reset_input_buffer()
+    ser.reset_output_buffer()
+
     cmd = f"TX {data.hex().upper()}\r\n"
     ser.write(cmd.encode("ascii"))
     ser.flush()
-    time.sleep(2)
-    resp = ser.read(ser.in_waiting or 256)
-    if resp:
-        print(f"[<] Response: {resp.decode(errors='replace').strip()}")
+
+    # Read response with catnip 150ms silence window
+    buf = b""
+    deadline = time.monotonic() + 3.0
+    last_rx = None
+    while time.monotonic() < deadline:
+        waiting = ser.in_waiting
+        if waiting:
+            buf += ser.read(waiting)
+            last_rx = time.monotonic()
+            time.sleep(0.02)
+        else:
+            if last_rx is not None and (time.monotonic() - last_rx) >= _SILENCE_S:
+                break
+            time.sleep(0.02)
+
+    if buf:
+        print(f"[<] Response: {buf.decode(errors='replace').strip()}")
     else:
         print("[<] No response")
     ser.close()
 
 
 def inject_via_shell(port: str, data: bytes):
-    """Send inject_tc command to shell port (loopback, no LoRa)"""
+    """Send inject_tc command to shell port (loopback, no LoRa)."""
+    import sys
     import time
-
     import serial
 
-    ser = serial.Serial(port, 115200, timeout=2, dsrdtr=False, rtscts=False)
-    time.sleep(0.5)
+    port_path = _normalize_port(port)
+    _SILENCE_S = 0.15
+
+    ser = serial.Serial()
+    ser.port = port_path
+    ser.baudrate = 115200
+    ser.timeout = 1.0
+    ser.write_timeout = 1.0
+    ser.dtr = False
+    ser.rts = False
+    ser.open()
+
+    if sys.platform == "win32":
+        time.sleep(0.15)
+
     ser.reset_input_buffer()
+    ser.reset_output_buffer()
+
     cmd = f"inject_tc {data.hex()}\r\n"
     ser.write(cmd.encode())
-    time.sleep(0.8)
-    resp = ser.read(ser.in_waiting or 1)
-    print(f"[<] Shell response:\n{resp.decode(errors='replace')}")
+    ser.flush()
+
+    buf = b""
+    deadline = time.monotonic() + 2.0
+    last_rx = None
+    while time.monotonic() < deadline:
+        waiting = ser.in_waiting
+        if waiting:
+            buf += ser.read(waiting)
+            last_rx = time.monotonic()
+            time.sleep(0.02)
+        else:
+            if last_rx is not None and (time.monotonic() - last_rx) >= _SILENCE_S:
+                break
+            time.sleep(0.02)
+
+    print(f"[<] Shell response:\n{buf.decode(errors='replace')}")
     ser.close()
 
 

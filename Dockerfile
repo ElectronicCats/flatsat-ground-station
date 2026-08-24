@@ -1,38 +1,67 @@
-# 1. Etapa Base: Usamos una imagen oficial de Python como punto de partida.                                       
-# 'slim' es más pequeño que la imagen completa, lo cual es bueno para la eficiencia.                              
-FROM python:3.11-slim                                                                                             
-                                                                                                                  
-# 2. Configuración de Directorio de Trabajo:                                                                      
-# Establece el directorio que se usará dentro del contenedor.                                                     
+# ──────────────────────────────────────────────────────────────────────────────
+# PwnSat2 Ground Station — Dockerfile
+# ──────────────────────────────────────────────────────────────────────────────
+# Build:  docker build -t flatsat-gs .
+# Run:    docker compose up
+# ──────────────────────────────────────────────────────────────────────────────
+
+# 1. Base: Python 3.11 slim (Debian Bookworm)
+FROM python:3.11-slim
+
+# 2. Evitar prompts interactivos durante el build
+ENV DEBIAN_FRONTEND=noninteractive \
+    PYTHONUNBUFFERED=1 \
+    PYTHONDONTWRITEBYTECODE=1 \
+    PIP_NO_CACHE_DIR=1 \
+    FLATSAT_LEVEL=3 \
+    FLATSAT_PORT=5000 \
+    FLATSAT_DEBUG=0
+
+
 WORKDIR /app
 
-# 3. Actualizar e instalar dependencias de sistema
-# En Arch, systemd-libs provee los headers de udev necesarios para pyudev/serial
+# 3. Dependencias de sistema:
+#    - libudev-dev  → pyudev (detección de dispositivos USB/serial)
+#    - udev         → reglas de dispositivo dentro del contenedor
+#    - libusb-1.0-0 → acceso USB de bajo nivel
+#    - libpq-dev / build-essential → compilar extensiones C de las dependencias
 RUN apt-get update && \
-    apt-get install -y --no-install-recommends\
-    build-essential\
-    libpq-dev \
-    && apt-get clean\
+    apt-get install -y --no-install-recommends \
+        build-essential \
+        libudev-dev \
+        libusb-1.0-0 \
+        udev \
+        gosu \
+    && apt-get clean \
     && rm -rf /var/lib/apt/lists/*
-   
-    
-# 4. Copiar Dependencias:                                                                                         
-# Copiamos primero el archivo requirements.txt. Esto es crucial para el cacheo de Docker.                         
-# Si solo cambian otros archivos, Docker reutilizará esta capa de la imagen.                                      
-COPY requirements.txt .                                                                                           
-                                                                                                                    
-# 5. Instalar Dependencias:                                                                                       
-# Ejecuta pip para instalar todas las librerías listadas en el archivo.                                           
-RUN pip install --no-cache-dir -r requirements.txt                                                                
-                                                                                                                    
-# 6. Copiar Código Fuente:                                                                                        
-# Copiamos el resto de los archivos de la aplicación al directorio de trabajo.                                    
-COPY . .                                                                                                          
-                                                                                                                    
-# 7. Definir Puerto de Exposición (Opcional pero recomendado):                                                    
-# Informa al usuario qué puerto espera escuchar la aplicación.                                                    
-EXPOSE 5000                                                                                                       
-                                                                                                                    
-# 8. Comando de Ejecución:                                                                                        
-# Define el comando que se ejecutará cuando alguien corra 'docker run mi-imagen'.                                 
-CMD ["python", "-m", "webapp.app"]   
+
+# 4. Instalar dependencias Python (cacheadas si requirements.txt no cambia)
+COPY requirements.txt .
+RUN pip install --no-cache-dir -r requirements.txt
+
+# 5. Copiar código fuente
+COPY . .
+
+# 6. Crear directorio de base de datos con permisos correctos
+RUN mkdir -p /app/db && chmod 777 /app/db
+
+# 7. Usuario no-root para mayor seguridad
+#    (el grupo 'dialout' es necesario para acceder a /dev/ttyACM*)
+RUN groupadd -r appuser && \
+    useradd -r -g appuser -G dialout appuser && \
+    chmod +x /app/docker-entrypoint.sh && \
+    chown -R appuser:appuser /app
+
+
+# 8. Puerto de la webapp
+EXPOSE 5000
+
+# 9. Health check — verifica que el servidor responde
+HEALTHCHECK --interval=30s --timeout=5s --start-period=10s --retries=3 \
+    CMD python -c "import os, urllib.request; p=os.environ.get('FLATSAT_PORT','5000'); urllib.request.urlopen(f'http://127.0.0.1:{p}/login')" || exit 1
+
+
+# 10. Entrypoint y comando por defecto para ejecutar la webapp
+ENTRYPOINT ["/app/docker-entrypoint.sh"]
+CMD ["python", "-m", "webapp.app"]
+

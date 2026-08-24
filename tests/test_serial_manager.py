@@ -11,7 +11,7 @@ from core.serial_manager import (
     DiscoveredDevice,
     _extract_serial_number,
     _group_ports_by_device,
-    _map_endpoints_intelligent,
+    _map_endpoints,
     discover_devices,
 )
 
@@ -66,7 +66,7 @@ def test_map_endpoints_by_description():
         MagicMock(device="/dev/ttyACM1", description="Flat-Sat - Cat-Radio1"),
         MagicMock(device="/dev/ttyACM2", description="Flat-Sat - Cat-Shell"),
     ]
-    result = _map_endpoints_intelligent(ports)
+    result = _map_endpoints(ports)
     assert result[ENDPOINT_RADIO0] == "/dev/ttyACM0"
     assert result[ENDPOINT_RADIO1] == "/dev/ttyACM1"
     assert result[ENDPOINT_SHELL] == "/dev/ttyACM2"
@@ -78,7 +78,7 @@ def test_map_endpoints_positional_fallback():
         MagicMock(device="/dev/ttyACM1", description="Unknown CDC"),
         MagicMock(device="/dev/ttyACM2", description="Unknown CDC"),
     ]
-    result = _map_endpoints_intelligent(ports)
+    result = _map_endpoints(ports)
     assert result[ENDPOINT_RADIO0] == "/dev/ttyACM0"
     assert result[ENDPOINT_RADIO1] == "/dev/ttyACM1"
     assert result[ENDPOINT_SHELL] == "/dev/ttyACM2"
@@ -118,3 +118,14 @@ def test_discover_devices_finds_flatsat(mock_comports):
     assert len(devices) == 1
     assert devices[0].is_complete
     assert devices[0].identity.serial_number == "TESTSERIAL"
+
+
+def test_group_ports_by_device_using_serial_number():
+    p1 = MagicMock(serial_number="ABC123", hwid="SER=UNKNOWN", device="/dev/ttyACM0", location=None)
+    p2 = MagicMock(serial_number="ABC123", hwid="SER=UNKNOWN", device="/dev/ttyACM1", location=None)
+    p3 = MagicMock(serial_number="XYZ789", hwid="SER=UNKNOWN", device="/dev/ttyACM2", location=None)
+    groups = _group_ports_by_device([p1, p2, p3])
+    assert len(groups) == 2
+    assert len(groups["ABC123"]) == 2
+    assert len(groups["XYZ789"]) == 1
+
