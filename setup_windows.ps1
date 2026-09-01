@@ -1,5 +1,5 @@
 # Setup Script for Windows Users
-# Automates the creation of global shortcuts (flatsat, flatsat-web, and optional flatsat-tui)
+# Automates the creation of virtual environment (.venv), dependencies installation, and global shortcuts (flatsat, flatsat-web, and optional flatsat-tui)
 
 $GsDir = Get-Item -LiteralPath $PSScriptRoot
 $ParentDir = $GsDir.Parent.FullName
@@ -10,6 +10,44 @@ Write-Host "FlatSat Ground Station Windows Auto-Setup" -ForegroundColor Cyan
 Write-Host "==========================================" -ForegroundColor Cyan
 Write-Host "Ground Station path: $($GsDir.FullName)" -ForegroundColor Yellow
 
+# --- 1. Detect Python and setup virtual environment ---
+$PythonCmd = if (Get-Command python -ErrorAction SilentlyContinue) { "python" } elseif (Get-Command py -ErrorAction SilentlyContinue) { "py" } else { $null }
+
+if (-not $PythonCmd) {
+    Write-Host "[!] ERROR: Python 3.9+ is not installed or not in PATH." -ForegroundColor Red
+    Write-Host "[!] Please install Python from https://www.python.org/ and check 'Add Python to PATH'." -ForegroundColor Yellow
+} else {
+    $VenvPython = Join-Path $GsDir.FullName ".venv\Scripts\python.exe"
+    if (-not (Test-Path -LiteralPath $VenvPython)) {
+        Write-Host "[*] Generating virtual environment (.venv)..." -ForegroundColor Cyan
+        & $PythonCmd -m venv (Join-Path $GsDir.FullName ".venv")
+        if (Test-Path -LiteralPath $VenvPython) {
+            Write-Host "[+] Virtual environment (.venv) successfully created." -ForegroundColor Green
+            Write-Host "[*] Installing dependencies in virtual environment..." -ForegroundColor Cyan
+            & $VenvPython -m pip install --upgrade pip | Out-Null
+            & $VenvPython -m pip install -e $GsDir.FullName
+        } else {
+            Write-Host "[!] Warning: Could not create virtual environment automatically." -ForegroundColor Yellow
+        }
+    } else {
+        Write-Host "[*] Virtual environment (.venv) already exists." -ForegroundColor Gray
+    }
+
+    # If TUI directory is present, also ensure its virtual environment exists
+    if (Test-Path -LiteralPath (Join-Path $TuiDir "flatsatTUI")) {
+        $TuiVenvPython = Join-Path $TuiDir ".venv\Scripts\python.exe"
+        if (-not (Test-Path -LiteralPath $TuiVenvPython)) {
+            Write-Host "[*] Generating virtual environment for FlatSat TUI..." -ForegroundColor Cyan
+            & $PythonCmd -m venv (Join-Path $TuiDir ".venv")
+            if (Test-Path -LiteralPath $TuiVenvPython) {
+                & $TuiVenvPython -m pip install --upgrade pip | Out-Null
+                & $TuiVenvPython -m pip install -e $TuiDir
+            }
+        }
+    }
+}
+
+# --- 2. Configure PowerShell Profile shortcuts ---
 # Create PowerShell Profile directory if it doesn't exist
 $ProfileDir = Split-Path $PROFILE
 if (-not (Test-Path -LiteralPath $ProfileDir)) {
