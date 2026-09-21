@@ -122,6 +122,109 @@ flatsat transmit --opcode 0x10 # Send PING telecommand frame
 
 ---
 
+## Getting Started (Guía rápida con la CLI)
+
+Guía paso a paso para dejar el sistema en **modo fácil** (dificultad 1), configurar una placa como **Ground Station** (`gs`) y otra como **Satélite** (`sat`) desde la CLI, validar cada configuración y ejecutar todos los comandos.
+
+> **Ejecución:** si no tienes el alias global `flatsat` instalado, ejecuta el CLI directamente con el intérprete del entorno virtual:
+> ```bash
+> # Linux/macOS
+> source .venv/bin/activate && python flatsat_cli.py ...
+> # Windows (PowerShell / CMD)
+> .venv\Scripts\activate && python flatsat_cli.py ...
+> ```
+
+### Paso 0 — Poner todo en modo fácil (dificultad 1)
+
+**Modo fácil = nivel 1 (CTF Level 1):** la radio transmite en texto plano (sin cifrado SDLS), no requiere claves ni manejo de CCSDS/SDLS, y las vulnerabilidades web están totalmente explotables. Se configura en dos sitios:
+
+1. **En la webapp:** define `FLATSAT_LEVEL=1` antes de arrancar (por defecto ya es `1`; niveles: `1` Fácil, `2` Medio, `3` Difícil):
+   - Linux/macOS: `export FLATSAT_LEVEL=1`
+   - Windows (PowerShell): `$env:FLATSAT_LEVEL="1"`
+   - Windows (CMD): `set FLATSAT_LEVEL=1`
+2. **En la(s) placa(s) FlatSat:** fija el nivel de seguridad del satélite desde la CLI:
+   ```bash
+   flatsat difficulty 1
+   ```
+
+**Validar el modo fácil:**
+```bash
+flatsat difficulty    # debe responder: Security Level: 1
+flatsat status        # muestra la dificultad y el estado de las radios
+```
+
+### Paso 1 — Configurar la placa como Ground Station (`mode gs`)
+
+Conecta la placa que hará de **estación terrena** y ejecuta:
+
+```bash
+flatsat mode gs
+```
+
+Esto envía a la placa la secuencia `mode gs` + `lora_apply ALL` + `lora_mode ALL command`: el firmware pasa a rol de estación terrena y las radios quedan en modo *command* (reciben telemetría y envían telecomandos). Al terminar, la placa parpadea sus LEDs para identificarse.
+
+**Validación:**
+```bash
+flatsat mode               # consulta el modo actual (debe decir rol ground_station)
+flatsat status             # el rol y las radios deben aparecer en command
+flatsat config --radio 0   # muestra la configuración LoRa de la radio local (RX)
+flatsat sniff -t 15        # escucha en vivo qué capta la GS por el aire
+```
+
+### Paso 2 — Configurar la placa como Satélite (`mode sat`)
+
+Conecta la placa que hará de **satélite** (la que transmite la telemetría) y ejecuta:
+
+```bash
+flatsat mode sat
+```
+
+Esto envía a la placa la secuencia `mode sat` + `lora_mode ALL stream`: el firmware pasa a rol de satélite y mantiene **ambas** radios en modo *stream* para emitir telemetría.
+
+> **Importante:** un satélite debe mantener **las dos radios en `stream`**. El firmware asocia el rol a `lora_mode`: si pones cualquier radio en `command`, la placa deja de comportarse como satélite. No uses `flatsat config --radio 0 --mode command` en una placa configurada como satélite.
+
+**Validación:**
+```bash
+flatsat mode               # consulta el modo actual (debe decir rol satellite)
+flatsat status             # el rol y las radios deben aparecer en stream
+flatsat sensors            # lectura de BME280/LIS2DH: confirma que el satélite responde
+flatsat flight nominal     # entra en estado nominal y transmite telemetría por RF
+```
+
+### Paso 3 — Comandos y ejemplos (modo fácil)
+
+| Comando | Descripción | Ejemplo |
+|---|---|---|
+| `flatsat devices` | Lista las placas FlatSat conectadas (puertos y salud) | `flatsat devices` |
+| `flatsat status` | Firmware, versión de Git, fecha de build, radio activa y estado de los transceptores | `flatsat status` |
+| `flatsat sensors` | Lecturas de telemetría (BME280: temperatura, presión, humedad; LIS2DH: acelerómetro) | `flatsat sensors` |
+| `flatsat mode [gs\|sat]` | Cambia o consulta el modo operativo | `flatsat mode` · `flatsat mode sat` · `flatsat mode gs` |
+| `flatsat config --radio 0\|1` | Consulta la configuración LoRa de la radio indicada | `flatsat config --radio 0` |
+| `flatsat config ... --apply` | Prepara (stages) y aplica los cambios LoRa al chip de la radio | `flatsat config --radio 0 --freq 915000000 --sf 7 --bw 125 --power 18 --apply` |
+| `flatsat flight [idle\|nominal\|safe\|debug]` | Consulta o cambia el estado de vuelo del satélite | `flatsat flight nominal` · `flatsat flight idle` |
+| `flatsat difficulty [1\|2\|3]` | Nivel de seguridad del CTF (1 = fácil) | `flatsat difficulty 1` |
+| `flatsat color R G B` | Color RGB del LED NeoPixel (canales de 0 a 255) | `flatsat color 0 255 0` |
+| `flatsat identify` | Hace parpadear los LEDs para ubicar la placa físicamente | `flatsat identify` |
+| `flatsat reboot` | Reinicia a BOOTSEL (monta el volumen `RPI-RP2`) | `flatsat reboot` |
+| `flatsat cmd "[comando]"` | Envía un comando crudo al shell de la placa | `flatsat cmd "sensors"` |
+| `flatsat console` | Consola interactiva persistente con la placa | `flatsat console` |
+| `flatsat sniff [-t seg] [-o archivo]` | Captura y muestra tramas CCSDS del aire (Radio 0 por defecto) | `flatsat sniff -t 30` · `flatsat sniff -o captura.json` |
+| `flatsat replay archivo` | Reenvía por RF tramas guardadas con `sniff` | `flatsat replay captura.json` |
+| `flatsat transmit "hex"` / `--text` | Transmite un payload (hex o texto) por RF | `flatsat transmit --text "HOLA SAT"` |
+| `flatsat completion install` | Instala el autocompletado de tab (bash/zsh/fish) | `flatsat completion install` |
+
+### Paso 4 — Validación de extremo a extremo
+
+Con una placa en `gs` y otra en `sat`, ambas en dificultad 1:
+
+```bash
+flatsat sniff -t 30     # en la GS deben aparecer tramas TM (telemetría) del satélite
+flatsat flight idle     # desde la GS envía el telecomando "idle" al satélite por RF
+flatsat mode            # verifica que el rol de cada placa sigue siendo el correcto
+```
+
+---
+
 ## 🛰️ Hardware Setup & Modes
 
 ### Supported Hardware
