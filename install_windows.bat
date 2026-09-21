@@ -7,35 +7,44 @@ echo ===================================================
 echo.
 
 REM 1. Check Python installation
+set "PYTHON_CMD=python"
 python --version >nul 2>&1
 if %errorlevel% neq 0 (
-    echo [!] ERROR: Python is not installed or not added to system PATH.
-    echo [!] Please install Python 3.9+ from https://www.python.org/
-    echo [!] Make sure to check "Add Python to PATH" during installation.
-    echo.
-    pause
-    exit /b 1
-)
-
-echo [*] Python detected. Setting up virtual environment...
-
-REM 2. Create Virtual Environment (.venv) if it doesn't exist
-if not exist ".venv" (
-    echo [*] Creating virtual environment (.venv)...
-    python -m venv .venv
-    if %errorlevel% neq 0 (
-        echo [!] Failed to create virtual environment.
+    py --version >nul 2>&1
+    if %errorlevel% equ 0 (
+        set "PYTHON_CMD=py"
+    ) else (
+        echo [!] ERROR: Python is not installed or not added to system PATH.
+        echo [!] Please install Python 3.9+ from https://www.python.org/
+        echo [!] Make sure to check "Add Python to PATH" during installation.
+        echo.
         pause
         exit /b 1
     )
 )
 
-REM 3. Install package in editable mode
-echo [*] Installing FlatSat CLI package and dependencies...
-.venv\Scripts\python.exe -m pip install --upgrade pip >nul 2>&1
-.venv\Scripts\python.exe -m pip install -e .
+echo [*] Python detected. Setting up virtual environment...
+
+REM 2. Create Virtual Environment (.venv) if it doesn't exist or is incomplete
+if not exist "%~dp0.venv\Scripts\python.exe" (
+    echo [*] Generating virtual environment (.venv)...
+    %PYTHON_CMD% -m venv "%~dp0.venv"
+    if %errorlevel% neq 0 (
+        echo [!] Failed to create virtual environment (.venv).
+        pause
+        exit /b 1
+    )
+    echo [+] Virtual environment (.venv) successfully created.
+) else (
+    echo [*] Virtual environment (.venv) already exists.
+)
+
+REM 3. Install package in editable mode within virtual environment
+echo [*] Installing FlatSat CLI package and dependencies into virtual environment...
+"%~dp0.venv\Scripts\python.exe" -m pip install --upgrade pip >nul 2>&1
+"%~dp0.venv\Scripts\python.exe" -m pip install -e "%~dp0."
 if %errorlevel% neq 0 (
-    echo [!] Package installation failed.
+    echo [!] Package installation inside virtual environment failed.
     pause
     exit /b 1
 )
