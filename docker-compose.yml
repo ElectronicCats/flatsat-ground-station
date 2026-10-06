@@ -14,7 +14,6 @@ services:
     build:
       context: .
       dockerfile: Dockerfile
-      network: host
 
     image: flatsat-gs:latest
     container_name: flatsat-ground-station
