@@ -39,8 +39,9 @@ RUN apt-get update && \
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
-# 5. Copiar código fuente
+# 5. Copiar código fuente e instalar paquete
 COPY . .
+RUN pip install --no-cache-dir -e .
 
 # 6. Crear directorio de base de datos con permisos correctos
 RUN mkdir -p /app/db && chmod 777 /app/db
