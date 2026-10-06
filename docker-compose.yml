@@ -36,6 +36,7 @@ services:
       - FLATSAT_LEVEL=3          # 1=Fácil  2=Medio  3=Difícil
       - FLATSAT_PORT=5000
       - FLATSAT_DEBUG=0          # 0=Desactiva reloader duplicado en Docker, 1=Debug
+      - FLATSAT_MOCK=1           # 1=Inicia en modo simulado por defecto en Docker
 
     healthcheck:
       test: ["CMD-SHELL", "python -c \"import urllib.request; urllib.request.urlopen('http://127.0.0.1:5000/login')\" || exit 1"]

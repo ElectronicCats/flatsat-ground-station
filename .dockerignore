@@ -21,6 +21,7 @@ admin_cookies.txt
 *.txt
 !requirements.txt
 !webapp/*flag.txt
+!modules/webapp/*flag.txt
 
 
 # Archivos creados por accidente
