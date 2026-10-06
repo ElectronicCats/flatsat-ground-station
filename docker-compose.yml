@@ -25,10 +25,9 @@ services:
     # Opción A: Bind mount local (predeterminado)
     volumes:
       - ./db:/app/db
-
-    # Opción B: Named volume (recomendado si hay conflictos de permisos en el host)
-    # volumes:
-    #   - flatsat_db:/app/db
+      - /dev:/dev
+      - /sys:/sys:ro
+      - /run/udev:/run/udev:ro
 
     environment:
       - PYTHONUNBUFFERED=1
@@ -36,7 +35,6 @@ services:
       - FLATSAT_LEVEL=3          # 1=Fácil  2=Medio  3=Difícil
       - FLATSAT_PORT=5000
       - FLATSAT_DEBUG=0          # 0=Desactiva reloader duplicado en Docker, 1=Debug
-      - FLATSAT_MOCK=1           # 1=Inicia en modo simulado por defecto en Docker
 
     healthcheck:
       test: ["CMD-SHELL", "python -c \"import urllib.request; urllib.request.urlopen('http://127.0.0.1:5000/login')\" || exit 1"]
@@ -45,24 +43,7 @@ services:
       retries: 3
       start_period: 10s
 
-    # ── Modo Hardware (USB Pass-through) ──────────────────────────────────
-    # Para acceso completo a hardware USB (FlatSat/CatSniffer) con autodescubrimiento udev:
-    #
-    # privileged: true
-    # volumes:
-    #   - ./db:/app/db
-    #   - /dev:/dev
-    #   - /sys:/sys:ro
-    #   - /run/udev:/run/udev:ro
-    #
-    # O mapeo individual de dispositivos:
-    # devices:
-    #   - /dev/ttyACM0:/dev/ttyACM0   # Radio 0
-    #   - /dev/ttyACM1:/dev/ttyACM1   # Radio 1
-    #   - /dev/ttyACM2:/dev/ttyACM2   # Shell
-    #
-    # group_add:
-    #   - "20"  # GID del grupo dialout/uucp en el host
+    privileged: true
 
     restart: unless-stopped
 

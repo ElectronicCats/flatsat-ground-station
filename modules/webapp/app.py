@@ -94,6 +94,10 @@ def create_app(config_class=Config, db_path=None):
     app.config["GS_STATE"] = gs_state
     app.config["SCANNED_DEVICES"] = {}
 
+    if os.environ.get("FLATSAT_MOCK") == "1":
+        gs_state.set_simulated()
+        gs_state.start_mock()
+
     def log_activity(level, source, message):
         """Insert a log entry into the logs table."""
         try:

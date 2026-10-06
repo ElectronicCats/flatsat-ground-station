@@ -118,6 +118,9 @@ def _is_flatsat_port(p) -> bool:
     for kw in ("FLATSAT", "CATSNIFFER", "ELECTRONIC CATS", "CAT-SHELL", "CAT-RADIO"):
         if kw in desc or kw in prod:
             return True
+    dev_path = (getattr(p, "device", "") or "").lower()
+    if dev_path.startswith("/dev/ttyacm") or dev_path.startswith("/dev/ttyusb"):
+        return True
     return False
 
 
