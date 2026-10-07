@@ -24,9 +24,15 @@ services:
     # Opción A: Bind mount local (predeterminado)
     volumes:
       - ./db:/app/db
-      - /dev:/dev
       - /sys:/sys:ro
       - /run/udev:/run/udev:ro
+
+    # Dispositivos USB serie (FlatSat/CatSniffer) — requiere usbipd-win en Windows
+    # o acceso directo a /dev en Linux. Los dispositivos se mapean explícitamente.
+    devices:
+      - /dev/ttyACM0:/dev/ttyACM0
+      - /dev/ttyACM1:/dev/ttyACM1
+      - /dev/ttyACM2:/dev/ttyACM2
 
     environment:
       - PYTHONUNBUFFERED=1
