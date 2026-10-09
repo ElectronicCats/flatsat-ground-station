@@ -4,7 +4,13 @@ import threading
 import time
 from typing import Any
 
-from modules.core.constants import APID_TM_ALL_SENSORS, APID_TM_BME280, APID_TM_HEARTBEAT, APID_TM_LIS2DH, ConnectionMode
+from modules.core.constants import (
+    APID_TM_ALL_SENSORS,
+    APID_TM_BME280,
+    APID_TM_HEARTBEAT,
+    APID_TM_LIS2DH,
+    ConnectionMode,
+)
 from modules.core.telemetry import flight_mode_name
 
 
@@ -157,7 +163,9 @@ class GroundStationState:
     def reset_remote_satellite(self):
         self.remote_satellite = _empty_remote_satellite()
 
-    def update_remote_satellite(self, apid: int, decoded: dict, rssi=None, snr=None, source: str = "radio0", timestamp=None):
+    def update_remote_satellite(
+        self, apid: int, decoded: dict, rssi=None, snr=None, source: str = "radio0", timestamp=None
+    ):
         snapshot = self.remote_satellite
         snapshot["available"] = True
         snapshot["source"] = source

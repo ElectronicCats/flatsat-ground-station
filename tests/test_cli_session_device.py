@@ -1,7 +1,9 @@
-import pytest
 from unittest.mock import MagicMock, patch
+
 import click
-from modules.core.constants import ENDPOINT_SHELL, ENDPOINT_RADIO0, ENDPOINT_RADIO1
+import pytest
+
+from modules.core.constants import ENDPOINT_RADIO0, ENDPOINT_RADIO1, ENDPOINT_SHELL
 from modules.core.serial_manager import DeviceIdentity, DiscoveredDevice
 from modules.core.session import (
     _match_device,

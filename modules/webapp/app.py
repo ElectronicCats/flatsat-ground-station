@@ -3,6 +3,7 @@
 import os
 import threading
 import time
+from datetime import datetime
 
 from flask import Flask, g, redirect, render_template, request, url_for
 from flask_socketio import SocketIO
@@ -23,7 +24,6 @@ from modules.core.state import GroundStationState
 from modules.webapp.auth import authenticate, create_session_token, login_required
 from modules.webapp.config import Config
 from modules.webapp.db import close_db, init_db
-
 
 socketio = SocketIO()
 
@@ -101,8 +101,6 @@ def create_app(config_class=Config, db_path=None):
     def log_activity(level, source, message):
         """Insert a log entry into the logs table."""
         try:
-            from datetime import datetime
-
             from modules.webapp.db import get_db
 
             db = get_db()
@@ -164,7 +162,7 @@ def create_app(config_class=Config, db_path=None):
         search = request.args.get("search", "")
         limit = request.args.get("limit", "50")
         db = get_db()
-        
+
         if app.config["CTF_LEVEL"] == 1:
             # VULNERABLE: string concatenation (GS-01) - Easy mode
             query = f"SELECT * FROM telemetry WHERE raw_hex LIKE '%{search}%' LIMIT {limit}"
@@ -198,7 +196,7 @@ def create_app(config_class=Config, db_path=None):
         cmd = data.get("cmd")
         if not cmd:
             return {"error": "Missing 'cmd' parameter"}, 400
-            
+
         if app.config["CTF_LEVEL"] <= 2:
             # VULNERABLE: shell=True with user input (GS-03) - Easy/Medium mode
             try:
@@ -234,10 +232,9 @@ def create_app(config_class=Config, db_path=None):
             message = data.get("message", "")
             if app.config["CTF_LEVEL"] == 3:
                 message = message.replace("\n", " ").replace("\r", " ")
-                
+
             level = data.get("level", "INFO")
             source = data.get("source", "user")
-            from datetime import datetime
 
             db = get_db()
             db.execute(
@@ -254,7 +251,7 @@ def create_app(config_class=Config, db_path=None):
         import os
 
         logs_dir = os.path.join(os.path.dirname(__file__), "logs")
-        
+
         if app.config["CTF_LEVEL"] <= 2:
             # VULNERABLE: No path validation - Easy/Medium mode
             filepath = os.path.join(logs_dir, filename)
@@ -307,8 +304,10 @@ def create_app(config_class=Config, db_path=None):
             config = db.execute("SELECT * FROM radio_config WHERE id = ?", (config_id,)).fetchone()
         else:
             # SECURE: ownership check - Hard mode
-            config = db.execute("SELECT * FROM radio_config WHERE id = ? AND owner = ?", (config_id, g.username)).fetchone()
-            
+            config = db.execute(
+                "SELECT * FROM radio_config WHERE id = ? AND owner = ?", (config_id, g.username)
+            ).fetchone()
+
         if config is None:
             return {"error": "Config not found"}, 404
         return dict(config)
@@ -472,7 +471,6 @@ def create_app(config_class=Config, db_path=None):
     def api_radio_send_tc():
         from modules.core.ccsds import sdls_protect_frame
         from modules.core.telecommand import build_command_tc
-
         from modules.webapp.radio_bridge import RadioBridge
 
 
@@ -556,14 +554,14 @@ def create_app(config_class=Config, db_path=None):
             radio_idx = data.get("active_radio")
             if radio_idx is None or radio_idx not in (0, 1, 2, "0", "1", "2"):
                 return {"error": "Invalid or missing 'active_radio' (must be 0, 1 or 2)"}, 400
-            
+
             radio_idx = int(radio_idx)
             if gs.active_radio == radio_idx:
                 log_activity("INFO", "hardware", f"Active radio change ignored: already set to {radio_idx}")
                 return {"status": "ok", "active_radio": gs.active_radio, "no_change": True}
-                
+
             gs.active_radio = radio_idx
-            
+
             if gs.is_hardware and gs.device:
                 # Sync physical board antenna switch via CDC-Shell
                 if radio_idx == 2:
@@ -579,9 +577,9 @@ def create_app(config_class=Config, db_path=None):
                     log_activity("INFO", "hardware", f"Active GS radio switched to Radio {radio_idx} on physical board")
             else:
                 log_activity("INFO", "hardware", f"Active GS radio switched to Radio {radio_idx} (simulated)")
-                
+
             return {"status": "ok", "active_radio": gs.active_radio}
-            
+
         return {"active_radio": gs.active_radio}
 
     @app.route("/api/hardware/simulate", methods=["POST"])
@@ -684,7 +682,7 @@ def create_app(config_class=Config, db_path=None):
                 time.sleep(0.1)
                 diff_raw = device.send_shell_command_full("difficulty", timeout=0.4)
             gs.difficulty = parse_difficulty(diff_raw)
-            
+
             # Set default active radio based on presence of radio1
             if device.has_radio1:
                 gs.active_radio = 2  # Dual (Auto)
@@ -694,26 +692,26 @@ def create_app(config_class=Config, db_path=None):
             # Query local board properties and cache them
             fw_raw = device.send_shell_command_full("fw_version", timeout=1.0)
             fw = parse_fw_version(fw_raw)
-            
+
             mode_raw = device.send_shell_command_full("mode", timeout=1.0)
             status_raw = device.send_shell_command_full("status", timeout=1.0)
             local_mode = _local_mode_from_shell(mode_raw, status_raw)
             local_role = _local_role_from_mode(local_mode)
-            
+
             flight_raw = device.send_shell_command_full("flight", timeout=1.0)
             flight = parse_flight(flight_raw)
-            
+
             scid_raw = device.send_shell_command_full("sc_id", timeout=1.0)
             sc_id = parse_sc_id(scid_raw)
-            
+
             r0_raw = device.send_shell_command_full("lora_config R0", timeout=1.0)
             r0_cfg = parse_lora_config(r0_raw)
-            
+
             r1_cfg = {"frequency": 0, "sf": 0, "bw": 0, "power": 0}
             if device.has_radio1:
                 r1_raw = device.send_shell_command_full("lora_config R1", timeout=1.0)
                 r1_cfg = parse_lora_config(r1_raw)
-                
+
             gs.local_device_info = {
                 "fw_version": fw.get("fw_version"),
                 "git_sha": fw.get("git_sha"),
@@ -736,7 +734,8 @@ def create_app(config_class=Config, db_path=None):
             }
 
             warnings = []
-            if device.has_radio1 and (r1_resp is None or "error" in (r1_resp or "").lower() or "unknown" in (r1_resp or "").lower()):
+            r1_text = (r1_resp or "").lower()
+            if device.has_radio1 and (r1_resp is None or "error" in r1_text or "unknown" in r1_text):
                 warnings.append(f"R1 command mode: {r1_resp!r}")
             if diff_raw is None or gs.difficulty == 0 and "difficulty" not in (diff_raw or ""):
                 warnings.append(f"difficulty sync: {diff_raw!r}")
@@ -791,7 +790,11 @@ def create_app(config_class=Config, db_path=None):
 
     def _require_admin():
         if g.role != "admin":
-            return ({"error": "La configuración está deshabilitada para Operadores. Utiliza la herramienta flatsat CLI en la terminal."}, 403)
+            return (
+                {"error": "La configuración está deshabilitada para Operadores. "
+                          "Utiliza la herramienta flatsat CLI en la terminal."},
+                403,
+            )
         return None
 
     def _sync_radio_config_to_db(dev):
@@ -891,7 +894,9 @@ def create_app(config_class=Config, db_path=None):
         # If the local board is connected directly as a Satellite, we read its status via USB.
         # However, if it's a dual-radio board (active_radio == 2) and we have successfully received
         # LoRa telemetry packets over the air, we display the remote LoRa telemetry.
-        is_ground_station = (local.get("role") == "ground_station") or (active_radio == 2 and remote.get("available", False))
+        is_ground_station = (local.get("role") == "ground_station") or (
+            active_radio == 2 and remote.get("available", False)
+        )
         if is_ground_station:
             return {
                 "available": remote.get("available", False),
@@ -929,7 +934,9 @@ def create_app(config_class=Config, db_path=None):
             "tm_rate": local.get("tm_rate"),
             "uptime": local.get("uptime") if local.get("uptime") is not None else remote.get("uptime"),
             "tc_count": local.get("tc_count") if local.get("tc_count") is not None else remote.get("tc_count"),
-            "error_count": local.get("error_count") if local.get("error_count") is not None else remote.get("error_count"),
+            "error_count": local.get("error_count")
+            if local.get("error_count") is not None
+            else remote.get("error_count"),
             "temperature": remote.get("temperature"),
             "pressure": remote.get("pressure"),
             "humidity": remote.get("humidity"),
@@ -951,7 +958,7 @@ def create_app(config_class=Config, db_path=None):
         if err:
             return err
         gs = app.config["GS_STATE"]
-        
+
         # Use cached info if available, otherwise query once and cache it
         local = gs.local_device_info
         if local.get("fw_version") is None:
@@ -972,7 +979,7 @@ def create_app(config_class=Config, db_path=None):
                 status_raw=status_raw,
             )
             gs.local_device_info.update(local)
-            
+
         local["has_radio1"] = getattr(gs.device, "has_radio1", True) if gs.device else True
         local["active_radio"] = gs.active_radio
         remote = gs.get_remote_satellite_snapshot()
@@ -1074,7 +1081,7 @@ def create_app(config_class=Config, db_path=None):
         if err:
             return err
         gs = app.config["GS_STATE"]
-        
+
         # Check cached local role to avoid slow shell query
         local_role = gs.local_device_info.get("role")
         if local_role is None:
@@ -1113,7 +1120,7 @@ def create_app(config_class=Config, db_path=None):
             cached_cfg = gs.local_device_info.get("radio_configs", {}).get(radio)
             if cached_cfg and cached_cfg.get("frequency", 0) > 0:
                 return cached_cfg
-            
+
             raw = dev.send_shell_command_full(f"lora_config {radio}")
             cfg = parse_lora_config(raw)
             if "radio_configs" not in gs.local_device_info:
@@ -1142,7 +1149,6 @@ def create_app(config_class=Config, db_path=None):
         if local_role == "ground_station":
             from modules.core.ccsds import sdls_protect_frame
             from modules.core.telecommand import build_frequency_tc, build_power_tc
-
             from modules.webapp.radio_bridge import RadioBridge
 
             radio_idx = 0 if radio == "R0" else 1
@@ -1168,18 +1174,22 @@ def create_app(config_class=Config, db_path=None):
         if power:
             results.append(dev.send_shell_command_full(f"lora_power {radio} {power}"))
         results.append(dev.send_shell_command_full(f"lora_apply {radio}"))
-        
+
         # Update cache
         if "radio_configs" not in gs.local_device_info:
             gs.local_device_info["radio_configs"] = {}
         if radio not in gs.local_device_info["radio_configs"]:
             gs.local_device_info["radio_configs"][radio] = {"frequency": 0, "sf": 0, "bw": 0, "power": 0}
         cfg = gs.local_device_info["radio_configs"][radio]
-        if freq is not None: cfg["frequency"] = int(freq)
-        if sf is not None: cfg["sf"] = int(sf)
-        if bw is not None: cfg["bw"] = int(bw)
-        if power is not None: cfg["power"] = int(power)
-        
+        if freq is not None:
+            cfg["frequency"] = int(freq)
+        if sf is not None:
+            cfg["sf"] = int(sf)
+        if bw is not None:
+            cfg["bw"] = int(bw)
+        if power is not None:
+            cfg["power"] = int(power)
+
         _sync_radio_config_to_db(dev)
         log_activity("INFO", "satellite", f"{radio} LoRa config updated: freq={freq} sf={sf} bw={bw} power={power}")
         return {"status": "ok", "responses": results}
@@ -1207,19 +1217,19 @@ def create_app(config_class=Config, db_path=None):
             dev.send_shell_command_full("mode gs")
             dev.send_shell_command_full("lora_apply ALL")
             dev.send_shell_command_full("lora_mode ALL command")
-            
+
             # Update cache
             gs.local_device_info["mode"] = "ground_station"
             gs.local_device_info["role"] = "ground_station"
             gs.local_device_info["role_label"] = "Ground Station"
-            
+
             log_activity("INFO", "satellite", "Mode changed to Ground Station (R0+R1 command mode)")
             return {"status": "ok", "mode": "ground_station"}
 
         if mode == "raw":
             dev.send_shell_command_full("mode gs")
             resp = dev.send_shell_command_full("lora_mode ALL stream")
-            
+
             # Update cache
             gs.local_device_info["mode"] = "raw"
             gs.local_device_info["role"] = "ground_station"
@@ -1237,9 +1247,14 @@ def create_app(config_class=Config, db_path=None):
             gs.local_device_info["role_label"] = "Satellite"
         else:
             # Map general mode strings to FW mode arguments
-            fw_mode = "gs" if mode in ("gs", "ground_station", "raw") else "sat" if mode in ("sat", "satellite", "mission") else mode
+            if mode in ("gs", "ground_station", "raw"):
+                fw_mode = "gs"
+            elif mode in ("sat", "satellite", "mission"):
+                fw_mode = "sat"
+            else:
+                fw_mode = mode
             resp = dev.send_shell_command_full(f"mode {fw_mode}")
-            
+
             # Update cache
             gs.local_device_info["mode"] = mode
             role = _local_role_from_mode(mode)
@@ -1271,7 +1286,9 @@ def create_app(config_class=Config, db_path=None):
             gs.local_device_info["role_label"] = "Ground Station" if local_role == "ground_station" else "Satellite"
 
         # Comprobación de estado actual para evitar doble acción
-        current_flight = gs.remote_satellite.get("flight") if local_role == "ground_station" else gs.local_device_info.get("flight")
+        current_flight = (gs.remote_satellite.get("flight")
+                          if local_role == "ground_station"
+                          else gs.local_device_info.get("flight"))
         if current_flight and current_flight.lower() == flight.lower():
             log_activity("INFO", "satellite", f"Flight state change ignored: already in {flight}")
             return {"status": "ok", "response": f"Already in flight state: {flight}", "no_change": True}
@@ -1297,13 +1314,19 @@ def create_app(config_class=Config, db_path=None):
             bridge = RadioBridge(gs)
             result = bridge.send_raw(frame)
             if result.get("status") == "error":
-                log_activity("ERROR", "satellite", f"Flight state telecommand (set flight to {flight}) failed: {result.get('error')}")
+                log_activity(
+                    "ERROR", "satellite",
+                    f"Flight state telecommand (set flight to {flight}) failed: {result.get('error')}",
+                )
                 return {"error": result.get("error"), "result": result}
-                
+
             dev.send_shell_command_full(f"flight {flight}")
             gs.local_device_info["flight"] = flight
             gs.remote_satellite["flight"] = flight.upper()
-            log_activity("INFO", "satellite", f"Flight state telecommand (set flight to {flight}) transmitted over RF and set locally")
+            log_activity(
+                "INFO", "satellite",
+                f"Flight state telecommand (set flight to {flight}) transmitted over RF and set locally",
+            )
             return {"status": "ok", "response": "Telecommand sent", "result": result}
 
         resp = dev.send_shell_command_full(f"flight {flight}")
@@ -1381,12 +1404,15 @@ def create_app(config_class=Config, db_path=None):
         gs = app.config["GS_STATE"]
         if action == "spoof":
             profile = data.get("profile", "norbi")
-            
+
             # Comprobación de estado actual para evitar doble acción
-            if _normalize_mode(gs.local_device_info.get("mode")) == "tinygs" and gs.local_device_info.get("tinygs_profile") == profile:
+            if (
+                _normalize_mode(gs.local_device_info.get("mode")) == "tinygs"
+                and gs.local_device_info.get("tinygs_profile") == profile
+            ):
                 log_activity("INFO", "satellite", f"TinyGS spoof ignored: already spoofing {profile}")
                 return {"status": "ok", "response": f"Already spoofing profile: {profile}", "no_change": True}
-                
+
             dev.send_shell_command_full("lora_mode ALL stream")
             resp = dev.send_shell_command_full(f"tinygs spoof {profile}")
             gs.local_device_info["mode"] = "tinygs"
@@ -1397,7 +1423,7 @@ def create_app(config_class=Config, db_path=None):
             if _normalize_mode(gs.local_device_info.get("mode")) in ("mission", "ground_station", "raw"):
                 log_activity("INFO", "satellite", "TinyGS stop ignored: TinyGS is not active")
                 return {"status": "ok", "response": "TinyGS is not active", "no_change": True}
-                
+
             resp = dev.send_shell_command_full("tinygs stop")
             gs.local_device_info["mode"] = "mission" # revert to satellite/mission
             gs.local_device_info["tinygs_profile"] = None
@@ -1423,7 +1449,10 @@ def create_app(config_class=Config, db_path=None):
             gs.active_radio = 0
             dev.send_shell_command_full("radio0")
             gs.difficulty = 0
-            log_activity("WARN", "satellite", "Local Ground Station defaults restored (Active radio set to 0, difficulty set to 0)")
+            log_activity(
+                "WARN", "satellite",
+                "Local Ground Station defaults restored (Active radio set to 0, difficulty set to 0)",
+            )
             return {"status": "ok", "response": resp}
 
         resp = dev.send_shell_command_full("reset_defaults")
@@ -1455,7 +1484,6 @@ def start_telemetry_thread(app):
     from modules.core.ccsds import detect_tm_difficulty, parse_frame, sdls_unprotect_frame
     from modules.core.device import parse_lora_rx
     from modules.core.telemetry import decode_tm_payload, generate_mock_telemetry
-    from modules.webapp.db import get_db
 
     def _loop():
         while True:
@@ -1567,18 +1595,20 @@ def start_telemetry_thread(app):
                             if pkt:
                                 # Check if we are a satellite and received a telecommand using cached mode
                                 local_mode = gs.local_device_info.get("mode") or "ground_station"
-                                if _local_role_from_mode(local_mode) == "satellite" and (pkt.pkt_type == 1 or pkt.apid in [0x020, 0x021, 0x022, 0x027]):
+                                if _local_role_from_mode(local_mode) == "satellite" and (
+                                    pkt.pkt_type == 1 or pkt.apid in [0x020, 0x021, 0x022, 0x027]
+                                ):
                                     import struct
-                                    from modules.core.constants import (
 
+                                    from modules.core.constants import (
                                         APID_TC_COMMAND,
                                         APID_TC_SET_DIFFICULTY,
                                         APID_TC_SET_FREQ,
                                         APID_TC_SET_POWER,
                                         TC_OP_NOP,
-                                        TC_OP_SET_SAFE_MODE,
-                                        TC_OP_SET_NOMINAL,
                                         TC_OP_SET_DEBUG,
+                                        TC_OP_SET_NOMINAL,
+                                        TC_OP_SET_SAFE_MODE,
                                     )
 
                                     if pkt.apid == APID_TC_COMMAND and len(pkt.payload) > 0:
@@ -1612,12 +1642,15 @@ def start_telemetry_thread(app):
                                         try:
                                             db = get_db()
                                             db.execute(
-                                                "INSERT INTO logs (timestamp, level, source, message) VALUES (?, ?, ?, ?)",
+                                                "INSERT INTO logs "
+                                                "(timestamp, level, source, message) "
+                                                "VALUES (?, ?, ?, ?)",
                                                 (
                                                     datetime.now().isoformat(),
                                                     "INFO",
                                                     "satellite",
-                                                    f"Telecommand APID 0x{pkt.apid:03X} processed: payload={pkt.payload.hex()}",
+                                                    f"Telecommand APID 0x{pkt.apid:03X} processed: "
+                                                    f"payload={pkt.payload.hex()}",
                                                 ),
                                             )
                                             db.commit()
@@ -1633,7 +1666,6 @@ def start_telemetry_thread(app):
                                     snr=parsed.get("snr"),
                                     timestamp=pkt.timestamp,
                                 )
-                                from datetime import datetime
 
                                 with app.app_context():
                                     from modules.webapp.db import get_db

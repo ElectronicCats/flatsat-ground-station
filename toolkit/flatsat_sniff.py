@@ -140,7 +140,7 @@ def discover_ports() -> dict:
         groups.setdefault(key, []).append(p)
 
     # Tomar el primer grupo con ≥2 puertos
-    for key, ports in groups.items():
+    for ports in groups.values():
         ports.sort(key=lambda p: p.device)
         result: dict[str, str] = {}
 
@@ -261,7 +261,7 @@ def sniff(port: str, duration: float, output_path: str | None,
     """Loop de escucha serial. Ctrl+C para detener."""
     import serial
 
-    print(_bold(f"\n  FlatSat Radio Sniffer"))
+    print(_bold("\n  FlatSat Radio Sniffer"))
     print(_dim(f"  Puerto : {port}"))
     print(_dim(f"  Tiempo : {'ilimitado (Ctrl+C)' if duration <= 0 else f'{duration}s'}"))
     if output_path:
@@ -347,7 +347,7 @@ def sniff(port: str, duration: float, output_path: str | None,
             with open(output_path, "w", encoding="utf-8") as f:
                 f.write(f"# FlatSat Sniff — {datetime.now().isoformat()}\n")
                 f.write(f"# Puerto: {port}\n")
-                f.write(f"# Formato: timestamp | mode | RSSI | SNR | hex\n\n")
+                f.write("# Formato: timestamp | mode | RSSI | SNR | hex\n\n")
                 f.writelines(lines_captured)
             print(_green(f"  Guardado     : {output_path}"))
         except OSError as e:

@@ -4,6 +4,8 @@ Simplified from flatsatTUI/device.py: no asyncio, no command queue,
 direct serial read/write with timeouts. One device at a time.
 """
 
+from __future__ import annotations
+
 import os
 import re
 import sys
@@ -144,7 +146,7 @@ class FlatSatDevice:
                     try:
                         ser.dtr = False
                         ser.rts = False
-                    except (OSError, IOError, serial.SerialException):
+                    except (OSError, serial.SerialException):
                         pass
 
                     if sys.platform == "win32":
@@ -230,8 +232,8 @@ class FlatSatDevice:
 
     def disconnect(self):
         """Close all serial ports, locking individually to prevent races and deadlocks."""
-        for attr, lock in [("_radio0", self._radio0_lock), 
-                           ("_radio1", self._radio1_lock), 
+        for attr, lock in [("_radio0", self._radio0_lock),
+                           ("_radio1", self._radio1_lock),
                            ("_shell", self._shell_lock)]:
             with lock:
                 ser = getattr(self, attr, None)

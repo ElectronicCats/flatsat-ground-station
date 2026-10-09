@@ -1,6 +1,6 @@
 """Backward-compatibility shim for webapp.config -> modules.webapp.config."""
-import sys
 import importlib
+import sys
 
 _target = importlib.import_module("modules.webapp.config")
 globals().update({k: getattr(_target, k) for k in getattr(_target, "__all__", dir(_target)) if not k.startswith("__")})

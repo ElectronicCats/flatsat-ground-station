@@ -1,6 +1,8 @@
 from unittest.mock import MagicMock, patch
+
 from click.testing import CliRunner
-from modules.core.cli import cli, _detect_local_role
+
+from modules.core.cli import _detect_local_role, cli
 
 
 def test_detect_local_role():
@@ -9,7 +11,9 @@ def test_detect_local_role():
     assert _detect_local_role(dev_sat) == "satellite"
 
     dev_gs = MagicMock()
-    dev_gs.send_shell_command_full.side_effect = lambda cmd: "mode: gs" if cmd == "mode" else "Radio0: LoRa  mode=command"
+    dev_gs.send_shell_command_full.side_effect = (
+        lambda cmd: "mode: gs" if cmd == "mode" else "Radio0: LoRa  mode=command"
+    )
     assert _detect_local_role(dev_gs) == "ground_station"
 
 
@@ -94,5 +98,5 @@ def test_flight_rf_error(mock_get_dev, mock_send_rf, mock_detect):
     runner = CliRunner()
     result = runner.invoke(cli, ["flight", "idle"])
 
-    assert result.exit_code == 0
+    assert result.exit_code == 1
     assert "Flight TC failed: Radio timeout" in result.output

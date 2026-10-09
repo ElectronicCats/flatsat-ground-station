@@ -115,9 +115,10 @@ pip install -e .
 flatsat
 
 # Standalone CLI commands:
-flatsat devices               # Scan and list connected USB devices
-flatsat status                # Query ground station status
-flatsat transmit --opcode 0x10 # Send PING telecommand frame
+flatsat devices                # Scan and list connected USB devices
+flatsat status                 # Query board status and firmware version
+flatsat sniff -n 10 -o cap.json  # Capture 10 CCSDS frames to a file
+flatsat tc 0x20 --text "PING"  # Send a PING telecommand frame
 ```
 
 ---
@@ -193,14 +194,19 @@ build_windows.bat
 
 ```
 flatsat-ground-station/
-├── cli/                    # Click-based CLI application (`flatsat` command)
-├── core/                   # Core protocol engine (CCSDS, SDLS, device drivers, bridge)
+├── modules/                # All application code
+│   ├── core/               # CLI, CCSDS/SDLS, device drivers, RF bridge
+│   ├── utils/              # Rich output helpers, banner, version
+│   ├── firmware/           # Firmware diagnostic checks
+│   └── webapp/             # Flask & SocketIO presentation dashboard
+├── cli/                    # Deprecated shims -> modules/ (kept for old imports)
+├── core/                   # Deprecated shims -> modules/core/
+├── webapp/                 # Deprecated shims -> modules/webapp/
 ├── db/                     # SQLite database models & seed files
 ├── docs/                   # Documentation & CTF walkthrough guides
 ├── scripts/                # Installation and system helper scripts
-├── tests/                  # Pytest unit & integration test suite (215 tests)
+├── tests/                  # Pytest unit & integration test suite
 ├── toolkit/                # Standalone RF analysis & security tools
-├── webapp/                 # Flask & SocketIO presentation dashboard
 ├── Dockerfile              # Container definition with gosu entrypoint
 ├── docker-compose.yml      # Container orchestration
 ├── docker-entrypoint.sh    # Permission-safe entrypoint script

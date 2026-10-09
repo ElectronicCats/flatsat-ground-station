@@ -5,7 +5,6 @@ from rich.table import Table
 
 from modules.utils.output import console
 
-
 _HEALTH_STYLE = {
     "HEALTHY": "green",
     "PARTIAL": "yellow",

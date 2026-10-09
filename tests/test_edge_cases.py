@@ -3,13 +3,11 @@
 import pytest
 
 from core.ccsds import (
-    build_tc,
     detect_tm_difficulty,
     parse_frame,
     sdls_protect_frame,
     sdls_unprotect_frame,
 )
-from core.constants import APID_TC_COMMAND, TC_OP_PING
 from core.telemetry import (
     decode_all_sensors,
     decode_bme280,

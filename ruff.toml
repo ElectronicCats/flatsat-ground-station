@@ -1,4 +1,7 @@
-target-version = "py311"
+# Must match `requires-python` in pyproject.toml (>=3.9). Keeping these in sync
+# makes the linter reject syntax the declared floor cannot run, instead of
+# letting it drift.
+target-version = "py39"
 line-length = 120
 
 [lint]
@@ -22,12 +25,14 @@ ignore = [
 ]
 
 [lint.per-file-ignores]
-"core/__init__.py" = ["F401"]  # re-exports
-"webapp/app.py" = ["S602", "S603", "S605", "S607", "S608", "S324"]
-"webapp/auth.py" = ["S324"]
-"webapp/seed.py" = ["S324"]
-"webapp/config.py" = ["S105"]
-"tests/*" = ["S101", "S106"]
+# These must point at the real source locations. The top-level cli/, core/ and
+# webapp/ directories are compatibility shims; the implementation is modules/.
+"modules/core/__init__.py" = ["F401"]  # public re-exports
+"modules/webapp/app.py" = ["S602", "S603", "S605", "S607", "S608", "S324"]
+"modules/webapp/auth.py" = ["S324"]
+"modules/webapp/seed.py" = ["S324"]
+"modules/webapp/config.py" = ["S105"]
+"tests/*" = ["S101", "S106", "S603", "S604", "S607"]  # tests mock subprocess deliberately
 
 [format]
 quote-style = "double"

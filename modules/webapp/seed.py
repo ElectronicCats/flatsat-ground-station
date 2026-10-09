@@ -8,7 +8,6 @@ from modules.webapp.auth import _md5
 from modules.webapp.db import get_db
 
 
-
 def seed_db():
     """Seed the database with CTF data. Each section is independently idempotent."""
     from flask import current_app
@@ -16,7 +15,7 @@ def seed_db():
         level = current_app.config.get("CTF_LEVEL", 1)
     except Exception:
         level = 1
-        
+
     db = get_db()
     changed = False
 
@@ -98,7 +97,10 @@ def _seed_radio_config(db, level):
         "VALUES (?, ?, ?, ?, ?, ?, ?)"
     )
     db.execute(
-        sql, ("admin", 436703000, 10, 125000, 22, "TinyGS Norbi downlink — CLASSIFIED", f"PWNSAT{{IDOR_ADMIN_CONFIG_LVL{level}}}")
+        sql, (
+            "admin", 436703000, 10, 125000, 22, "TinyGS Norbi downlink — CLASSIFIED",
+            f"PWNSAT{{IDOR_ADMIN_CONFIG_LVL{level}}}",
+        )
     )
     db.execute(sql, ("operator", 915000000, 7, 125000, 14, RADIO_LABELS[0], ""))
     db.execute(sql, ("operator", 916000000, 7, 125000, 14, RADIO_LABELS[1], ""))

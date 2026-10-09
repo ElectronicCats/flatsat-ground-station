@@ -5,11 +5,11 @@ Exports commands defined in cli.cli.
 """
 
 from cli.cli import (
-    color,
+    attack,
     cmd,
+    color,
     completion,
     config,
-    console_cmd as console,
     devices,
     difficulty,
     flight,
@@ -20,7 +20,11 @@ from cli.cli import (
     sensors,
     sniff,
     status,
+    tc,
     transmit,
+)
+from cli.cli import (
+    console_cmd as console,
 )
 
 COMMANDS = [
@@ -38,6 +42,8 @@ COMMANDS = [
     sniff,
     replay,
     transmit,
+    tc,
+    attack,
     config,
     completion,
 ]

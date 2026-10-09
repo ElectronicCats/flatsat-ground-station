@@ -1,13 +1,13 @@
-import json
 import os
 import tempfile
 from unittest.mock import MagicMock, patch
+
 import pytest
 
+from modules.webapp.app import create_app
 from modules.webapp.config import TestConfig
 from modules.webapp.db import init_db
 from modules.webapp.seed import seed_db
-from modules.webapp.app import create_app
 
 
 @pytest.fixture

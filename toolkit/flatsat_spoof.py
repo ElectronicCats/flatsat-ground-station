@@ -142,7 +142,6 @@ def parse_tc(raw: bytes) -> dict | None:
     if len(raw) < HDR_SIZE + SEC_HDR_SIZE + CRC_SIZE:
         return None
     pkt_id, seq_ctl, data_len = struct.unpack(">HHH", raw[:6])
-    version  = (pkt_id >> 13) & 0x7
     pkt_type = (pkt_id >> 12) & 0x1
     apid     = pkt_id & 0x7FF
     seq      = seq_ctl & 0x3FFF
@@ -232,12 +231,17 @@ def _intf_index(port) -> int | None:
     hwid = (getattr(port, "hwid", "") or "").upper()
     loc  = (getattr(port, "location", "") or "")
     m = re.search(r"LOCATION=\S+:(?:\w+)\.(\d+)", hwid, re.IGNORECASE)
-    if m: return int(m.group(1))
+    if m:
+        return int(m.group(1))
     m = re.search(r"[&\\]MI[=_]?(\d+)", hwid, re.IGNORECASE)
-    if m: return int(m.group(1))
+    if m:
+        return int(m.group(1))
     if loc and ":" in loc:
-        try: return int(loc.split(":")[-1].split(".")[-1])
-        except: pass
+        try:
+            return int(loc.split(":")[-1].split(".")[-1])
+        except Exception:
+            # Not a port suffix we can read; fall through to "unknown".
+            return None
     return None
 
 
@@ -266,24 +270,33 @@ def discover_ports() -> dict:
 
         for p in ports:
             desc = (p.description or "").lower()
-            if "shell" in desc and "shell" not in result: result["shell"] = p.device
-            elif ("radio0" in desc or "radio 0" in desc) and "radio0" not in result: result["radio0"] = p.device
-            elif ("radio1" in desc or "radio 1" in desc) and "radio1" not in result: result["radio1"] = p.device
+            if "shell" in desc and "shell" not in result:
+                result["shell"] = p.device
+            elif ("radio0" in desc or "radio 0" in desc) and "radio0" not in result:
+                result["radio0"] = p.device
+            elif ("radio1" in desc or "radio 1" in desc) and "radio1" not in result:
+                result["radio1"] = p.device
 
         if len(result) < 3:
             for p in ports:
                 idx = _intf_index(p)
                 if idx is not None:
                     role = _imap.get(idx)
-                    if role and role not in result: result[role] = p.device
+                    if role and role not in result:
+                        result[role] = p.device
 
         if len(result) < 2:
             roles, used, ri = ["radio0", "radio1", "shell"], set(result.values()), 0
             for p in sorted(ports, key=lambda x: x.device):
-                if p.device in used: continue
-                while ri < len(roles) and roles[ri] in result: ri += 1
-                if ri >= len(roles): break
-                result[roles[ri]] = p.device; used.add(p.device); ri += 1
+                if p.device in used:
+                    continue
+                while ri < len(roles) and roles[ri] in result:
+                    ri += 1
+                if ri >= len(roles):
+                    break
+                result[roles[ri]] = p.device
+                used.add(p.device)
+                ri += 1
 
         if result.get("radio0") or result.get("radio1"):
             return {k: _normalize(v) for k, v in result.items()}
@@ -301,9 +314,11 @@ def open_port(path: str, timeout: float = 1.0):
 
 def parse_rx_line(line: str) -> dict | None:
     m = re.match(r"RX:\s*([A-Fa-f0-9]+)\s*\|\s*RSSI:\s*(-?\d+)\s*\|\s*SNR:\s*(-?\d+)", line)
-    if m: return {"hex": m.group(1), "rssi": int(m.group(2)), "snr": int(m.group(3)), "mode": "LoRa"}
+    if m:
+        return {"hex": m.group(1), "rssi": int(m.group(2)), "snr": int(m.group(3)), "mode": "LoRa"}
     m = re.match(r"FSK RX:\s*([A-Fa-f0-9]+)\s*\|\s*RSSI:\s*(-?\d+)\s*\|\s*Len:\s*(\d+)", line)
-    if m: return {"hex": m.group(1), "rssi": int(m.group(2)), "snr": None, "mode": "FSK"}
+    if m:
+        return {"hex": m.group(1), "rssi": int(m.group(2)), "snr": None, "mode": "FSK"}
     return None
 
 
@@ -454,13 +469,13 @@ def cmd_forge(args):
         print(dim(f"  Transmitiendo por {port}..."))
         sp   = open_port(port, timeout=2.0)
         for i in range(args.count):
-            resp = send_frame(sp, frame)
+            send_frame(sp, frame)
             ts   = datetime.now().strftime("%H:%M:%S.%f")[:-3]
             print(f"  [{dim(ts)}] #{i+1}/{args.count} → {green('enviado')}")
             if i < args.count - 1:
                 time.sleep(args.delay)
         sp.close()
-        print(green(f"\n  [✓] Transmisión completada\n"))
+        print(green("\n  [✓] Transmisión completada\n"))
     elif args.dry_run:
         print(yellow("  [DRY-RUN] No se transmitió. Hex de la trama:"))
         print(f"  {yellow(frame.hex().upper())}\n")
@@ -534,7 +549,7 @@ def cmd_flood(args):
             frame = build_tc(apid, payload)
             if args.sdls > 0:
                 frame = protect_frame(frame, args.sdls)
-            resp  = send_frame(sp, frame)
+            send_frame(sp, frame)
             ts    = datetime.now().strftime("%H:%M:%S.%f")[:-3]
             print(f"  [{dim(ts)}] #{i+1}/{args.count} SEQ={_seq} → {green('OK')}")
             sent += 1

@@ -1,8 +1,10 @@
 import json
 from unittest.mock import MagicMock, patch
+
 from click.testing import CliRunner
-from modules.core.cli import cli
+
 from modules.core.ccsds import build_tm
+from modules.core.cli import cli
 
 
 @patch("modules.core.session.get_device_or_exit")
@@ -14,7 +16,7 @@ def test_sniff_radio1_not_available(mock_get_dev):
     runner = CliRunner()
     result = runner.invoke(cli, ["sniff", "-r", "1"])
 
-    assert result.exit_code == 0
+    assert result.exit_code == 1
     assert "Radio 1 is not physically available" in result.output
 
 
@@ -42,7 +44,7 @@ def test_sniff_count_limit_and_json_output(mock_get_dev, tmp_path):
     assert "#2: TM APID=0x001" in result.output
     assert out_file.exists()
 
-    with open(out_file, "r") as f:
+    with open(out_file) as f:
         data = json.load(f)
     assert len(data["frames"]) == 2
     assert data["frames"][0]["apid"] == 1
@@ -61,7 +63,8 @@ def test_sniff_keyboard_interrupt(mock_get_dev):
     runner = CliRunner()
     result = runner.invoke(cli, ["sniff", "-t", "10"])
 
-    assert result.exit_code == 0
+    # Ctrl+C with nothing captured is still a failure to capture.
+    assert result.exit_code == 1
     assert "Sniffing stopped by user" in result.output
 
 
@@ -76,5 +79,5 @@ def test_sniff_no_frames_warning(mock_get_dev):
     runner = CliRunner()
     result = runner.invoke(cli, ["sniff", "-t", "0.05"])
 
-    assert result.exit_code == 0
+    assert result.exit_code == 1
     assert "No CCSDS frames captured" in result.output

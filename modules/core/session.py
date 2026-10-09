@@ -13,7 +13,6 @@ from modules.core.device import FlatSatDevice
 from modules.core.serial_manager import discover_devices
 from modules.utils.output import print_dim, print_error, print_info
 
-
 DEVICE_HELP = "Target FlatSat board: index from 'flatsat devices' or its serial number."
 PORT_HELP = "Force direct connection to a custom shell port (e.g. /dev/ttyACM3)."
 

@@ -1,5 +1,7 @@
 from unittest.mock import MagicMock, patch
+
 from click.testing import CliRunner
+
 from modules.core.cli import cli
 
 

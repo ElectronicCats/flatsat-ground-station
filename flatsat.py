@@ -3,7 +3,6 @@
 1-to-1 parity with CatSniffer-Tools / catnip (catnip.py).
 """
 
-import os
 import sys
 from pathlib import Path
 

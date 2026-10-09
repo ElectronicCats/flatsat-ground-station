@@ -42,6 +42,7 @@ def send_raw(port: str, data: bytes):
     """Send frame via CDC Radio port using LoRa command-mode TX."""
     import sys
     import time
+
     import serial
 
     port_path = _normalize_port(port)
@@ -92,6 +93,7 @@ def inject_via_shell(port: str, data: bytes):
     """Send inject_tc command to shell port (loopback, no LoRa)."""
     import sys
     import time
+
     import serial
 
     port_path = _normalize_port(port)
