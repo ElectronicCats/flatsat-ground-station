@@ -21,6 +21,9 @@ htmlcov/
 .venv/
 venv/
 
+# Local installation of the application (flatsat-gs install)
+flatsat-gs/
+
 # IDE
 .vscode/
 .idea/
