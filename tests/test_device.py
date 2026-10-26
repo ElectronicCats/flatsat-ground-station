@@ -179,3 +179,34 @@ def test_is_connected_paths_check():
         mock_exists.return_value = True
         assert dev.is_connected
 
+
+
+@patch("core.device.serial.Serial")
+def test_connect_uses_real_port_when_mock_is_disabled(mock_serial_cls, monkeypatch):
+    """Regression: with FLATSAT_MOCK=1 the webapp must still open the real port.
+
+    The dashboard connects the board explicitly, so the mocked serial ports
+    must not be used: otherwise no telemetry is ever received.
+    """
+    monkeypatch.setenv("FLATSAT_MOCK", "1")
+    mock_ser = MagicMock()
+    mock_serial_cls.return_value = mock_ser
+    dev = FlatSatDevice(_make_discovered())
+
+    result = dev.connect(allow_mock=False)
+
+    assert result["radio0"] is True
+    assert mock_serial_cls.called, "the real serial port must be opened"
+    assert not isinstance(dev._radio0, MagicMock) or mock_serial_cls.called
+
+
+@patch("core.device.serial.Serial")
+def test_connect_uses_mock_when_allowed(mock_serial_cls, monkeypatch):
+    """Without a board, the mock ports keep the dashboard alive."""
+    monkeypatch.setenv("FLATSAT_MOCK", "1")
+    dev = FlatSatDevice(_make_discovered())
+
+    result = dev.connect(allow_mock=True)
+
+    assert result["radio0"] is True
+    assert mock_serial_cls.call_count == 0

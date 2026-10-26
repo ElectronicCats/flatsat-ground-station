@@ -135,6 +135,8 @@ class GroundStationState:
     def set_hardware(self, device: Any):
         self.connection_mode = ConnectionMode.HARDWARE
         self.device = device
+        # The board is real now: stop the simulated telemetry.
+        self.mock_running = False
         # Default to Dual (2) if device has radio1, otherwise Radio 0 (0)
         self.active_radio = 2 if getattr(device, "has_radio1", True) else 0
         self.reset_remote_satellite()

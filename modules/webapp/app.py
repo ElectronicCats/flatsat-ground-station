@@ -636,7 +636,9 @@ def create_app(config_class=Config, db_path=None):
         role_to_send = device_role
 
         device = FlatSatDevice(discovered)
-        connect_result = device.connect(forced_role=role_to_send)
+        # The user explicitly asked for the board: never fall back to the
+        # mocked serial ports, even with FLATSAT_MOCK=1 in the environment.
+        connect_result = device.connect(forced_role=role_to_send, allow_mock=False)
 
         if device.is_connected:
             # Store connection overrides
@@ -1724,6 +1726,37 @@ def start_telemetry_thread(app):
                 # SIMULATED MODE: generate mock
                 with app.app_context():
                     tm = generate_mock_telemetry()
+                    # Persist it like real telemetry: the history table and
+                    # the CLI talking to this webapp (-w) read from the DB.
+                    try:
+                        from modules.webapp.db import get_db
+
+                        db = get_db()
+                        decoded = tm.get("decoded") or {}
+                        db.execute(
+                            "INSERT INTO telemetry "
+                            "(timestamp, apid, spacecraft_id, temperature, "
+                            "pressure, humidity, accel_x, accel_y, accel_z, "
+                            "raw_hex, rssi, snr) "
+                            "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                            (
+                                datetime.now().isoformat(),
+                                tm["apid"],
+                                2,
+                                decoded.get("temperature"),
+                                decoded.get("pressure"),
+                                decoded.get("humidity"),
+                                decoded.get("accel_x"),
+                                decoded.get("accel_y"),
+                                decoded.get("accel_z"),
+                                tm["raw_hex"],
+                                decoded.get("rssi"),
+                                decoded.get("snr"),
+                            ),
+                        )
+                        db.commit()
+                    except Exception:
+                        pass
                     socketio.emit(
                         "telemetry_update",
                         {
