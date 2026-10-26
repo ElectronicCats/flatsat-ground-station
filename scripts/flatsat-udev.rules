@@ -1,0 +1,27 @@
+# ──────────────────────────────────────────────────────────────────────────────
+# FlatSat Ground Station — regla udev para acesso directo a la placa
+# ──────────────────────────────────────────────────────────────────────────────
+# Instalar (Linux, con sudo):
+#     sudo cp scripts/flatsat-udev.rules /etc/udev/rules.d/99-flatsat.rules
+#     sudo udevadm control --reload-rules
+#     sudo udevadm trigger
+#
+# Después de esto la placa aparece en /dev/flatsat/<endpoint> y es accesible
+# sin estar en el grupo 'dialout' — que es lo que rompe dentro de Docker.
+#
+#VID/PID: 1209:0xBABC (Electronic Cats — FlatSat / CatSniffer)
+# ──────────────────────────────────────────────────────────────────────────────
+
+ACTION=="add", SUBSYSTEM=="tty", ATTRS{idVendor}=="1209", ATTRS{idProduct}=="BABC", \
+    MODE="0660", GROUP="dialout", TAG+="uaccess", SYMLINK+="flatsat/%c"
+
+# Radio 0 / Radio 1 / Shell se numeran por el índice de interfaz USB
+# (0, 2 y 4 respectivamente) para poder referenciarlos de forma estable.
+ACTION=="add", SUBSYSTEM=="tty", ATTRS{idVendor}=="1209", ATTRS{idProduct}=="BABC", \
+    ATTRS{bInterfaceNumber}=="0", MODE="0660", GROUP="dialout", TAG+="uaccess", SYMLINK+="flatsat/radio0"
+
+ACTION=="add", SUBSYSTEM=="tty", ATTRS{idVendor}=="1209", ATTRS{idProduct}=="BABC", \
+    ATTRS{bInterfaceNumber}=="2", MODE="0660", GROUP="dialout", TAG+="uaccess", SYMLINK+="flatsat/radio1"
+
+ACTION=="add", SUBSYSTEM=="tty", ATTRS{idVendor}=="1209", ATTRS{idProduct}=="BABC", \
+    ATTRS{bInterfaceNumber}=="4", MODE="0660", GROUP="dialout", TAG+="uaccess", SYMLINK+="flatsat/shell"
