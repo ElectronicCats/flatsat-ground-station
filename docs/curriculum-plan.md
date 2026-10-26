@@ -113,4 +113,4 @@ Todas ejecutables con el setup base de 2 FlatSats.
 | Mission narratives | 0/7 | No empezado |
 | CTFd YAML challenges | 0/86 | No empezado |
 | Toolkit scripts | 3/12 | 9 faltantes |
-| Docker deployment | 0/1 | No empezado |
+| Empaquetado de release | 1/1 | Binario autónomo + instalador por usuario |

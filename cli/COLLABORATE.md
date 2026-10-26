@@ -257,8 +257,8 @@ ruff format .                      # format
 
 Some suites need `pip install flask` (the webapp tests); the CLI tests do not.
 
-**Editable install**: `pip install -e .` or `make install`
-**Standalone binary**: `./compile.sh` or `make build`
+**Editable install**: `pip install -e .`
+**Standalone binary**: `./compile_app.sh` or `make app-build`
 
 ### Adding tests
 
