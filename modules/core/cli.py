@@ -36,7 +36,10 @@ from modules.core.constants import (
 from modules.core.session import (
     DEVICE_HELP,
     PORT_HELP,
+    WEB_HELP,
+    WEB_URL_HELP,
     flatsat_get_devices,
+    resolve_web,
     send_cmd,
     with_device,
 )
@@ -92,8 +95,7 @@ def _validate_shell_safe(ctx, param, value):
         return value
     if not _SHELL_SAFE_RE.match(value):
         raise click.BadParameter(
-            "may only contain letters, digits, '.', '_' and '-' "
-            "(the value is sent verbatim to the board's shell)",
+            "may only contain letters, digits, '.', '_' and '-' (the value is sent verbatim to the board's shell)",
             ctx=ctx,
             param=param,
         )
@@ -128,23 +130,116 @@ class ApidType(click.ParamType):
 # ROOT CLICK GROUP
 # ==============================================================================
 
+
 @click.group("flatsat", context_settings={"help_option_names": ["-h", "--help"]})
 @click.version_option(__version__, "-V", "--version", prog_name="flatsat")
 @click.option("-d", "--device", default=None, help=DEVICE_HELP)
 @click.option("-p", "--port", default=None, help=PORT_HELP)
+@click.option("-w", "--web", is_flag=True, default=None, help=WEB_HELP)
+@click.option("--web-url", default=None, help=WEB_URL_HELP)
 @click.pass_context
-def cli(ctx, device, port):
+def cli(ctx, device, port, web, web_url):
     """FlatSat Host CLI: manage and configure your FlatSat boards easily."""
-    ctx.obj = {"device": device, "port": port}
+    ctx.obj = {"device": device, "port": port, "web": web, "web_url": web_url}
 
 
 # ==============================================================================
 # DEVICE & SYSTEM COMMANDS
 # ==============================================================================
 
+
+@cli.command("web")
+@click.option("--port", type=int, default=5000, help="puerto del dashboard (default: 5000)")
+@click.option("--background", "-b", is_flag=True, help="arrancar en segundo plano y devolver el prompt")
+@click.option("--no-browser", is_flag=True, help="no abrir el navegador automáticamente")
+def web(port, background, no_browser):
+    """Open the ground station dashboard in the browser
+
+    \b
+        flatsat web                    # dashboard en http://127.0.0.1:5000
+        flatsat web --port 5001        # otro puerto
+        flatsat web --background       # en segundo plano, libre la terminal
+    """
+    from modules.webapp.launcher import run_web
+
+    argv = ["--port", str(port)]
+    if background:
+        argv.append("--background")
+    if no_browser:
+        argv.append("--no-browser")
+    raise SystemExit(run_web(argv))
+
+
+@cli.command("doctor")
+def doctor():
+    """Check the environment, the serial ports and the shell aliases"""
+    from modules.webapp.launcher import run_doctor
+
+    raise SystemExit(run_doctor([]))
+
+
+@cli.command("version")
+def version():
+    """Show the version of the ground station"""
+    from modules.utils._version import __version__
+
+    print_info(f"FlatSat Ground Station {__version__}")
+
+
+@cli.command("help")
+@click.pass_context
+def help_command(ctx):
+    """Show this help"""
+    # The group help (all commands), not the help of this command.
+    click.echo(ctx.parent.get_help() if ctx.parent else ctx.get_help())
+
+
+@cli.command("install")
+def install_app():
+    """Install the app: CLI in the PATH, shortcuts and data folder"""
+    from modules.utils.bootstrap import APP_MODULES
+    from modules.utils.installer import install as do_install
+    from modules.utils.installer import is_installed
+
+    if is_installed():
+        print_info("La aplicación ya está instalada.")
+        print_info("Usa 'flatsat-gs install' para reinstalarla.")
+        return
+
+    root = Path(__file__).resolve().parent.parent.parent
+    do_install(
+        source_root=root,
+        frozen=getattr(sys, "frozen", False),
+        requirements_file=root / "requirements-app.txt",
+        modules=APP_MODULES,
+        log=print,
+    )
+
+
+@cli.command("uninstall")
+@click.option("--keep-data", is_flag=True, help="conservar la base de datos de telemetría")
+def uninstall_app(keep_data):
+    """Remove the app and restore the system"""
+    from modules.utils.installer import uninstall as do_uninstall
+
+    do_uninstall(keep_data=keep_data, log=print)
+
+
 @cli.command("devices")
-def devices():
+@click.option("-w", "--web", is_flag=True, default=None, help=WEB_HELP)
+@click.option("--web-url", default=None, help=WEB_URL_HELP)
+@click.pass_context
+def devices(ctx, web, web_url):
     """List all connected FlatSat boards and their endpoints"""
+    opts = ctx.obj or {}
+    target = resolve_web(
+        web if web else opts.get("web"),
+        web_url if web_url else opts.get("web_url"),
+    )
+    if target:
+        _devices_via_web(target)
+        return
+
     devs = flatsat_get_devices()
     if not devs:
         print_title("CONNECTED FLATSAT DEVICES")
@@ -152,6 +247,36 @@ def devices():
         return
 
     print_devices_table(devs)
+
+
+def _devices_via_web(web: str):
+    """Show the board the running webapp is connected to."""
+    from modules.core.web_device import WebDevice, WebDeviceError
+
+    print_title("CONNECTED FLATSAT DEVICES (via webapp)")
+    dev = WebDevice(web)
+    try:
+        dev.connect()
+        status = dev._request("GET", "/api/hardware/status")
+    except WebDeviceError as exc:
+        print_error(str(exc))
+        return
+
+    if not isinstance(status, dict):
+        print_warning("La webapp no ha respondido.")
+        return
+
+    mode = status.get("mode", "unknown")
+    if mode != "hardware":
+        print_warning(f"La webapp no tiene ninguna placa conectada (modo: {mode}).")
+        return
+
+    ports = status.get("ports") or {}
+    print_info(f"Serial: {status.get('serial_number', '?')}")
+    print_info(f"Radio 0: {ports.get('radio0') or '-'}")
+    print_info(f"Radio 1: {ports.get('radio1') or '-'}")
+    print_info(f"Shell:   {ports.get('shell') or '-'}")
+    print_info(f"Active radio: {status.get('active_radio', 0)}")
 
 
 @cli.command("status")
@@ -506,8 +631,7 @@ def _fmt_cfg(res):
 @click.option("--power", type=click.IntRange(-9, 22), help="TX power in dBm (-9 to 22)")
 @click.option("--preamble", type=click.IntRange(6, 65535), help="Preamble length (6-65535)")
 @click.option("--iq", type=click.Choice(["normal", "inverted"]), help="IQ polarity")
-@click.option("--syncword", callback=_validate_shell_safe,
-              help="Syncword (public, private, or hex value e.g. 0x2D)")
+@click.option("--syncword", callback=_validate_shell_safe, help="Syncword (public, private, or hex value e.g. 0x2D)")
 @click.option("--mode", type=click.Choice(["stream", "command"]), help="LoRa output mode (applied immediately)")
 @click.option("--apply", is_flag=True, help="Apply staged changes immediately")
 @with_device
@@ -575,6 +699,7 @@ def config(dev, radio, freq, sf, bw, cr, power, preamble, iq, syncword, mode, ap
 # RF SNIFFER, REPLAY & TRANSMIT COMMANDS
 # ==============================================================================
 
+
 def _frame_entry(parsed_rx, difficulty):
     from modules.core.ccsds import parse_frame, sdls_unprotect_frame
 
@@ -607,16 +732,27 @@ def _frame_entry(parsed_rx, difficulty):
 
 
 @cli.command("sniff")
-@click.option("-r", "--radio", type=click.Choice(["0", "1"]), default="0",
-              help="Radio to listen on: 0 = telemetry downlink (default), 1 = telecommand uplink.")
-@click.option("-t", "--duration", type=float, default=30.0,
-              help="Seconds to listen. Use 0 to run until Ctrl+C.")
-@click.option("-o", "--output", type=click.Path(dir_okay=False), default=None,
-              help="Write captured frames to this JSON file.")
-@click.option("-n", "--count", type=click.IntRange(0), default=0,
-              help="Stop after capturing this many frames (0 = no limit).")
-@click.option("--difficulty", "difficulty_override", type=click.IntRange(0, 3), default=None,
-              help="SDLS level used to decrypt payloads. Defaults to the target's level, sniffed from its heartbeat.")
+@click.option(
+    "-r",
+    "--radio",
+    type=click.Choice(["0", "1"]),
+    default="0",
+    help="Radio to listen on: 0 = telemetry downlink (default), 1 = telecommand uplink.",
+)
+@click.option("-t", "--duration", type=float, default=30.0, help="Seconds to listen. Use 0 to run until Ctrl+C.")
+@click.option(
+    "-o", "--output", type=click.Path(dir_okay=False), default=None, help="Write captured frames to this JSON file."
+)
+@click.option(
+    "-n", "--count", type=click.IntRange(0), default=0, help="Stop after capturing this many frames (0 = no limit)."
+)
+@click.option(
+    "--difficulty",
+    "difficulty_override",
+    type=click.IntRange(0, 3),
+    default=None,
+    help="SDLS level used to decrypt payloads. Defaults to the target's level, sniffed from its heartbeat.",
+)
 @with_device
 def sniff(dev, radio, duration, output, count, difficulty_override):
     """Sniff CCSDS frames over LoRa and optionally save them to a file
@@ -735,11 +871,7 @@ def _load_frames(capture_file):
     skipped = 0
     for entry in entries:
         clean = entry.strip() if isinstance(entry, str) else ""
-        if (
-            len(clean) % 2
-            or len(clean) < _MIN_FRAME_BYTES * 2
-            or not all(c in "0123456789abcdefABCDEF" for c in clean)
-        ):
+        if len(clean) % 2 or len(clean) < _MIN_FRAME_BYTES * 2 or not all(c in "0123456789abcdefABCDEF" for c in clean):
             skipped += 1
             continue
         usable.append(clean)
@@ -773,8 +905,13 @@ def _bump_seq(frame, index):
 @click.argument("capture_file", type=click.Path(exists=True, dir_okay=False))
 @click.option("--delay", type=float, default=1.0, help="Seconds to wait between frames.")
 @click.option("--modify-seq", is_flag=True, help="Increment sequence counters to bypass Level 3 anti-replay.")
-@click.option("--difficulty", "difficulty_override", type=click.IntRange(0, 3), default=None,
-              help="SDLS level applied when transmitting. Defaults to the board's difficulty.")
+@click.option(
+    "--difficulty",
+    "difficulty_override",
+    type=click.IntRange(0, 3),
+    default=None,
+    help="SDLS level applied when transmitting. Defaults to the board's difficulty.",
+)
 @with_device
 def replay(dev, capture_file, delay, modify_seq, difficulty_override):
     """Replay captured CCSDS frames from a file back over RF
@@ -835,8 +972,7 @@ def replay(dev, capture_file, delay, modify_seq, difficulty_override):
             sent += 1
         else:
             print_success(
-                f"Frame {i + 1}/{len(hexes)}: sent "
-                f"({result.get('bytes', 0)} bytes, {result.get('response', 'OK')})"
+                f"Frame {i + 1}/{len(hexes)}: sent ({result.get('bytes', 0)} bytes, {result.get('response', 'OK')})"
             )
             sent += 1
 
@@ -862,8 +998,13 @@ def _encode_payload(data, as_text):
 @click.option("--protect", is_flag=True, help="Apply SDLS protection before transmitting.")
 @click.option("--repeat", type=click.IntRange(1), default=1, show_default=True, help="Number of times to transmit.")
 @click.option("--delay", type=float, default=1.0, show_default=True, help="Seconds to wait between repeats.")
-@click.option("--difficulty", "difficulty_override", type=click.IntRange(0, 3), default=None,
-              help="SDLS level applied when --protect is set.")
+@click.option(
+    "--difficulty",
+    "difficulty_override",
+    type=click.IntRange(0, 3),
+    default=None,
+    help="SDLS level applied when --protect is set.",
+)
 @with_device
 def transmit(dev, data, as_text, protect, repeat, delay, difficulty_override):
     """Transmit a custom hex or text string over RF
@@ -941,6 +1082,7 @@ def transmit(dev, data, as_text, protect, repeat, delay, difficulty_override):
 # ==============================================================================
 # RAW TELECOMMAND (arbitrary APID) AND CTF ATTACK SUITE
 # ==============================================================================
+
 
 def _sniff_remote_difficulty(dev, timeout: float = 5.0) -> int | None:
     """Recover the *target's* SDLS level from its heartbeat on the downlink.
@@ -1101,21 +1243,29 @@ def _send_attack_frame(dev, difficulty, apid, payload, seq_count: int | None = N
     _report_led_expectation(apid)
 
 
-
-
 @cli.command("tc")
 @click.argument("apid", type=ApidType())
 @click.argument("payload", required=False, default="")
 @click.option("--text", "as_text", is_flag=True, help="Interpret PAYLOAD as plain text instead of hex.")
 @click.option("--protect", is_flag=True, help="Apply SDLS protection before transmitting.")
-@click.option("--seq", type=click.IntRange(0, 0x3FFF), default=None,
-              help="Sequence counter (default: derived from the clock).")
-@click.option("--timestamp", type=click.IntRange(0, 0xFFFFFFFF), default=None,
-              help="MET timestamp; also the SDLS AES IV (default: current time).")
+@click.option(
+    "--seq", type=click.IntRange(0, 0x3FFF), default=None, help="Sequence counter (default: derived from the clock)."
+)
+@click.option(
+    "--timestamp",
+    type=click.IntRange(0, 0xFFFFFFFF),
+    default=None,
+    help="MET timestamp; also the SDLS AES IV (default: current time).",
+)
 @click.option("--repeat", type=click.IntRange(1), default=1, show_default=True, help="Times to transmit.")
 @click.option("--delay", type=float, default=1.0, show_default=True, help="Seconds between repeats.")
-@click.option("--difficulty", "difficulty_override", type=click.IntRange(0, 3), default=None,
-              help="SDLS level when --protect is set. Defaults to the board's difficulty.")
+@click.option(
+    "--difficulty",
+    "difficulty_override",
+    type=click.IntRange(0, 3),
+    default=None,
+    help="SDLS level when --protect is set. Defaults to the board's difficulty.",
+)
 @with_device
 def tc(dev, apid, payload, as_text, protect, seq, timestamp, repeat, delay, difficulty_override):
     """Send a CCSDS telecommand to an arbitrary APID over RF
@@ -1196,11 +1346,15 @@ def attack(ctx, device, port):
 
 
 @attack.command("apid-enum")
-@click.option("--high", type=click.IntRange(0, 0x7FF), default=0x1F,
-              help="Highest APID to probe (default 0x1F).")
+@click.option("--high", type=click.IntRange(0, 0x7FF), default=0x1F, help="Highest APID to probe (default 0x1F).")
 @click.option("--delay", type=float, default=0.1, show_default=True, help="Seconds between probes.")
-@click.option("--difficulty", "difficulty_override", type=click.IntRange(0, 3), default=None,
-              help="SDLS level for the RF telecommand. Defaults to the target's level, sniffed from its heartbeat.")
+@click.option(
+    "--difficulty",
+    "difficulty_override",
+    type=click.IntRange(0, 3),
+    default=None,
+    help="SDLS level for the RF telecommand. Defaults to the target's level, sniffed from its heartbeat.",
+)
 @click.option("--yes", is_flag=True, help="Do not ask for confirmation.")
 @with_device
 def attack_apid_enum(dev, high, delay, difficulty_override, yes):
@@ -1228,10 +1382,14 @@ def attack_apid_enum(dev, high, delay, difficulty_override, yes):
 
 
 @attack.command("eavesdrop")
-@click.option("-t", "--duration", type=float, default=5.0, show_default=True,
-              help="Seconds to listen on the downlink.")
-@click.option("--difficulty", "difficulty_override", type=click.IntRange(0, 3), default=None,
-              help="SDLS level used to decrypt payloads. Defaults to the target's level, sniffed from its heartbeat.")
+@click.option("-t", "--duration", type=float, default=5.0, show_default=True, help="Seconds to listen on the downlink.")
+@click.option(
+    "--difficulty",
+    "difficulty_override",
+    type=click.IntRange(0, 3),
+    default=None,
+    help="SDLS level used to decrypt payloads. Defaults to the target's level, sniffed from its heartbeat.",
+)
 @with_device
 def attack_eavesdrop(dev, duration, difficulty_override):
     """Attack 01: passive downlink capture and SDLS decryption.
@@ -1278,8 +1436,13 @@ def attack_eavesdrop(dev, duration, difficulty_override):
 
 
 @attack.command("fuzz-crash")
-@click.option("--difficulty", "difficulty_override", type=click.IntRange(0, 3), default=None,
-              help="SDLS level for the RF telecommand. Defaults to the target's level, sniffed from its heartbeat.")
+@click.option(
+    "--difficulty",
+    "difficulty_override",
+    type=click.IntRange(0, 3),
+    default=None,
+    help="SDLS level for the RF telecommand. Defaults to the target's level, sniffed from its heartbeat.",
+)
 @click.option("--yes", is_flag=True, help="Do not ask for confirmation.")
 @with_device
 def attack_fuzz_crash(dev, difficulty_override, yes):
@@ -1288,14 +1451,24 @@ def attack_fuzz_crash(dev, difficulty_override, yes):
     _require_uplink(dev)
 
     diff, diff_source = _resolve_difficulty(dev, difficulty_override)
-    _send_attack_frame(dev, diff, APID_TC_BROADCAST, b"\xFF\x00\xFF\xFF")
+    _send_attack_frame(dev, diff, APID_TC_BROADCAST, b"\xff\x00\xff\xff")
 
 
 @attack.command("mem-overflow")
-@click.option("--size", type=click.IntRange(1, 225), default=64, show_default=True,
-              help="Payload size; must exceed the firmware's 32-byte buffer.")
-@click.option("--difficulty", "difficulty_override", type=click.IntRange(0, 3), default=None,
-              help="SDLS level for the RF telecommand. Defaults to the target's level, sniffed from its heartbeat.")
+@click.option(
+    "--size",
+    type=click.IntRange(1, 225),
+    default=64,
+    show_default=True,
+    help="Payload size; must exceed the firmware's 32-byte buffer.",
+)
+@click.option(
+    "--difficulty",
+    "difficulty_override",
+    type=click.IntRange(0, 3),
+    default=None,
+    help="SDLS level for the RF telecommand. Defaults to the target's level, sniffed from its heartbeat.",
+)
 @click.option("--yes", is_flag=True, help="Do not ask for confirmation.")
 @with_device
 def attack_mem_overflow(dev, size, difficulty_override, yes):
@@ -1311,10 +1484,14 @@ def attack_mem_overflow(dev, size, difficulty_override, yes):
 
 
 @attack.command("cmd-injection")
-@click.option("--power", type=click.IntRange(0, 100), default=100, show_default=True,
-              help="Thrust power percentage.")
-@click.option("--difficulty", "difficulty_override", type=click.IntRange(0, 3), default=None,
-              help="SDLS level for the RF telecommand. Defaults to the target's level, sniffed from its heartbeat.")
+@click.option("--power", type=click.IntRange(0, 100), default=100, show_default=True, help="Thrust power percentage.")
+@click.option(
+    "--difficulty",
+    "difficulty_override",
+    type=click.IntRange(0, 3),
+    default=None,
+    help="SDLS level for the RF telecommand. Defaults to the target's level, sniffed from its heartbeat.",
+)
 @click.option("--yes", is_flag=True, help="Do not ask for confirmation.")
 @with_device
 def attack_cmd_injection(dev, power, difficulty_override, yes):
@@ -1328,10 +1505,14 @@ def attack_cmd_injection(dev, power, difficulty_override, yes):
 
 
 @attack.command("gps-spoof")
-@click.option("--nmea", default=None,
-              help="NMEA sentence to inject. Defaults to a fixed 12:35:19 fix.")
-@click.option("--difficulty", "difficulty_override", type=click.IntRange(0, 3), default=None,
-              help="SDLS level for the RF telecommand. Defaults to the target's level, sniffed from its heartbeat.")
+@click.option("--nmea", default=None, help="NMEA sentence to inject. Defaults to a fixed 12:35:19 fix.")
+@click.option(
+    "--difficulty",
+    "difficulty_override",
+    type=click.IntRange(0, 3),
+    default=None,
+    help="SDLS level for the RF telecommand. Defaults to the target's level, sniffed from its heartbeat.",
+)
 @click.option("--yes", is_flag=True, help="Do not ask for confirmation.")
 @with_device
 def attack_gps_spoof(dev, nmea, difficulty_override, yes):
@@ -1352,10 +1533,14 @@ def attack_gps_spoof(dev, nmea, difficulty_override, yes):
 
 
 @attack.command("gs-auth")
-@click.option("--payload", default="AUTH_ADMIN_OVERRIDE", show_default=True,
-              help="Plaintext to forge.")
-@click.option("--difficulty", "difficulty_override", type=click.IntRange(0, 3), default=None,
-              help="SDLS level for the RF telecommand. Defaults to the target's level, sniffed from its heartbeat.")
+@click.option("--payload", default="AUTH_ADMIN_OVERRIDE", show_default=True, help="Plaintext to forge.")
+@click.option(
+    "--difficulty",
+    "difficulty_override",
+    type=click.IntRange(0, 3),
+    default=None,
+    help="SDLS level for the RF telecommand. Defaults to the target's level, sniffed from its heartbeat.",
+)
 @click.option("--yes", is_flag=True, help="Do not ask for confirmation.")
 @with_device
 def attack_gs_auth(dev, payload, difficulty_override, yes):
@@ -1376,8 +1561,13 @@ def attack_gs_auth(dev, payload, difficulty_override, yes):
 
 @attack.command("replay-tc")
 @click.option("--payload", default="1000", show_default=True, help="Hex payload of the replayed telecommand.")
-@click.option("--difficulty", "difficulty_override", type=click.IntRange(0, 3), default=None,
-              help="SDLS level for the RF telecommand. Defaults to the target's level, sniffed from its heartbeat.")
+@click.option(
+    "--difficulty",
+    "difficulty_override",
+    type=click.IntRange(0, 3),
+    default=None,
+    help="SDLS level for the RF telecommand. Defaults to the target's level, sniffed from its heartbeat.",
+)
 @click.option("--yes", is_flag=True, help="Do not ask for confirmation.")
 @with_device
 def attack_replay_tc(dev, payload, difficulty_override, yes):
@@ -1396,8 +1586,13 @@ def attack_replay_tc(dev, payload, difficulty_override, yes):
 
 
 @attack.command("resetc")
-@click.option("--difficulty", "difficulty_override", type=click.IntRange(0, 3), default=None,
-              help="SDLS level for the RF telecommand. Defaults to the target's level, sniffed from its heartbeat.")
+@click.option(
+    "--difficulty",
+    "difficulty_override",
+    type=click.IntRange(0, 3),
+    default=None,
+    help="SDLS level for the RF telecommand. Defaults to the target's level, sniffed from its heartbeat.",
+)
 @click.option("--yes", is_flag=True, help="Do not ask for confirmation.")
 @with_device
 def attack_resetc(dev, difficulty_override, yes):
@@ -1409,10 +1604,10 @@ def attack_resetc(dev, difficulty_override, yes):
     _send_attack_frame(dev, diff, APID_TC_RESETC, b"RESETC")
 
 
-
 # ==============================================================================
 # TAB COMPLETION COMMAND GROUP
 # ==============================================================================
+
 
 @cli.group("completion", context_settings={"help_option_names": ["-h", "--help"]})
 def completion():
@@ -1517,6 +1712,7 @@ def completion_install(shell):
 # ENTRY POINT
 # ==============================================================================
 
+
 def main_cli() -> None:
     main()
 
@@ -1535,7 +1731,10 @@ def _first_subcommand(argv):
 
 
 def main() -> None:
-    if not os.environ.get("_FLATSAT_COMPLETE"):
+    # The banner is for the interactive work; the meta commands
+    # (help, version, install, uninstall) print their own output.
+    quiet = {"help", "version", "install", "uninstall"}
+    if not os.environ.get("_FLATSAT_COMPLETE") and not (set(sys.argv[1:]) & quiet):
         print_banner(_first_subcommand(sys.argv[1:]))
     cli(prog_name="flatsat")
 

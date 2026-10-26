@@ -15,6 +15,14 @@ from modules.utils.output import print_dim, print_error, print_info
 
 DEVICE_HELP = "Target FlatSat board: index from 'flatsat devices' or its serial number."
 PORT_HELP = "Force direct connection to a custom shell port (e.g. /dev/ttyACM3)."
+WEB_HELP = (
+    "Talk to a running Ground Station webapp instead of the serial port. "
+    "Use it when the webapp already holds the hardware."
+)
+WEB_URL_HELP = "URL of the Ground Station webapp (default: http://127.0.0.1:5000)."
+
+# Default address of a local ground station webapp.
+DEFAULT_WEB_URL = "http://127.0.0.1:5000"
 
 
 def flatsat_get_devices():
@@ -80,8 +88,39 @@ def get_selected_device(device=None, port=None):
     sys.exit(1)
 
 
-def get_device_or_exit(device=None, port=None):
-    """Resolve and connect a FlatSat device, or exit with an error."""
+def resolve_web(web: bool | None, web_url: str | None) -> str | None:
+    """Return the webapp URL to use, or None for the direct serial mode.
+
+    ``-w`` is a flag (it means "the local webapp") so it never swallows the
+    sub-command name; ``--web-url`` carries a custom address.
+    """
+    if web_url:
+        return web_url.rstrip("/")
+    if web:
+        return DEFAULT_WEB_URL
+    return None
+
+
+def get_device_or_exit(device=None, port=None, web=None, web_url=None):
+    """Resolve and connect to a FlatSat device, or exit with an error.
+
+    When ``web``/``web_url`` are given the CLI drives a running ground
+    station webapp through its REST API instead of opening the serial
+    ports, which lets both tools be used at the same time.
+    """
+    target = resolve_web(web, web_url)
+    if target:
+        from modules.core.web_device import WebDevice, WebDeviceError
+
+        dev = WebDevice(target)
+        try:
+            dev.connect()
+        except WebDeviceError as exc:
+            print_error(str(exc))
+            sys.exit(1)
+        print_info(f"Usando la webapp en {target} (el hardware lo tiene ella)")
+        return dev
+
     dev = get_selected_device(device=device, port=port)
 
     # Connect WITHOUT forcing a role (forced_role=None): each CLI command is a
@@ -99,11 +138,12 @@ def get_device_or_exit(device=None, port=None):
 def with_device(func):
     """Connect the target board and pass it to the command as first argument.
 
-    Adds `-d/--device` and `-p/--port` to the command, so they work after the
-    subcommand (`flatsat status -d 0`). The root group declares the same
-    options, so they also work before it (`flatsat -d 0 status`); when both are
-    given, the one on the subcommand wins. The port is closed even if the
-    command raises. Apply it closest to the function, with click options above:
+    Adds `-d/--device`, `-p/--port`, `-w/--web` and `--web-url` to the
+    command, so they work after the subcommand (`flatsat status -d 0`); the
+    root group declares the same options, so they also work before it
+    (`flatsat -d 0 status`); when both are given, the one on the subcommand
+    wins. The port is closed even if the command raises. Apply it closest
+    to the function, with click options above:
 
         @click.command("color")
         @click.argument("r", type=int)
@@ -112,14 +152,25 @@ def with_device(func):
     """
 
     @click.pass_context
-    def wrapper(ctx, *args, device=None, port=None, **kwargs):
+    def wrapper(ctx, *args, device=None, port=None, web=None, web_url=None, **kwargs):
         opts = ctx.obj or {}
         dev = get_device_or_exit(
             device=device if device is not None else opts.get("device"),
             port=port if port is not None else opts.get("port"),
+            web=web if web is not None else opts.get("web"),
+            web_url=web_url if web_url is not None else opts.get("web_url"),
         )
         try:
             return func(dev, *args, **kwargs)
+        except Exception as exc:
+            # The web transport raises a readable error; do not show a
+            # traceback for something the user can fix.
+            from modules.core.web_device import WebDeviceError
+
+            if isinstance(exc, WebDeviceError):
+                print_error(str(exc))
+                sys.exit(1)
+            raise
         finally:
             dev.disconnect()
 
@@ -129,6 +180,8 @@ def with_device(func):
     except AttributeError:
         pass
 
+    wrapper = click.option("--web-url", default=None, help=WEB_URL_HELP)(wrapper)
+    wrapper = click.option("-w", "--web", is_flag=True, default=None, help=WEB_HELP)(wrapper)
     wrapper = click.option("-p", "--port", default=None, help=PORT_HELP)(wrapper)
     wrapper = click.option("-d", "--device", default=None, help=DEVICE_HELP)(wrapper)
     return wrapper
@@ -152,7 +205,7 @@ def send_cmd(dev, cmd):
     if first_line_clean == cmd_stripped:
         lines = lines[1:]
     elif first_line_clean.startswith(cmd_stripped) and not first_line_clean.startswith(f"{cmd_stripped}:"):
-        remainder = first_line_clean[len(cmd_stripped):].lstrip()
+        remainder = first_line_clean[len(cmd_stripped) :].lstrip()
         if remainder:
             lines[0] = remainder
         else:
