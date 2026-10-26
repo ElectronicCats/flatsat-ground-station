@@ -203,7 +203,7 @@ def test_attack_group_accepts_device_option(mock_get_dev, mock_send_raw):
     result = CliRunner().invoke(cli, ["attack", "-d", "0", "resetc", "--yes"])
 
     assert result.exit_code == 0, result.output
-    mock_get_dev.assert_called_once_with(device="0", port=None)
+    mock_get_dev.assert_called_once_with(device="0", port=None, web=None, web_url=None)
 
 
 @patch("modules.core.radio_bridge.RadioBridge.send_raw")
