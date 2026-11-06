@@ -432,6 +432,8 @@ def _standalone_binary(source_root: Path, frozen: bool) -> Path | None:
 
 def _same_file(a: Path, b: Path) -> bool:
     """True when both paths point to the same file."""
+    if a == b:
+        return True
     try:
         return a.exists() and b.exists() and a.samefile(b)
     except OSError:
@@ -475,6 +477,8 @@ def _schedule_windows_replace(jobs: list[tuple[Path, Path]], attempts: int = 15)
 
 def _link_alias(source: Path, alias: Path) -> bool:
     """Create ``alias`` pointing at ``source`` (hard link, symlink or copy)."""
+    if source == alias:
+        return True
     if alias.exists() or alias.is_symlink():
         if not remove_path(alias):
             # Busy: a running executable cannot be replaced on Windows.
@@ -589,7 +593,7 @@ def install(
         if _same_file(binary, canonical):
             log(f"[+] Ejecutable ya en su sitio: {canonical}")
         else:
-            if canonical.exists():
+            if canonical.is_symlink() or canonical.exists():
                 remove_path(canonical)
             if canonical.exists():
                 # Busy: stage the new file and swap it in later.
@@ -670,10 +674,11 @@ def install(
         # behaviour follows the name it is invoked with.
         # Remove the launcher scripts of a previous installation: they would
         # shadow the executables we are about to create.
-        _remove_stale_commands(bindir, keep_suffixes=(".exe", ".AppImage"))
+        keep_suffixes = (".exe", ".AppImage") if suffix else (".exe", ".AppImage", "")
+        _remove_stale_commands(bindir, keep_suffixes=keep_suffixes)
         for name in EXE_ALIASES:
             alias = bindir / f"{name}{suffix}"
-            if _same_file(alias, canonical):
+            if alias == canonical or _same_file(alias, canonical):
                 commands[name] = alias
                 continue
             if _link_alias(canonical, alias):

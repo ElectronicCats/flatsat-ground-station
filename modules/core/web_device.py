@@ -201,6 +201,10 @@ class WebDevice:
             return json.dumps(result)
         return str(result) if result else None
 
+    def reset_radio_input_buffers(self) -> None:
+        """No-op on WebDevice: buffers are managed server-side by the webapp."""
+        pass
+
     # ── Helpers ────────────────────────────────────────────────────────────
 
     def _describe(self, what: str, rest: str) -> str | None:
