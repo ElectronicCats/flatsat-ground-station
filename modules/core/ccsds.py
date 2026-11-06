@@ -5,6 +5,8 @@ and flatsat/src/ccsds/ccsds_sdls.c.
 Big-endian headers per CCSDS 133.0-B-2.
 """
 
+from __future__ import annotations
+
 import struct
 from dataclasses import dataclass
 

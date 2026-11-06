@@ -1,5 +1,7 @@
-from unittest.mock import MagicMock, patch
+from unittest.mock import patch
+
 from click.testing import CliRunner
+
 from modules.core.cli import cli
 from modules.core.constants import ENDPOINT_RADIO0, ENDPOINT_RADIO1, ENDPOINT_SHELL
 from modules.core.serial_manager import DeviceIdentity, DiscoveredDevice

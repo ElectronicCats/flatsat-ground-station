@@ -1,12 +1,12 @@
-import tempfile
 import os
-import pytest
-from flask_socketio import SocketIO
+import tempfile
 
+import pytest
+
+from modules.webapp.app import create_app, socketio
 from modules.webapp.config import TestConfig
 from modules.webapp.db import init_db
 from modules.webapp.seed import seed_db
-from modules.webapp.app import create_app, socketio
 
 
 @pytest.fixture

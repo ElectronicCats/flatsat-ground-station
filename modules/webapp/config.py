@@ -3,6 +3,7 @@
 
 import os
 
+
 class Config:
     SECRET_KEY = "pwnsat_ground_station_2026"
     DATABASE = "db/telemetry.db"

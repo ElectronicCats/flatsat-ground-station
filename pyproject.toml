@@ -30,7 +30,6 @@ dependencies = [
     "Flask>=3.0.3",
     "Flask-SocketIO>=5.3.7",
     "simple-websocket>=1.1.0",
-    "pyudev>=0.24.4; sys_platform == 'linux'",
 ]
 
 [project.optional-dependencies]
@@ -46,12 +45,13 @@ Repository = "https://github.com/ElectronicCats/flat-sat-fw-interno"
 
 [project.scripts]
 flatsat = "modules.core.cli:main_cli"
-
+flatsat-web = "flatsat_app:console_web"
+flatsat-gs = "flatsat_app:console_app"
 
 
 
 [tool.setuptools]
-py-modules = ["flatsat", "flatsat_cli"]
+py-modules = ["flatsat", "flatsat_cli", "flatsat_app"]
 
 
 [tool.setuptools.dynamic]

@@ -1,4 +1,12 @@
-const socket = io();
+// The Socket.IO client is bundled locally (modules/webapp/static/js/socket-client.js)
+// so the live telemetry feed also works on machines without internet access.
+// If the official CDN client happens to be loaded, use it instead.
+const socket = (function () {
+    if (window.socket) { return window.socket; }
+    if (typeof io === "function") { return io(); }
+    return new window.FlatSatSocket();
+})();
+socket.connect();
 const MAX_ROWS = 500;
 const ROWS_PER_PAGE = 50;
 const COLUMN_PREFS_KEY = "dashboardTelemetryColumnsV1";

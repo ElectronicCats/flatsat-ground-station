@@ -1,7 +1,12 @@
-"""Backward-compatibility shim package for cli."""
+"""Backward-compatibility shim package for cli.
+
+DEPRECATED: every name here forwards to `modules.*`. Add new code under
+`modules/` instead — see cli/COLLABORATE.md.
+"""
+import importlib
 import os
 import sys
-import importlib
+import warnings
 
 _target_cli = importlib.import_module("modules.core.cli")
 _target_session = importlib.import_module("modules.core.session")
@@ -18,10 +23,22 @@ for _short, _target_name in _submodules.items():
         _mod = importlib.import_module(_target_name)
         sys.modules[f"cli.{_short}"] = _mod
         globals()[_short] = _mod
-    except Exception:
-        pass
+    except Exception as _exc:  # surfaced instead of silently dropping the alias
+        warnings.warn(
+            f"cli.{_short} could not forward to {_target_name}: {_exc}",
+            RuntimeWarning,
+            stacklevel=2,
+        )
 
-globals().update({k: getattr(_target_cli, k) for k in getattr(_target_cli, "__all__", dir(_target_cli)) if not k.startswith("__") and k != "cli"})
-globals().update({k: getattr(_target_session, k) for k in getattr(_target_session, "__all__", dir(_target_session)) if not k.startswith("__")})
+def _re_export(target, skip=()):
+    """Copy a module's public names into this package's namespace."""
+    names = getattr(target, "__all__", dir(target))
+    globals().update(
+        {k: getattr(target, k) for k in names if not k.startswith("__") and k not in skip}
+    )
+
+
+_re_export(_target_cli, skip=("cli",))
+_re_export(_target_session)
 
 __path__ = [os.path.dirname(__file__)]

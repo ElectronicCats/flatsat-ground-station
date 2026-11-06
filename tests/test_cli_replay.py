@@ -1,8 +1,10 @@
 import json
 from unittest.mock import MagicMock, patch
+
 from click.testing import CliRunner
-from modules.core.cli import cli, _bump_seq
+
 from modules.core.ccsds import build_tm, parse_frame
+from modules.core.cli import _bump_seq, cli
 
 
 def test_bump_seq():
@@ -74,5 +76,5 @@ def test_replay_empty_file(mock_get_dev, tmp_path):
     runner = CliRunner()
     result = runner.invoke(cli, ["replay", str(empty_path)])
 
-    assert result.exit_code == 0
-    assert "No frames found in" in result.output
+    assert result.exit_code == 1
+    assert "No usable frames found in" in result.output

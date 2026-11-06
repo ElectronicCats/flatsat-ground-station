@@ -20,8 +20,8 @@ vendor_path = os.path.join(os.path.dirname(__file__), "vendor")
 if os.path.exists(vendor_path):
     sys.path.insert(0, vendor_path)
 
-# Internal
-from cli.app import main
+# Internal (imported after sys.path is prepared above, so E402 does not apply)
+from cli.app import main  # noqa: E402
 
 if __name__ == "__main__":
     main()

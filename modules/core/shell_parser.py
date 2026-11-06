@@ -4,6 +4,8 @@ Each shell response is prefixed with the echo of the command itself
 (e.g., "flightflight: NOMINAL..."), so parsers handle that.
 """
 
+from __future__ import annotations
+
 import re
 
 
@@ -30,7 +32,10 @@ def parse_fw_version(raw: str | None) -> dict:
 
 def parse_flight(raw: str | None) -> dict:
     if not raw:
-        return {"flight": "unknown", "battery_mv": 0, "tm_rate": 0, "uptime": None, "tc_count": None, "error_count": None}
+        return {
+            "flight": "unknown", "battery_mv": 0, "tm_rate": 0,
+            "uptime": None, "tc_count": None, "error_count": None,
+        }
 
     result = {"flight": "unknown", "battery_mv": 0, "tm_rate": 0, "uptime": None, "tc_count": None, "error_count": None}
 
@@ -76,7 +81,7 @@ def parse_mode(raw: str | None) -> str:
 
 
 def parse_difficulty(raw: str | None) -> int:
-    if not raw:
+    if not raw or not isinstance(raw, str):
         return 0
     match = re.search(r"difficulty:\s*(\d+)", raw, re.IGNORECASE)
     return int(match.group(1)) if match else 0

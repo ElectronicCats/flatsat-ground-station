@@ -4,7 +4,13 @@ import threading
 import time
 from typing import Any
 
-from modules.core.constants import APID_TM_ALL_SENSORS, APID_TM_BME280, APID_TM_HEARTBEAT, APID_TM_LIS2DH, ConnectionMode
+from modules.core.constants import (
+    APID_TM_ALL_SENSORS,
+    APID_TM_BME280,
+    APID_TM_HEARTBEAT,
+    APID_TM_LIS2DH,
+    ConnectionMode,
+)
 from modules.core.telemetry import flight_mode_name
 
 
@@ -129,6 +135,8 @@ class GroundStationState:
     def set_hardware(self, device: Any):
         self.connection_mode = ConnectionMode.HARDWARE
         self.device = device
+        # The board is real now: stop the simulated telemetry.
+        self.mock_running = False
         # Default to Dual (2) if device has radio1, otherwise Radio 0 (0)
         self.active_radio = 2 if getattr(device, "has_radio1", True) else 0
         self.reset_remote_satellite()
@@ -157,7 +165,9 @@ class GroundStationState:
     def reset_remote_satellite(self):
         self.remote_satellite = _empty_remote_satellite()
 
-    def update_remote_satellite(self, apid: int, decoded: dict, rssi=None, snr=None, source: str = "radio0", timestamp=None):
+    def update_remote_satellite(
+        self, apid: int, decoded: dict, rssi=None, snr=None, source: str = "radio0", timestamp=None
+    ):
         snapshot = self.remote_satellite
         snapshot["available"] = True
         snapshot["source"] = source

@@ -1,13 +1,18 @@
-click==8.4.2
-Flask==3.0.3
-Flask-SocketIO==5.3.7
-pycryptodome==3.20.0
-pyserial==3.5
-pyudev==0.24.4; sys_platform == 'linux'
-rich==15.0.0
+# ──────────────────────────────────────────────────────────────────────────────
+# FlatSat Ground Station — Dependencias de DESARROLLO (todo el proyecto)
+# ──────────────────────────────────────────────────────────────────────────────
+# Para usar la aplicación (dashboard + CLI) basta con requirements-app.txt.
+# Este fichero añade lo que sólo hace falta al desarrollar:
+#
+#   requests → scripts del toolkit de ataques (attack_*.py)
+#   pytest   → suite de tests
+#
+#   pip install -r requirements.txt
+# ──────────────────────────────────────────────────────────────────────────────
+
+-r requirements-app.txt
 
 # PWNSAT{SUPPLY_CHAIN_COMPROMISED}
 requests==2.31.0
-simple-websocket==1.1.0
 pytest==8.2.2
 pytest-flask==1.3.0

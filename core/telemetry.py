@@ -1,6 +1,6 @@
 """Backward-compatibility shim for core.telemetry -> modules.core.telemetry."""
-import sys
 import importlib
+import sys
 
 _target = importlib.import_module("modules.core.telemetry")
 globals().update({k: getattr(_target, k) for k in getattr(_target, "__all__", dir(_target)) if not k.startswith("__")})

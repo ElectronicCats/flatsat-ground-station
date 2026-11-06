@@ -1,26 +1,22 @@
 import base64
-import hashlib
-import json
 import os
 import tempfile
 import time
-from unittest.mock import MagicMock, patch
+from unittest.mock import MagicMock
+
 import pytest
 
 from modules.core.ccsds import (
     build_tc,
-    build_tm,
-    ccsds_crc16,
     parse_frame,
     sdls_protect_frame,
     sdls_unprotect_frame,
 )
-from modules.core.constants import APID_TM_HEARTBEAT, APID_TC_COMMAND, TC_OP_PING
-from modules.core.state import GroundStationState
+from modules.core.constants import APID_TC_COMMAND, TC_OP_PING
+from modules.webapp.app import create_app
 from modules.webapp.config import TestConfig
 from modules.webapp.db import init_db
 from modules.webapp.seed import seed_db
-from modules.webapp.app import create_app
 
 
 @pytest.fixture

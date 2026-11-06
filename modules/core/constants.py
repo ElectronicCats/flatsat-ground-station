@@ -62,6 +62,53 @@ APID_TC_DIAG_MEM = 0x031
 APID_TC_CTF_FLAG = 0x040
 APID_TC_SECRET_DEBUG = 0x539
 
+# --- CTF attack-suite telecommand APIDs (Type 1) ---
+# Dispatched by flatsat/src/attacks/attacks.c and named in attacks.h. These do
+# not overlap the APIDs above; APID_TC_DIAG_MEM (0x031) is shared, being both a
+# diagnostic telecommand and the Reto 3.3 overflow challenge. Values mirror
+# flat-sat-fw-interno/Attacks/attacks.h and the scenario table in its README.
+APID_TC_RECON_ENUM = 0x000     # 00_recon_apid_enum
+APID_TC_REPLAY = 0x001         # 06_replay
+APID_TC_RESETC = 0x002         # 07_resetc
+APID_TC_SET_THRUSTER = 0x004   # 03_command_injection
+APID_TC_BROADCAST = 0x006      # 02_fuzzing_crash (integer underflow)
+APID_TC_GS_AUTH_XOR = 0x012    # 05_gs_auth_spoofing
+# APID_TC_DIAG_MEM (0x031) above also covers the Reto 3.3 memory overflow.
+# Attack 04 (gps_spoofing) has no APID of its own: attacks.h defines none, and
+# the suite's script reuses 0x004, which the firmware routes to the thruster
+# handler. Treat it as an NMEA payload probe on APID_TC_SET_THRUSTER.
+
+# --- RF uplink/downlink plan (LoRa) ---
+# Telecommands leave the ground station on the uplink TX radio at the uplink
+# frequency; telemetry comes back on Radio 0 at the same frequency. Every LoRa
+# parameter below must match on BOTH boards or the receiver never demodulates
+# the frame: a mismatched sync word in particular looks like a dead TX, because
+# the SX126x still reports "Success" after queueing the packet into its FIFO.
+LORA_UPLINK_HZ = 916_000_000
+LORA_DOWNLINK_HZ = 915_000_000
+#: Both FlatSat boards ship their radios on the public LoRaWAN sync word (0x34).
+LORA_SYNCWORD_TX = "public"
+LORA_SYNCWORD_RX = "private"
+#: Rest frequency for the TX radio between transmissions.
+LORA_TX_SETTLE_S = 0.3
+
+# --- CTF attack-suite NeoPixel feedback ---
+# The firmware lights the NeoPixel from the *plaintext* APID in the CCSDS
+# primary header (attacks.c runs before any SDLS decryption on the RX path), so
+# this colour is what the target board shows regardless of SDLS level. Entries
+# mirror led_rgb_set() calls in flatsat/src/attacks/attacks.c; the firmware
+# holds the colour for ATTACK_LED_HOLD_MS and then returns to its idle heartbeat.
+ATTACK_LED_HOLD_MS = 4000
+ATTACK_LED_FEEDBACK: dict[int, tuple[str, tuple[int, int, int]]] = {
+    APID_TC_RECON_ENUM: ("soft cyan", (0, 20, 20)),
+    APID_TC_REPLAY: ("blue", (0, 0, 50)),
+    APID_TC_RESETC: ("red", (50, 0, 0)),
+    APID_TC_SET_THRUSTER: ("yellow", (50, 50, 0)),
+    APID_TC_BROADCAST: ("magenta", (50, 0, 50)),
+    APID_TC_GS_AUTH_XOR: ("cyan", (0, 50, 50)),
+    APID_TC_DIAG_MEM: ("purple", (50, 0, 50)),
+}
+
 # --- Telecommand Opcodes (payload byte 0 for APID_TC_COMMAND) ---
 TC_OP_NOP = 0x00
 TC_OP_SET_SAFE_MODE = 0x01

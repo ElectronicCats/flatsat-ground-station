@@ -1,16 +1,13 @@
 """Banner and header rendering."""
 
 import os
-import platform
 import random
 
 from rich.markup import escape
 from rich.panel import Panel
 
 from modules.utils._version import __version__
-
 from modules.utils.output import STYLES, console
-
 
 # APP Information
 VERSION_NUMBER = __version__
@@ -37,14 +34,24 @@ _FUNNY_PHRASES = [
     "Your desk is now a ground station.",
 ]
 
-FUNNY_PHRASE = random.choice(_FUNNY_PHRASES)
+
+def _running_as_root():
+    # os.geteuid() does not exist on Windows, and not on every non-Windows
+    # platform either, so feature-detect it rather than testing the OS name.
+    return hasattr(os, "geteuid") and os.geteuid() == 0
+
+
+def pick_phrase():
+    """Choose a banner phrase. Called per render so output stays reproducible
+    under test when the caller seeds `random`."""
+    return random.choice(_FUNNY_PHRASES)
 
 
 def print_banner(module=None):
     """Print the ASCII art header."""
     if module:
         label = escape(f"flatsat {module}")
-    elif platform.system() != "Windows" and os.geteuid() == 0:
+    elif _running_as_root():
         label = "flatsat: (root)"
     else:
         label = "flatsat"
@@ -55,7 +62,7 @@ def print_banner(module=None):
        ===================:       |
   -   :==--===========--==-   -   |  {label}
  -===:===-   :=====-   -==-.-=--  |  v{VERSION_NUMBER}
---    ====-   :===-   -====    -- |  {FUNNY_PHRASE}
+--    ====-   :===-   -====    -- |  {pick_phrase()}
 -=:   :===================-   .=- |
  ---=-- -===============-  -=---  |
  ---       --=======--        --  |"""

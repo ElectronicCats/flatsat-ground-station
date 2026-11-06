@@ -1,5 +1,7 @@
 from unittest.mock import MagicMock, patch
+
 from click.testing import CliRunner
+
 from modules.core.cli import cli
 
 
@@ -101,5 +103,5 @@ def test_cmd_raw_empty_response(mock_get_dev, mock_send_cmd):
     runner = CliRunner()
     result = runner.invoke(cli, ["cmd", "silent_command"])
 
-    assert result.exit_code == 0
+    assert result.exit_code == 1
     assert "No response received" in result.output

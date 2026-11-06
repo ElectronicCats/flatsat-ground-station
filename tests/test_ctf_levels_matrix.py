@@ -4,12 +4,11 @@ import hmac
 import os
 import tempfile
 import time
-import pytest
 
+from modules.webapp.app import create_app
 from modules.webapp.config import Config
 from modules.webapp.db import init_db
 from modules.webapp.seed import seed_db
-from modules.webapp.app import create_app
 
 
 def _make_app(level: int):
