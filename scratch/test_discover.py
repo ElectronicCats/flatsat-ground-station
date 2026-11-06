@@ -1,6 +1,9 @@
+from pathlib import Path
 import sys
 
-sys.path.append('/home/omaro/GitHub/flatsat-ground-station')
+# Ensure repository root is on sys.path dynamically
+repo_root = Path(__file__).resolve().parent.parent
+sys.path.insert(0, str(repo_root))
 
 from core.serial_manager import discover_devices
 
