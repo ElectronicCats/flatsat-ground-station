@@ -1,128 +1,106 @@
-# Compilar e instalar — FlatSat Ground Station
+# Building and Installing — FlatSat Ground Station
 
-Guía completa para **Windows, Linux y macOS**: requisitos, compilación del
-binario autónomo, instalación, verificación, desinstalación y resolución de
-problemas.
+Complete guide for **Windows, Linux, and macOS**: requirements, building the
+standalone executable, installation, verification, uninstallation, and troubleshooting.
 
 ---
 
-## 1. Qué se puede instalar
+## 1. Installation Targets
 
-| Vía | Qué obtienes | Requiere |
+| Target | Description | Prerequisites |
 |---|---|---|
-| **Binario autónomo** | Un único fichero con Python, Flask, pyserial, click… dentro. Sin dependencias en el equipo destino. | Ninguno |
-| **Desde el código** | El código + un entorno virtual propio en la carpeta del proyecto. | Python 3.9+ |
+| **Standalone Binary** | Single self-contained binary embedding Python runtime, Flask, pyserial, click. Zero host dependencies. | None |
+| **From Source** | Source code + dedicated virtual environment configured in the project directory. | Python 3.9+ |
 
-Las dos Instalaciones se hacen **en la carpeta del proyecto** (`flatsat-gs/`) y
-crean los mismos comandos:
+Both installation workflows deploy into the **project folder** (`flatsat-gs/`) and
+register identical commands:
 
-| Comando | Qué hace |
+| Command | Purpose |
 |---|---|
-| `flatsat web` | Abre el dashboard en el navegador |
-| `flatsat doctor` | Diagnóstico: entorno, puertos serie, alias |
-| `flatsat devices` | La placa conectada y sus puertos |
-| `flatsat status` | Firmware, modo y estado del radio |
-| `flatsat sensors` | Sensores en vivo |
-| `flatsat sniff -n 3` | Capturar tramas CCSDS |
-| `flatsat install` / `flatsat uninstall` | Instalar / desinstalar la app |
-| `flatsat-web`, `flatsat-gs` | Alias del dashboard y de la app completa |
+| `flatsat web` | Launch web dashboard and open browser |
+| `flatsat doctor` | System diagnostic: environment, serial ports, shell aliases |
+| `flatsat devices` | Enumerate connected boards and serial endpoints |
+| `flatsat status` | Display firmware, mode, and radio status |
+| `flatsat sensors` | Read real-time telemetry sensor values |
+| `flatsat sniff -n 3` | Capture incoming CCSDS frames |
+| `flatsat install` / `flatsat uninstall` | Install or uninstall application |
+| `flatsat-web`, `flatsat-gs` | Umbrella command and dedicated web launcher aliases |
 
 ---
 
-## 2. Requisitos
+## 2. Requirements
 
-| | Versión | Nota |
+| Component | Version | Notes |
 |---|---|---|
-| Python | 3.9 o superior | Windows: marca *"Add Python to PATH"* al instalarlo |
-| pip | incluido con Python | Todas las dependencias tienen ruedas precompiladas: **no hace falta compilador** |
-| Disco | ~80 MB | Binario (20 MB) o entorno virtual (~60 MB) |
-| Puertos serie | Acceso al grupo `dialout` (Linux) | Ver §7 |
+| Python | 3.9 or higher | Windows: check *"Add Python to PATH"* during installation |
+| pip | Bundled with Python | Prebuilt wheels available: **no C compiler required** |
+| Disk Space | ~80 MB | Standalone binary (20 MB) or virtual environment (~60 MB) |
+| Serial Ports | `dialout` group membership (Linux) | See Section 7 |
 
 ---
 
 ## 3. Windows
 
-### 3.1 Compilar el binario autónomo
+### 3.1 Building the Standalone Executable
 
 ```bat
-cd C:\ruta\al\proyecto\flatsat-ground-station
+cd C:\path\to\flatsat-ground-station
 .\run.cmd build
 ```
 
-O, equivalente, con el script directo:
+Or invoke the build script directly:
 
 ```bat
 .\build_app_windows.bat
 ```
 
-> **En PowerShell los ficheros de la carpeta actual necesitan el prefijo
-> `.\`**. Sin él aparece *"no se reconoce como un cmdlet"*. `run.cmd build`
-> funciona igual porque el propio script resuelve su ruta.
+> **PowerShell requires the `.\` prefix** for scripts located in the current directory.
 
-Resultado: `dist\flatsat-gs.exe` (20 MB).
+Output binary: `dist\flatsat-gs.exe` (~20 MB).
 
-El script:
-1. usa el `.venv` del proyecto si existe (binario más ligero: 20 MB en vez de
-   51 MB); si no, busca `py -3` y luego `python`;
-2. instala PyInstaller si falta;
-3. genera el ejecutable con icono propio.
+The build script:
+1. Reuses the project `.venv` when present for a lighter binary (~20 MB vs ~51 MB); otherwise falls back to `py -3` or `python`.
+2. Installs PyInstaller automatically if absent.
+3. Packages the application with custom branding icons.
 
-### 3.2 Instalar
+### 3.2 Installation
 
 ```bat
 dist\flatsat-gs.exe install
 ```
 
-O desde el código:
+Or from source:
 
 ```bat
 .\run.cmd install
 ```
 
-### 3.3 Si tu empresa bloquea los ejecutables sin firmar
+### 3.3 Handling Application Control Policies
 
-Algunas políticas de Windows Defender Application Control (Device Guard /
-AppLocker) rechazan los `.exe` sin firmar:
+Corporate Windows Defender Application Control (Device Guard / AppLocker) may restrict unsigned binaries:
 
-```
+```text
 '...\dist\flatsat-gs.exe' was blocked by your organization's Device Guard policy.
 ```
 
-Es normal: el binario no está firmado. Y puede ser **intermitente** (el
-antivirus lo marca y lo levanta en unas compilaciones, o al revés).
+The installer detects this condition automatically and falls back gracefully to the Python-based installation:
 
-**No hace nada falta**: el instalador lo comprueba antes de instalar y cae
-solo a la vía que funciona en tu equipo:
-
-```
-[!] El ejecutable flatsat-gs.exe está bloqueado por la política de seguridad del sistema.
-[!]   Se instala la versión con Python: los mismos comandos, el mismo comportamiento.
+```text
+[!] Binary flatsat-gs.exe blocked by system security policy.
+[!] Falling back to Python deployment: identical commands, identical functionality.
 ```
 
-La versión con Python usa el intérprete (que ya está autorizado) y unos
-lanzadores `.cmd`. **Los comandos son idénticos** en cualquier equipo:
+Commands remain identical across all deployments:
 
 ```bash
-flatsat web            # dashboard
-flatsat doctor         # diagnóstico
-flatsat devices        # la placa
+flatsat web
+flatsat doctor
+flatsat devices
 flatsat status
 flatsat sniff -n 3
 ```
 
-| Equipo | Qué instala el instalador |
-|---|---|
-| Sin política restrictiva | El binario autónomo (20 MB, sin Python) |
-| Con Device Guard / AppLocker | Código + entorno virtual + lanzadores `.cmd` |
-
-En los dos casos la instalación vive en `<proyecto>\flatsat-gs`, y
-`flatsat-gs uninstall` la deja igual de limpia.
-
-> **El antivirus puede bloquear el binario recién compilado durante unos
-> segundos** mientras lo escanea. Espera y reintenta; si sigue bloqueado, el
-> instalador usará la versión con Python automáticamente.
-
-### 3.4 Verificar
+### 3.4 Verification
 
 ```bat
 flatsat version
@@ -130,73 +108,68 @@ flatsat devices
 flatsat doctor
 ```
 
-Abre una **terminal nueva** después de instalar: el PATH se lee al arrancar la
-shell. Si aun así no lo encuentra, el instalador dejó además unos lanzadores en
-`%LOCALAPPDATA%\Microsoft\WindowsApps`, que ya está en el PATH de Windows.
+Open a **new terminal session** after installation to reload the user PATH.
 
 ---
 
 ## 4. Linux
 
-### 4.1 Dependencias del sistema
+### 4.1 System Dependencies
 
 ```bash
 sudo apt update
 sudo apt install -y python3 python3-venv python3-pip
 ```
 
-Sin compilador: todas las dependencias tienen ruedas precompiladas.
+No C compiler needed: all dependencies supply precompiled wheels.
 
-### 4.2 Compilar el binario autónomo
+### 4.2 Building the Standalone Binary
 
 ```bash
-cd ~/ruta/al/proyecto/flatsat-ground-station
+cd ~/path/to/flatsat-ground-station
 ./compile_app.sh
 ```
 
-Para un **AppImage** (un solo fichero ejecutable):
+For an **AppImage** package:
 
 ```bash
 ./compile_app.sh --bundle
 ```
 
-Necesita `appimagetool` en el PATH; si no está, el script genera un `.tar.gz`
-en su lugar.
+Requires `appimagetool` in PATH; falls back to a `.tar.gz` bundle if not found.
 
-Resultado: `dist/flatsat-gs` (o `dist/flatsat-gs-x86_64.AppImage`).
+Output binary: `dist/flatsat-gs` (or `dist/flatsat-gs-x86_64.AppImage`).
 
-### 4.3 Instalar
+### 4.3 Installation
 
 ```bash
 ./dist/flatsat-gs install
 ```
 
-O desde el código:
+Or from source:
 
 ```bash
 python3 flatsat_app.py install
 ```
 
-La instalación crea:
+Directory structure created:
 
-```
+```text
 flatsat-gs/
 ├── bin/          # flatsat-gs, flatsat-web, flatsat
-├── db/           # base de datos de telemetría
-├── venv/         # entorno virtual de la app
+├── db/           # Telemetry SQLite database
+├── venv/         # Application virtual environment
 └── install-manifest.json
 ```
 
-Y además symlinks en `~/.local/bin` (que debe estar en tu PATH):
+Symlinks are linked into `~/.local/bin` (ensure this directory is on your PATH):
 
 ```bash
-echo 'export PATH="$HOME/.local/bin:$PATH"' >> ~/.bashrc   # o ~/.zshrc
+echo 'export PATH="$HOME/.local/bin:$PATH"' >> ~/.bashrc   # or ~/.zshrc
 source ~/.bashrc
 ```
 
-Si `~/.local/bin` no está en el PATH, el instalador te lo avisa.
-
-### 4.4 Verificar
+### 4.4 Verification
 
 ```bash
 flatsat version
@@ -208,192 +181,125 @@ flatsat doctor
 
 ## 5. macOS
 
-### 5.1 Requisitos
+### 5.1 Prerequisites
 
 ```bash
-# Homebrew (si no lo tienes: https://brew.sh)
+# Using Homebrew (https://brew.sh)
 brew install python@3.11
 ```
 
-### 5.2 Compilar el binario autónomo
+### 5.2 Building the Standalone Binary
 
 ```bash
-cd ~/ruta/al/proyecto/flatsat-ground-station
+cd ~/path/to/flatsat-ground-station
 ./compile_app.sh
 ```
 
-Para el **bundle .app y el .dmg**:
+To build a `.app` bundle and `.dmg`:
 
 ```bash
 ./compile_app.sh --bundle
 ```
 
-Resultado:
-- `dist/flatsat-gs` — el ejecutable
-- `dist/FlatSat GS.app` — la aplicación para doble clic (con icono)
-- `dist/FlatSatGS-<versión>.dmg` — el disco instalable
+Outputs:
+- `dist/flatsat-gs`: Standalone CLI binary
+- `dist/FlatSat GS.app`: GUI clickable bundle
+- `dist/FlatSatGS-<version>.dmg`: Distribution disk image
 
-### 5.3 Instalar
+### 5.3 Installation
 
 ```bash
 ./dist/flatsat-gs install
 ```
 
-O copia el `.app` a `~/Applications`:
+Or copy the `.app` bundle to `~/Applications`:
 
 ```bash
 cp -R "dist/FlatSat GS.app" ~/Applications/
 ```
 
-> La base de datos va a la carpeta del proyecto (`flatsat-gs/db/`). Si
-> instalas el `.app` en `/Applications` (que es de sólo lectura para el
-> usuario), la app la guarda en `~/.flatsat-ground-station/` automáticamente.
+### 5.4 Handling Port 5000 (AirPlay Receiver)
 
-### 5.4 El puerto 5000
-
-macOS Monterey+ usa el 5000 para **AirPlay Receiver**, así que el dashboard
-puede no arrancar:
+macOS Monterey and newer reserve port 5000 for AirPlay Receiver:
 
 ```bash
 flatsat web --port 5001
-# o de forma permanente:
+# Or permanently via environment:
 export FLATSAT_PORT=5001
 ```
 
-### 5.5 Permisos del puerto serie
+### 5.5 Serial Port Permissions
 
-macOS pide permiso explícito para los puertos serie:
+*System Settings → Privacy & Security → Serial Ports* → Enable Terminal or your preferred shell app.
 
-*Ajustes del Sistema → Privacidad y seguridad → Puertos de serie* → añade
-Terminal (o iTerm) y tu editor.
-
-Verifica con:
+Verify with:
 
 ```bash
 flatsat doctor
 ```
 
-Los puertos del FlatSat aparecen como `/dev/cu.usbmodem*` (o `/dev/tty.*`).
-
-### 5.6 Verificar
-
-```bash
-flatsat version
-flatsat devices
-flatsat doctor
-```
+Endpoints appear as `/dev/cu.usbmodem*`.
 
 ---
 
-## 6. Comprobaciones por plataforma
+## 6. Platform Comparison Matrix
 
-| | Windows | Linux | macOS |
+| Feature | Windows | Linux | macOS |
 |---|---|---|---|
-| Compilar | `.\run.cmd build` | `./compile_app.sh` | `./compile_app.sh` |
-| Bundle extra | — | AppImage (`--bundle`) | `.app` + `.dmg` (`--bundle`) |
-| Instalar | `dist\flatsat-gs.exe install` | `./dist/flatsat-gs install` | `./dist/flatsat-gs install` |
-| Comandos | `flatsat`, `flatsat-web`, `flatsat-gs` | iguales | iguales |
-| Permisos serie | Ninguno | grupo `dialout` | permiso de macOS |
-| Puerto por defecto | 5000 | 5000 | **5001** (AirPlay) |
+| Build Command | `.\run.cmd build` | `./compile_app.sh` | `./compile_app.sh` |
+| Extra Bundles | None | AppImage (`--bundle`) | `.app` + `.dmg` (`--bundle`) |
+| Install Command | `dist\flatsat-gs.exe install` | `./dist/flatsat-gs install` | `./dist/flatsat-gs install` |
+| Exposed Commands | `flatsat`, `flatsat-web`, `flatsat-gs` | Identical | Identical |
+| Serial Permissions | Automatic CDC ACM | `dialout` group / udev | System privacy toggle |
+| Default Web Port | 5000 | 5000 | 5001 (due to AirPlay) |
 
 ---
 
-## 7. Permisos de los puertos serie (Linux)
+## 7. Serial Port Permissions (Linux)
 
-La placa expone tres endpoints CDC-ACM: **Radio 0**, **Radio 1** y **Shell**.
+The board exposes three CDC-ACM endpoints: **Radio 0**, **Radio 1**, and **Shell**.
 
-Opción A — grupo `dialout`:
+Option A — Group Membership:
 
 ```bash
-sudo usermod -aG dialout $USER
-# cierra la sesión y vuelve a entrar
+sudo usermod -aG dialout,uucp $USER
+# Log out and log back in to apply
 ```
 
-Opción B — regla udev (crea symlinks estables en `/dev/flatsat/` y no
-necesita `dialout`):
+Option B — Udev Rules (Creates stable symlinks in `/dev/flatsat/` without requiring dialout):
 
 ```bash
 sudo cp scripts/flatsat-udev.rules /etc/udev/rules.d/99-flatsat.rules
-sudo udevadm control --reload-rules
-sudo udevadm trigger
+sudo udevadm control --reload-rules && sudo udevadm trigger
 ```
 
-Comprueba con `flatsat doctor`.
+Validate permissions with `flatsat doctor`.
 
 ---
 
-## 8. Desinstalar
+## 8. Uninstallation
 
 ```bash
 flatsat-gs uninstall
 ```
 
-Elimina la carpeta `flatsat-gs/` de dentro del proyecto, los accesos directos,
-la entrada del PATH (**restaurando el PATH original**) y los alias de la shell
-(perfil de PowerShell, completados de bash/zsh/fish).
+Cleanly removes `<project>/flatsat-gs`, desktop shortcuts, restored user PATH, and shell completion scripts.
 
-Si queda algo:
-
-```
-[!] Si la carpeta sigue ahí, es que la webapp o el CLI están corriendo. Ciérralos y ejecuta 'flatsat-gs uninstall' de nuevo.
-```
-
-En Windows no se puede borrar un ejecutable en uso: cierra la webapp y el CLI
-antes de desinstalar.
-
-Variantes:
+To preserve the telemetry database:
 
 ```bash
-flatsat-gs uninstall --keep-data   # conserva la base de datos de telemetría
+flatsat-gs uninstall --keep-data
 ```
 
 ---
 
-## 9. Publicar una release
+## 9. Common Troubleshooting
 
-```bash
-# Linux / macOS
-./compile_app.sh --bundle
-# Windows
-.\run.cmd build
-```
-
-Adjunta a la release de GitHub:
-
-| Artefacto | Sistema |
-|---|---|
-| `dist/flatsat-gs` | Linux / macOS |
-| `dist/flatsat-gs-x86_64.AppImage` | Linux (AppImage) |
-| `dist/FlatSat GS.app` | macOS |
-| `dist/FlatSatGS-<ver>.dmg` | macOS |
-| `dist/flatsat-gs.exe` | Windows |
-
-Si prefieres un instalador `.exe` para Windows (que aparece en *Agregar o
-quitar programas*), edita `installer/flatsat_installer.iss`… o simplemente
-comparte el binario: **se instala a sí mismo** con `flatsat-gs install`.
-
----
-
-## 10. Problemas frecuentes
-
-| Síntoma | Causa | Solución |
+| Symptom | Cause | Solution |
 |---|---|---|
-| `no se reconoce como un cmdlet` | PowerShell no ejecuta ficheros del directorio actual sin `.\` | `.\run.cmd build` |
-| `was blocked by your organization's Device Guard policy` | Política de Application Control | El instalador cae a la versión con Python solo |
-| `no se encuentra un Python 3.9+ utilizable` | Python no está en el PATH, o es el alias de la Store | Instala Python marcando *"Add Python to PATH"*; usa `py -3` |
-| `python3-venv` / `ensurepip` | Falta el módulo venv | `sudo apt install python3-venv` |
-| El binario pesa 51 MB | Se compiló con el Python del sistema | Borra `build/` y recompila con el `.venv` del proyecto |
-| `flatsat` no se encuentra | PATH old o `~/.local/bin` fuera del PATH | Abre terminal nueva; `export PATH="$HOME/.local/bin:$PATH"` |
-| El puerto 5000 está ocupado (macOS) | AirPlay Receiver | `flatsat web --port 5001` |
-| `flatsat devices` no ve la placa | Permisos del puerto serie | §7, y luego `flatsat doctor` |
-| La webapp no muestra telemetría | Falta el cliente WebSocket (no hay internet) | Va incluido: `webapp/static/js/socket-client.js` |
-| La carpeta no se borra al desinstalar | La webapp está corriendo | Ciérrala y repite |
-
----
-
-## 11. Referencias
-
-- [Guía de instalación](installation.md) — detalle por método
-- [Probar el CLI](cli-testing.md) — checklist y problemas
-- [Walkthrough del CTF](ctf_walkthrough_guide.md)
-- [Plan de taller](curriculum-plan.md)
+| Command not recognized in PowerShell | Missing `.\` prefix | Use `.\run.cmd build` |
+| Blocked by Device Guard policy | Corporate execution policy | Installer automatically falls back to Python mode |
+| Missing Python 3.9+ | Python not on PATH or Store alias | Install official Python and select "Add to PATH" |
+| Port 5000 in use (macOS) | AirPlay Receiver | Use `flatsat web --port 5001` |
+| `flatsat devices` cannot find board | Serial permissions | Review Section 7 and run `flatsat doctor` |
+| Webapp folder cannot be deleted on uninstall | Process still running | Terminate webapp process and retry uninstall |

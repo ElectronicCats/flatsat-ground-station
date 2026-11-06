@@ -1,59 +1,57 @@
-# Probar el CLI — FlatSat Ground Station
+# Testing the CLI — FlatSat Ground Station
 
-Checklist para comprobar que la CLI funciona, con y sin la webapp conectada.
+Verification checklist to validate that the CLI operates correctly, both with and without the web application connected.
 
 ---
 
-## 1. Dos modos de uso
+## 1. Two Operational Modes
 
-| Modo | Cuándo | Comando |
+| Mode | When to Use | Command |
 |---|---|---|
-| **Directo** | La webapp **no** tiene la placa | `flatsat status` |
-| **Vía webapp** (`-w`) | La webapp **sí** tiene la placa | `flatsat -w status` |
+| **Direct** | Webapp is **not** connected to the board | `flatsat status` |
+| **Via Webapp** (`-w`) | Webapp **holds** the board connection | `flatsat -w status` |
 
-El modo directo abre los puertos serie. El modo `-w` habla con la API REST de
-la webapp, que es quien tiene el hardware. **No se pueden usar a la vez**:
-en Windows los puertos CDC-ACM son de acceso exclusivo.
+Direct mode accesses the serial ports directly. Web mode (`-w`) communicates with the running webapp's REST API, which manages the physical hardware. **They cannot access serial ports simultaneously**: on Windows CDC-ACM endpoints are locked exclusively, and on POSIX processes would compete for incoming bytes.
 
 ---
 
-## 2. Antes de empezar: ¿hay algún proceso con la placa?
+## 2. Pre-Check: Is Another Process Accessing the Board?
 
 ```bash
 flatsat devices
 ```
 
-Si la placa aparece como `HEALTHY` con sus tres puertos, sigue con el §3.
-Si dice *"No FlatSat devices detected"*, revisa el §6.
+If the board appears as `HEALTHY` with all three endpoints, proceed to Section 3.
+If it reports *"No FlatSat devices detected"*, see Section 6.
 
-> **Truco**: si un comando falla con
-> `✗ Failed to open Shell serial interface`, casi siempre es que **otro
-> proceso tiene los puertos abiertos** (típicamente la webapp). Ciérrala o usa
-> el modo `-w`.
+> **Tip**: If a command fails with
+> `✗ Failed to open Shell serial interface`, another process almost certainly
+> holds the ports open (typically the webapp). Either terminate it or use
+> `-w` web mode.
 
 ---
 
-## 3. Checklist del CLI (modo directo)
+## 3. CLI Direct Mode Checklist
 
 ```bash
-flatsat --help              # lista de comandos (o 'flatsat help')
-flatsat version             # versión instalada
-flatsat devices             # placa y sus 3 endpoints (Radio0/Radio1/Shell)
-flatsat status              # firmware, modo, estado del radio
-flatsat mode                # role actual de la placa
-flatsat flight              # estado de vuelo (idle/nominal/safe/debug)
-flatsat difficulty          # nivel de seguridad SDLS (0-3)
-flatsat sensors             # sensores en vivo (BME280 + LIS2DH)
-flatsat sniff -n 3 -t 15    # captura 3 tramas CCSDS en 15 s
-flatsat sniff -n 3 -o cap.json   # ... y las guarda a un JSON
-flatsat cmd status          # comando shell crudo
-flatsat install             # instala la app (CLI en el PATH, accesos directos)
-flatsat uninstall           # la desinstala
+flatsat --help              # List available commands (or 'flatsat help')
+flatsat version             # Show installed version
+flatsat devices             # Detect board and 3 endpoints (Radio0/Radio1/Shell)
+flatsat status              # Firmware version, operational mode, radio state
+flatsat mode                # Current satellite role
+flatsat flight              # Flight operational state (idle/nominal/safe/debug)
+flatsat difficulty          # SDLS security level (0-3)
+flatsat sensors             # Live sensors (BME280 + LIS2DH)
+flatsat sniff -n 3 -t 15    # Capture 3 CCSDS frames within 15 seconds
+flatsat sniff -n 3 -o cap.json   # Capture frames and export to JSON
+flatsat cmd status          # Send raw shell command
+flatsat install             # Install application (CLI on PATH, shortcuts)
+flatsat uninstall           # Remove application and restore PATH
 ```
 
-Salida esperada de `flatsat status` con la placa conectada:
+Expected output of `flatsat status` with the board connected:
 
-```
+```text
 SYSTEM STATUS
 FW: dev-3aa4142-dirty
 Git: 3aa4142 (dirty)
@@ -65,140 +63,130 @@ Flat-Sat FW: dev-3aa4142-dirty  Active Radio: 0 (TX: 1, RX: 0)
   Radio1: LoRa  mode=stream  lora_init=1  fsk_init=0  (Ready)
 ```
 
-Y de `flatsat sniff`:
+And `flatsat sniff`:
 
-```
+```text
 ✓ #1: TM APID=0x01F seq=0 CRC=OK (27 bytes, RSSI -20)
 ✓ #2: TM APID=0x001 seq=0 CRC=OK (25 bytes, RSSI -20)
 ```
 
 ---
 
-## 4. Probar el CLI con la webapp conectada
+## 4. Testing the CLI with the Webapp Connected
 
-**¿En qué terminal? En cualquiera.** `-w` es solo un cliente HTTP: da igual
-que sea cmd, PowerShell, la Terminal de macOS o bash. Lo único que importa es
-que la webapp esté corriendo en *algún* sitio y que el terminal tenga el
-comando `flatsat` disponible.
+`-w` is an HTTP REST client: it works seamlessly across CMD, PowerShell, macOS Terminal, and Linux shells (bash/zsh/fish). The only requirement is that the webapp is running and the `flatsat` command is accessible.
 
-### La webapp en segundo plano (misma terminal)
+### Running the Webapp in the Background (Same Terminal)
 
-Si quieres la webapp y la CLI **en la misma terminal**, arranca la webapp en
-segundo plano:
+To run both the webapp and CLI in a single terminal session:
 
 ```bash
 flatsat-web --background
 ```
 
-```
-[+] WebApp en segundo plano: http://127.0.0.1:5000
-    Log: ...\FlatSatGroundStation\bin\flatsat-web.log
+```text
+[+] WebApp in background: http://127.0.0.1:5000
+    Log: .../FlatSatGroundStation/bin/flatsat-web.log
 
-    Usa 'flatsat -w <comando>' para hablar con ella desde esta misma terminal.
-    Para pararla:  taskkill /IM flatsat-web.exe /F
+    Use 'flatsat -w <command>' to query it from this terminal.
+    To terminate: taskkill /IM flatsat-web.exe /F (Windows) or pkill -f flatsat-web (POSIX)
 ```
 
-El prompt vuelve immediately y ya puedes usar la CLI:
+The shell prompt returns immediately, and you can invoke the CLI:
 
 ```bash
 flatsat -w status
 flatsat -w sniff -n 3 -t 15
 ```
 
-En macOS/Linux, para pararla: `pkill -f flatsat-web`.
+### Running the Webapp in the Foreground (Dual Terminal)
 
-### La webapp en primer plano (dos terminales)
-
-```
-TERMINAL A (o doble clic en el menú Inicio)
+```text
+TERMINAL A (or desktop shortcut)
 ─────────────────────────────────────────
     flatsat-web
-    → dashboard en http://127.0.0.1:5000
-    → en el dashboard: Scan → Connect con tu placa
+    → Dashboard accessible at http://127.0.0.1:5000
+    → Dashboard UI: Scan → Connect to your board
 
-TERMINAL B (cmd, PowerShell, Terminal, bash…)
+TERMINAL B (CMD, PowerShell, Terminal, bash…)
 ─────────────────────────────────────────────
     flatsat -w status
     flatsat -w sniff -n 3 -t 15
 ```
 
-Formas de invocarlo (todas equivalentes):
+Equivalent invocation syntaxes:
 
 ```bash
-flatsat -w status                        # la webapp local (127.0.0.1:5000)
-flatsat status -w                        # lo mismo, el flag detrás
-flatsat status --web-url http://ip:5000  # otra webapp
+flatsat -w status                        # Target local webapp (127.0.0.1:5000)
+flatsat status -w                        # Flag appended
+flatsat status --web-url http://ip:5000  # Custom endpoint URL
 flatsat -w --web-url http://ip:5000 status
 ```
 
-> `-w` es un **flag**, no una opción con valor: así nunca se come el nombre
-> del comando (`flatsat -w status` funciona, no `flatsat -w=status`).
+> `-w` is a **boolean flag**, not an option requiring a parameter. Custom URLs are passed with `--web-url <URL>`.
 
-Si la webapp no está en el puerto 5000 (en macOS el 5000 lo usa AirPlay),
-arráncala con otro puerto y apúntala:
+If the webapp is bound to an alternate port (for example port 5001 to avoid AirPlay collisions on macOS):
 
 ```bash
-flatsat-web --port 5001                                  # terminal A
-flatsat -w --web-url http://127.0.0.1:5001 status        # terminal B
+flatsat-web --port 5001                                  # Terminal A
+flatsat -w --web-url http://127.0.0.1:5001 status        # Terminal B
 ```
 
 ---
 
-## 5. Los comandos de ataque (CTF)
+## 5. CTF Attack Commands
 
 ```bash
-flatsat attack --help              # lista de escenarios
-flatsat attack resetc --yes        # reboot por hardware sin autenticar
-flatsat attack flood --help
+flatsat attack --help              # List available attack scenarios
+flatsat attack resetc --yes        # Unauthenticated hardware reboot
+flatsat attack gs-auth --help
 ```
 
-Requieren que la placa esté en el nivel de dificultad correcto
-(`flatsat difficulty 0|1|2|3`).
+These require the board to be configured at the matching difficulty level (`flatsat difficulty 0|1|2|3`).
 
 ---
 
-## 6. Problemas frecuentes
+## 6. Common Issues and Troubleshooting
 
-| Síntoma | Causa | Solución |
+| Symptom | Probable Cause | Resolution |
 |---|---|---|
-| `No FlatSat devices detected` | Placa no conectada o sin permisos | `flatsat-gs doctor`; en Linux, `sudo usermod -aG dialout $USER` |
-| `Failed to open Shell serial interface` | Otro proceso tiene los puertos | Cierra la webapp o usa `-w` |
-| `sniff` no captura nada | El radio no recibe (o está en TX) | `flatsat status` y mira `Active Radio` / `RadioManager State` |
-| `sniff` dice *"No CCSDS frames captured"* | Frames que no son CCSDS, o CRC inválido | Mira el log de la webapp: `[RADIO0 CRC] bad CRC` |
-| Los logs no salen en un fichero | Buffering de stdout | Arranca con `python -u flatsat_app.py web` |
-| `flatsat` no se encuentra | La terminal heredó un entorno antiguo | En Windows los lanzadores de `%LOCALAPPDATA%\Microsoft\WindowsApps` lo resuelven sin reiniciar; si sigue sin aparecer, abre la terminal desde el menú Inicio |
-| `flatsat` no se encuentra (Linux/macOS) | `~/.local/bin` no está en el PATH de la shell | `export PATH="$HOME/.local/bin:$PATH"` o abre una terminal nueva |
+| `No FlatSat devices detected` | Board disconnected or missing permissions | Run `flatsat doctor`; on Linux run `sudo usermod -aG dialout $USER` |
+| `Failed to open Shell serial interface` | Another process holds the serial endpoints | Terminate the webapp or use `-w` web mode |
+| `sniff` captures no packets | Radio transceiver in TX mode or idle | Check `flatsat status` (`Active Radio` and `RadioManager State`) |
+| `sniff` reports *"No CCSDS frames captured"* | Non-CCSDS frames or invalid CRC | Review webapp logs for `[RADIO0 CRC] bad CRC` |
+| Logs not written to disk | Python stdout buffering | Launch with `python -u flatsat_app.py web` |
+| `flatsat` command not recognized (Windows) | Terminal inherited a stale environment | Launch terminal via Start Menu; `%LOCALAPPDATA%\Microsoft\WindowsApps` shims provide immediate path resolution |
+| `flatsat` command not recognized (Linux/macOS) | `~/.local/bin` not exported in current shell PATH | Run `export PATH="$HOME/.local/bin:$PATH"` or open a fresh terminal |
 
 ---
 
-## 7. Instalar / desinstalar la CLI
+## 7. Installing and Uninstalling the CLI
 
 ```bash
-flatsat-gs install      # pone flatsat, flatsat-web y flatsat-gs en el PATH
-flatsat-gs uninstall    # los quita, restaura el PATH y borra los alias
+flatsat-gs install      # Adds flatsat, flatsat-web, and flatsat-gs to user PATH
+flatsat-gs uninstall    # Removes binaries, restores PATH, and cleans aliases
 ```
 
-Tras instalar, `flatsat` funciona igual en cmd, PowerShell, Terminal (macOS)
-y bash/zsh (Linux). En PowerShell se comprueba con:
+Once installed, `flatsat` is globally available. In PowerShell verify the binary location with:
 
 ```powershell
 (Get-Command flatsat).Source
 ```
 
-Debe devolver la ruta del `.exe` instalado, no el nombre de una función.
+This returns the path to the installed executable.
 
 ---
 
-## 8. Ejecutar la CLI sin instalar nada
+## 8. Running the CLI without Installation
 
-Desde el repositorio, con un Python que tenga las dependencias:
+Directly from a cloned repository checkout using the virtual environment:
 
 ```bash
 python flatsat.py devices
 python flatsat.py status
 ```
 
-O con el lanzador que busca el Python correcto (Windows):
+Or on Windows using the native launcher:
 
 ```bat
 run.cmd cli devices

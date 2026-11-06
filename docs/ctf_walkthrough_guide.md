@@ -1,98 +1,98 @@
-# Guía Autodidacta: Laboratorio FlatSat CTF
+# Self-Paced Guide: FlatSat CTF Lab
 
-Este documento es una guía paso a paso diseñada para que los estudiantes y profesionales de ciberseguridad espacial puedan resolver los desafíos (CTF) del FlatSat de manera autónoma, comprendiendo los conceptos detrás de cada vulnerabilidad sin revelar las respuestas directamente.
+This document is a step-by-step guide designed for students and aerospace cybersecurity professionals to solve the FlatSat CTF challenges autonomously, understanding the concepts behind each vulnerability without revealing the solutions directly.
 
 ---
 
-## Estructura del Laboratorio
-El entorno consta de tres niveles de dificultad, controlados por la variable de entorno `FLATSAT_LEVEL` al iniciar la Ground Station. Cada nivel introduce controles de seguridad adicionales en la web y en el firmware del satélite.
+## Lab Structure
+The environment consists of three difficulty levels, controlled by the `FLATSAT_LEVEL` environment variable when starting the Ground Station. Each level introduces additional security controls in both the web stack and the satellite firmware.
 
 ```bash
-# Cambiar de nivel (1, 2 o 3)
+# Change level (1, 2, or 3)
 export FLATSAT_LEVEL=1
 python -m webapp.app
 ```
 
 ---
 
-## Nivel 1: Fácil (Web y Texto Claro)
-**Objetivo:** Comprometer los controles de acceso de la estación terrena y comunicarse directamente con el transceptor de radio del satélite.
+## Level 1: Easy (Web and Plaintext)
+**Goal:** Compromise Ground Station access controls and communicate directly with the satellite radio transceiver.
 
-### Reto 1.1: Enumeración de API (GS-12)
-* **Concepto:** Falta de control de acceso en la documentación o listado de rutas internas de desarrollo.
-* **Pista:** Las aplicaciones web a menudo exponen rutas administrativas o de depuración por descuido. ¿Hay alguna ruta que liste todos los endpoints del servidor?
-* **Cómo verificar:** Busca un endpoint en la raíz de la API que devuelva un listado de todos los métodos y rutas disponibles en el sistema.
+### Challenge 1.1: API Enumeration (GS-12)
+* **Concept:** Missing access control on internal route documentation and development endpoint listings.
+* **Hint:** Web applications often unintentionally expose administrative or debugging routes. Is there a route that lists all server endpoints?
+* **Verification:** Query an endpoint on the root API that returns a list of all available system routes and methods.
 
-### Reto 1.2: SQL Injection (GS-01)
-* **Concepto:** Las consultas a bases de datos que concatenan texto directamente del usuario son vulnerables a inyecciones de código SQL.
-* **Pista:** Observa la barra de búsqueda de telemetría. Intenta ingresar un carácter especial como `'` (comilla simple) y observa la respuesta del servidor. 
-* **Estrategia:** Diseña una inyección de tipo `UNION SELECT` para consultar las tablas del sistema (como `users`). Recuerda alinear el número de columnas devueltas por la consulta original.
-* **Resultado:** Debes obtener el hash de la contraseña de la cuenta del administrador.
+### Challenge 1.2: SQL Injection (GS-01)
+* **Concept:** Database queries concatenating user-supplied input directly are vulnerable to SQL code injection.
+* **Hint:** Examine the telemetry search bar. Try submitting a special character like `'` (single quote) and observe the server response.
+* **Strategy:** Construct a `UNION SELECT` injection to query system tables (such as `users`). Remember to match the column count of the original query.
+* **Outcome:** Extract the administrator account password hash.
 
-### Reto 1.3: Falsificación de Sesión (GS-05)
-* **Concepto:** Mecanismo débil de gestión de sesiones (tokens en texto claro o formatos simples sin firma).
-* **Pista:** Decodifica tu propio token de sesión (usualmente en la cookie `session_token`) usando herramientas como Base64. ¿Qué estructura tiene?
-* **Estrategia:** Modifica la estructura de tu token para cambiar tu identidad a `admin` y vuelve a codificarlo en Base64. Modifica tu cookie en las herramientas de desarrollo del navegador (`F12`) y navega al panel de administración.
+### Challenge 1.3: Session Forging (GS-05)
+* **Concept:** Weak session management mechanisms (plaintext tokens or unsigned formats).
+* **Hint:** Decode your own session token (found in the `session_token` cookie) using Base64 tools. What structure does it follow?
+* **Strategy:** Modify the structure of your token to set your role to `admin` and re-encode to Base64. Update your cookie using browser DevTools (`F12`) and navigate to the admin panel.
 
-### Reto 1.4: Comandos en Texto Claro (GS-08)
-* **Concepto:** Falta de autenticación en la capa física de radio enlace.
-* **Pista:** La placa de satélite en Nivel 1 acepta comandos directos por radio sin validar estructura ni firma.
-* **Estrategia:** Envía la cadena de texto de prueba estándar (`TEST`) a través del formulario de comandos de radio.
-* **Verificación Visual:** El LED Neopixel de la placa cambiará a color **Verde**.
-
----
-
-## Nivel 2: Medio (Sistemas y CCSDS)
-**Objetivo:** Explotar el sistema operativo subyacente de la estación terrena y elevar privilegios utilizando un rol de operador básico.
-
-### Reto 2.1: Local File Inclusion (GS-04)
-* **Concepto:** Entrada del usuario utilizada directamente para abrir rutas de archivos locales en el servidor (Directory Traversal).
-* **Pista:** Examina el endpoint que lee los logs del sistema. ¿Permite rutas relativas usando `../` para salir del directorio de logs?
-* **Estrategia:** Intenta leer archivos comunes de configuración del sistema (como `/etc/passwd` o el archivo de código fuente de la app).
-
-### Reto 2.2: Remote Code Execution (GS-03)
-* **Concepto:** Ejecución de comandos del sistema operativo concatenados directamente con la entrada de diagnóstico.
-* **Pista:** El comando de diagnóstico de red ejecuta utilidades del sistema en la terminal. ¿Qué pasa si inyectas un separador de comandos como `;` o `&&`?
-* **Estrategia:** Ejecuta comandos del sistema operativo a través del diagnóstico para explorar el entorno interno del servidor.
-
-### Reto 2.3: Insecure Direct Object Reference - IDOR (GS-06)
-* **Concepto:** Falta de control de acceso horizontal donde un usuario de bajo privilegio puede solicitar recursos de otros usuarios cambiando un identificador.
-* **Pista:** Si visitas la configuración de radio de tu propio usuario, observa el número identificador en la URL (ej. `.../config/radio/2`). ¿Qué ocurre si cambias ese identificador al del administrador?
-* **Estrategia:** Consulta la información de configuración clasificada del administrador utilizando tu sesión de operador.
-
-### Reto 2.4: Protocolo CCSDS (GS-08)
-* **Concepto:** El satélite ahora filtra el texto plano y exige la estructura de trama estándar CCSDS.
-* **Pista:** Un paquete CCSDS Space Packet tiene una cabecera de 6 bytes que indica el APID (identificador de aplicación), secuencia y longitud, seguida del comando.
-* **Estrategia:** Encapsula el comando PING en formato hexadecimal con la cabecera correspondiente al APID de telemetría y control.
-* **Verificación Visual:** Al recibir la trama CCSDS válida, el LED Neopixel cambiará a color **Azul**.
+### Challenge 1.4: Plaintext Radio Commands (GS-08)
+* **Concept:** Missing authentication at the physical radio link layer.
+* **Hint:** The satellite board in Level 1 accepts raw commands over radio without structural or cryptographic validation.
+* **Strategy:** Send the standard test string (`TEST`) using the radio transmission interface.
+* **Visual Verification:** The board NeoPixel LED will turn **Green**.
 
 ---
 
-## Nivel 3: Difícil (Firmware y Criptografía)
-**Objetivo:** Romper la criptografía de las sesiones y explotar una vulnerabilidad física de memoria en el firmware de la placa RP2040.
+## Level 2: Medium (Systems and CCSDS)
+**Goal:** Exploit the underlying Ground Station operating system and escalate privileges starting from a low-privileged operator account.
 
-### Reto 3.1: Falsificación de Tokens Firmados (GS-05 / Lvl 3)
-* **Concepto:** Firmas criptográficas débiles debido a secretos compartidos cableados en código fuente o archivos de configuración accesibles.
-* **Pista:** Los tokens ahora están firmados con HMAC-SHA256. ¿Cómo obtiene el servidor la clave secreta?
-* **Estrategia:** Si lograste leer los archivos de configuración usando vulnerabilidades del Nivel 2, busca la variable `SECRET_KEY` e implementa un script en Python para firmar tu propio token de administrador.
+### Challenge 2.1: Local File Inclusion (GS-04)
+* **Concept:** User input used directly to resolve local server file paths (Directory Traversal).
+* **Hint:** Review the system log reader endpoint. Does it permit relative paths using `../` to traverse outside the log directory?
+* **Strategy:** Attempt to read common system configuration files (such as `/etc/passwd` or application source code files).
 
-### Reto 3.2: Criptografía SDLS (GS-08 / Lvl 3)
-* **Concepto:** Uso de la capa estándar Space Data Link Security (SDLS) para cifrar datos.
-* **Pista:** El satélite exige tramas cifradas o autenticadas con AES. La clave maestra se encuentra en la base de datos o en la memoria del satélite.
-* **Estrategia:** Extrae la llave maestra de la base de datos mediante volcados de telemetría y utilízala para cifrar las tramas CCSDS antes de transmitirlas por RF.
+### Challenge 2.2: Remote Code Execution (GS-03)
+* **Concept:** Operating system command execution via unsanitized input concatenated into system diagnostic utilities.
+* **Hint:** The network diagnostic endpoint runs system commands in the shell. What happens if you inject command separators like `;` or `&&`?
+* **Strategy:** Run operating system commands via the diagnostic endpoint to inspect the server environment.
 
-### Reto 3.3: Buffer Overflow en Firmware (Reto 3.3)
-* **Concepto:** Falta de validación de límites en buffers de entrada del firmware en lenguaje C (Stack Buffer Overflow).
-* **Pista:** El comando de diagnóstico de memoria `DIAG_MEM` procesa datos sin verificar el tamaño.
-* **Estrategia:** Envía un comando `DIAG_MEM` acompañado de un payload de desbordamiento (relleno superior a 32 bytes) para sobrescribir la pila de ejecución del RP2040.
-* **Verificación Visual:** El LED Neopixel cambiará a color **Púrpura**, lo que indica que se ha activado la simulación del buffer overflow exitosamente.
+### Challenge 2.3: Insecure Direct Object Reference - IDOR (GS-06)
+* **Concept:** Horizontal access control deficiency allowing low-privileged users to request other users' resources by altering an identifier.
+* **Hint:** When viewing your user's radio configuration, note the ID parameter in the URL (e.g. `.../config/radio/2`). What happens when you switch that ID to the administrator's?
+* **Strategy:** Read classified administrator configuration records using your operator session.
+
+### Challenge 2.4: CCSDS Protocol (GS-08)
+* **Concept:** The satellite rejects raw plaintext strings and enforces standard CCSDS Space Packet framing.
+* **Hint:** A CCSDS Space Packet begins with a 6-byte header indicating the APID (Application Process Identifier), sequence counter, and packet length, followed by the payload.
+* **Strategy:** Encapsulate the PING command in hexadecimal format with the telemetry and control APID header.
+* **Visual Verification:** Upon receiving the valid CCSDS frame, the NeoPixel LED turns **Blue**.
 
 ---
 
-## Resumen de Indicadores Visuales (LED Neopixel)
+## Level 3: Hard (Firmware and Cryptography)
+**Goal:** Break session cryptography and exploit a physical memory vulnerability in the RP2040 firmware.
 
-| Acción / Reto | Color de LED en Hardware | Significado |
+### Challenge 3.1: Signed Token Forging (GS-05 / Lvl 3)
+* **Concept:** Weak cryptographic signatures resulting from hardcoded or accessible shared secrets.
+* **Hint:** Tokens are now signed with HMAC-SHA256. Where does the server obtain its signing secret?
+* **Strategy:** If you read configuration files via Level 2 vulnerabilities, locate `SECRET_KEY` and implement a Python script to forge and sign an administrator token.
+
+### Challenge 3.2: SDLS Cryptography (GS-08 / Lvl 3)
+* **Concept:** Application of the Space Data Link Security (SDLS) standard to encrypt space telecommands.
+* **Hint:** The satellite requires AES encrypted or authenticated frames. The master key resides in the database or firmware image.
+* **Strategy:** Extract the master key from telemetry database dumps and use it to encrypt CCSDS frames prior to RF uplink.
+
+### Challenge 3.3: Firmware Buffer Overflow (Challenge 3.3)
+* **Concept:** Missing boundary validation in C firmware input buffers (Stack Buffer Overflow).
+* **Hint:** The `DIAG_MEM` diagnostic command processes input payloads without bounds checking.
+* **Strategy:** Send a `DIAG_MEM` command accompanied by an overflow payload (padding exceeding 32 bytes) to overwrite the RP2040 stack frame.
+* **Visual Verification:** The NeoPixel LED turns **Purple**, confirming that the simulated stack buffer overflow handler executed.
+
+---
+
+## Visual Status Summary (NeoPixel LED)
+
+| Action / Challenge | Hardware LED Color | Significance |
 |---|---|---|
-| Comando `TEST` (Nivel 1) | **Verde** | Recepción de comando en texto plano exitosa. |
-| Comando PING CCSDS (Nivel 2) | **Azul** | Recepción de paquete espacial estructurado exitosa. |
-| Comando `DIAG_MEM` Overflow (Nivel 3) | **Púrpura** | Simulación de explotación física de pila exitosa. |
+| `TEST` Command (Level 1) | **Green** | Successful plaintext command reception. |
+| CCSDS PING Command (Level 2) | **Blue** | Successful structured space packet reception. |
+| `DIAG_MEM` Overflow Command (Level 3) | **Purple** | Successful physical memory overflow simulation. |
