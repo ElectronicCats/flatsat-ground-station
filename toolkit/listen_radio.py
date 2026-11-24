@@ -1,6 +1,7 @@
 import sys
-import serial
 import time
+
+import serial
 
 try:
     port = "/dev/ttyACM0"

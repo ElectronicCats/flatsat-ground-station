@@ -1,5 +1,7 @@
 from unittest.mock import MagicMock, patch
+
 from click.testing import CliRunner
+
 from modules.core.cli import cli
 
 
@@ -33,7 +35,7 @@ def test_status_command_empty_warning(mock_get_dev, mock_send_cmd):
     runner = CliRunner()
     result = runner.invoke(cli, ["status"])
 
-    assert result.exit_code == 0
+    assert result.exit_code == 1
     assert "No status response received" in result.output
 
 
@@ -63,7 +65,7 @@ def test_sensors_command_failure(mock_get_dev, mock_send_cmd):
     runner = CliRunner()
     result = runner.invoke(cli, ["sensors"])
 
-    assert result.exit_code == 0
+    assert result.exit_code == 1
     assert "Failed to retrieve sensor values" in result.output
 
 

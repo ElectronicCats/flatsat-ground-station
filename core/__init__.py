@@ -1,6 +1,6 @@
 """Backward-compatibility shim for core -> modules.core."""
-import sys
 import importlib
+import sys
 
 _target = importlib.import_module("modules.core")
 sys.modules[__name__] = _target

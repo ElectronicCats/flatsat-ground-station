@@ -1,20 +1,9 @@
+"""Version resolution for the legacy `cli` import path.
+
+The real implementation is `modules.utils._version`; this only forwards to it so
+the version can never drift between the two import paths.
 """
-_version.py - Version reader for FlatSat Ground Station CLI
-"""
 
-from importlib.metadata import PackageNotFoundError, version
-from pathlib import Path
+from modules.utils._version import __version__, get_version
 
-
-def get_version() -> str:
-    try:
-        return version("flatsat-ground-station")
-    except PackageNotFoundError:
-        # Fallback for editable / local dev tree without installation
-        version_file = Path(__file__).resolve().parent.parent / "VERSION"
-        if version_file.is_file():
-            return version_file.read_text(encoding="utf-8").strip()
-    return "1.0.0"
-
-
-__version__ = get_version()
+__all__ = ["__version__", "get_version"]

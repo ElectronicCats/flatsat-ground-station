@@ -1,7 +1,8 @@
 from unittest.mock import MagicMock, patch
+
 from click.testing import CliRunner
+
 from modules.core.cli import cli
-from modules.core.ccsds import build_tc
 
 
 @patch("modules.core.radio_bridge.RadioBridge.send_raw")
@@ -46,7 +47,7 @@ def test_transmit_invalid_hex(mock_get_dev):
     runner = CliRunner()
     result = runner.invoke(cli, ["transmit", "INVALID_HEX_DATA"])
 
-    assert result.exit_code == 0
+    assert result.exit_code == 1
     assert "Invalid hex string. Use --text" in result.output
 
 
@@ -58,7 +59,7 @@ def test_transmit_empty_payload(mock_get_dev):
     runner = CliRunner()
     result = runner.invoke(cli, ["transmit", "--text", ""])
 
-    assert result.exit_code == 0
+    assert result.exit_code == 1
     assert "Empty payload, nothing to transmit" in result.output
 
 

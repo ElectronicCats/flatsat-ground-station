@@ -2,15 +2,15 @@ import os
 import subprocess
 import sys
 import tempfile
-import time
-import pytest
-from werkzeug.serving import make_server
 import threading
+import time
 
+from werkzeug.serving import make_server
+
+from modules.webapp.app import create_app
 from modules.webapp.config import Config
 from modules.webapp.db import init_db
 from modules.webapp.seed import seed_db
-from modules.webapp.app import create_app
 
 
 class ServerThread(threading.Thread):

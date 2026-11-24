@@ -2,14 +2,13 @@
 
 import base64
 import hashlib
+import hmac
 import time
 from functools import wraps
 
 from flask import current_app, g, redirect, request, url_for
-import hmac
 
 from modules.webapp.db import get_db
-
 
 
 def _md5(text: str) -> str:
@@ -20,7 +19,7 @@ def create_session_token(username: str, role: str) -> str:
     """Create a session token. Insecure Base64 for Level 1/2, Signed for Level 3."""
     timestamp = str(int(time.time()))
     payload = f"{username}:{role}:{timestamp}"
-    
+
     if current_app.config.get("CTF_LEVEL", 1) <= 2:
         # DELIBERATELY INSECURE (GS-05) - Easy/Medium mode
         return base64.b64encode(payload.encode()).decode()
@@ -39,7 +38,7 @@ def parse_session_token(token: str) -> tuple[str | None, str | None]:
     """Parse a session token. Returns (username, role) or (None, None)."""
     try:
         decoded = base64.b64decode(token).decode()
-        
+
         if current_app.config.get("CTF_LEVEL", 1) <= 2:
             parts = decoded.split(":")
             if len(parts) >= 2:
@@ -54,7 +53,7 @@ def parse_session_token(token: str) -> tuple[str | None, str | None]:
                 payload.encode(),
                 hashlib.sha256
             ).hexdigest()
-            
+
             if hmac.compare_digest(signature, expected_sig):
                 parts = payload.split(":")
                 if len(parts) >= 2:

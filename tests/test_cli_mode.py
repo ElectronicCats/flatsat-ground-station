@@ -1,5 +1,7 @@
 from unittest.mock import MagicMock, patch
+
 from click.testing import CliRunner
+
 from modules.core.cli import cli
 
 
@@ -90,3 +92,45 @@ def test_mode_invalid_choice():
     runner = CliRunner()
     result = runner.invoke(cli, ["mode", "invalid_role"])
     assert result.exit_code == 2
+
+
+@patch("modules.core.cli.send_cmd")
+@patch("modules.core.session.get_device_or_exit")
+def test_mode_sat_alias_matches_mission(mock_get_dev, mock_send_cmd):
+    """`sat` is an alias of `mission` and must issue the same shell sequence."""
+    mock_dev = MagicMock()
+    mock_get_dev.return_value = mock_dev
+    mock_send_cmd.return_value = "OK"
+
+    result = CliRunner().invoke(cli, ["mode", "sat"])
+
+    assert result.exit_code == 0
+    assert "Mode set to 'sat'." in result.output
+    actual_cmds = [c[0][1] for c in mock_send_cmd.call_args_list]
+    assert actual_cmds == ["mode sat", "lora_mode ALL stream", "lora_apply ALL", "identify"]
+
+
+@patch("modules.core.cli.send_cmd")
+@patch("modules.core.session.get_device_or_exit")
+def test_mode_gs_alias_matches_ground_station(mock_get_dev, mock_send_cmd):
+    """`gs` is an alias of `ground_station`."""
+    mock_dev = MagicMock()
+    mock_get_dev.return_value = mock_dev
+    mock_send_cmd.return_value = "OK"
+
+    result = CliRunner().invoke(cli, ["mode", "gs"])
+
+    assert result.exit_code == 0
+    assert "Mode set to 'gs'." in result.output
+    actual_cmds = [c[0][1] for c in mock_send_cmd.call_args_list]
+    assert actual_cmds == ["mode gs", "lora_mode ALL command", "lora_apply ALL", "identify"]
+
+
+def test_mode_sequences_have_no_duplicate_aliases():
+    """MODE_SEQUENCES must hold one entry per canonical role, aliases live elsewhere."""
+    from modules.core.cli import MODE_ALIASES, MODE_SEQUENCES
+
+    assert set(MODE_SEQUENCES) == {"mission", "ground_station", "raw"}
+    for alias, canonical in MODE_ALIASES.items():
+        assert alias not in MODE_SEQUENCES, f"{alias} should only exist in MODE_ALIASES"
+        assert canonical in MODE_SEQUENCES

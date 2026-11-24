@@ -1,49 +1,43 @@
 # FlatSat Ground Station Makefile
-# Mirrors CatSniffer / catnip Makefile architecture
+#
+# There is ONE installer (flatsat_app.py install) and ONE binary
+# (flatsat-gs). These targets are just shortcuts for it.
+#
+#   make app-build       Build the standalone binary (PyInstaller)
+#   make app-install     Install the app inside the project (no sudo)
+#   make app-uninstall   Remove it from the user profile
+#   make test            Run the automated pytest suite
+#   make clean           Remove build artifacts
 
 VENV_PYTHON = $(shell if [ -f .venv/bin/python ]; then echo .venv/bin/python; else echo python3; fi)
-VENV_PIP = $(shell if [ -f .venv/bin/pip ]; then echo .venv/bin/pip; else echo pip; fi)
 
 PYTHON ?= $(VENV_PYTHON)
-PIP ?= $(VENV_PIP)
-PREFIX ?= /usr/local
-BIN_DIR = $(PREFIX)/bin
+APP = flatsat_app.py
 
-.PHONY: all help install build compile-install uninstall test clean
+.PHONY: all help app-build app-install app-uninstall test clean
 
 all: help
 
 help:
 	@echo "FlatSat Ground Station Makefile"
 	@echo "Usage:"
-	@echo "  make install         Install flatsat package and setup global symlink"
-	@echo "  make compile-install Compile with PyInstaller and install globally"
-	@echo "  make uninstall       Remove flatsat from the system"
+	@echo "  make app-build       Build the standalone app binary (dist/flatsat-gs)"
+	@echo "  make app-install     Install the app inside the project (no sudo)"
+	@echo "  make app-uninstall   Remove the installed app"
 	@echo "  make test            Run automated pytest test suite"
 	@echo "  make clean           Remove build artifacts"
 
-install:
-	@echo "[*] Installing flatsat package using $(PIP)..."
-	$(PIP) install -e .
-	@echo "[*] Setting up global access (requires sudo)..."
-	sudo bash ./scripts/install.sh $(shell which flatsat 2>/dev/null || echo "")
+app-build:
+	@echo "[*] Building the standalone app binary..."
+	PYTHON=$(PYTHON) bash ./compile_app.sh
 
-build: compile-install
+app-install:
+	@echo "[*] Installing FlatSat Ground Station into the project..."
+	$(PYTHON) $(APP) install
 
-compile-install:
-	@echo "[*] Compiling flatsat standalone binary with PyInstaller..."
-	PYTHON=$(PYTHON) bash ./compile.sh
-	@echo "[*] Installing compiled binary to $(BIN_DIR)..."
-	sudo cp dist/flatsat $(BIN_DIR)/flatsat || sudo cp dist/flatsat/flatsat $(BIN_DIR)/flatsat
-	@echo "[+] Compiled binary installed to $(BIN_DIR)/flatsat"
-
-
-uninstall:
-	@echo "[*] Uninstalling flatsat package..."
-	$(PIP) uninstall -y flatsat-ground-station
-	@echo "[*] Removing global symlink/binary..."
-	sudo rm -f $(BIN_DIR)/flatsat
-	@echo "[+] Uninstalled successfully"
+app-uninstall:
+	@echo "[*] Removing FlatSat Ground Station from the user profile..."
+	$(PYTHON) $(APP) uninstall
 
 test:
 	@echo "[*] Running tests using $(PYTHON)..."

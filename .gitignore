@@ -21,6 +21,9 @@ htmlcov/
 .venv/
 venv/
 
+# Local installation of the application (flatsat-gs install)
+flatsat-gs/
+
 # IDE
 .vscode/
 .idea/
@@ -31,7 +34,7 @@ venv/
 /problemas_detallados.md
 
 # Exploits & Dumps
-exploit_*.py
+/exploit_*.py
 *cookies.txt
 *.tar.gz
 tree.txt

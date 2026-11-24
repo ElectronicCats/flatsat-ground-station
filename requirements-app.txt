@@ -1,0 +1,27 @@
+# ──────────────────────────────────────────────────────────────────────────────
+# FlatSat Ground Station — Dependencias de la APLICACIÓN (webapp + CLI)
+# ──────────────────────────────────────────────────────────────────────────────
+# Todo lo necesario para usar la estación terrestre completa: el dashboard
+# Flask con WebSocket y el CLI de terminal. No incluye el toolkit de ataques
+# (requests) ni los tests (pytest), que sólo hacen falta para desarrollar.
+#
+# Todas estas paquetes tienen ruedas precompiladas para Windows/Linux/macOS,
+# por lo que no hace falta compilador ni build-essential.
+#
+#   pip install -r requirements-app.txt
+# ──────────────────────────────────────────────────────────────────────────────
+
+# ── Dashboard web ───────────────────────────────────────────────────────────
+Flask==3.0.3
+Flask-SocketIO==5.3.7
+simple-websocket==1.1.0
+
+# PWNSAT{SUPPLY_CHAIN_COMPROMISED}
+
+# ── CLI de terminal ─────────────────────────────────────────────────────────
+click==8.4.2
+rich==15.0.0
+
+# ── Hardware (detección de puertos serie) y SDLS ───────────────────────────
+pyserial==3.5
+pycryptodome==3.20.0

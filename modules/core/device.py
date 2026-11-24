@@ -4,6 +4,8 @@ Simplified from flatsatTUI/device.py: no asyncio, no command queue,
 direct serial read/write with timeouts. One device at a time.
 """
 
+from __future__ import annotations
+
 import os
 import re
 import sys
@@ -94,7 +96,7 @@ class FlatSatDevice:
                         return False
         return True
 
-    def connect(self, forced_role: str | None = None) -> dict[str, bool]:
+    def connect(self, forced_role: str | None = None, allow_mock: bool = True) -> dict[str, bool]:
         """Open all serial ports. Returns {endpoint: success}.
 
         On partial failure, closes any ports that were successfully opened.
@@ -111,6 +113,10 @@ class FlatSatDevice:
         - ``"satellite"`` / ``"gs"``: force the board into that mode after
           connecting. Used by the webapp, which owns one persistent connection
           and explicitly drives the board's role.
+
+        ``allow_mock`` must be False when the user explicitly asked for the
+        real board: with FLATSAT_MOCK=1 in the environment the ports would be
+        replaced by mocks and no telemetry would ever be received.
         """
         self.disconnect()
 
@@ -127,7 +133,7 @@ class FlatSatDevice:
             if path:
                 try:
                     # In mock mode, we just pretend it succeeds
-                    is_mock = os.environ.get("FLATSAT_MOCK") == "1"
+                    is_mock = allow_mock and os.environ.get("FLATSAT_MOCK") == "1"
                     if is_mock:
                         from unittest.mock import MagicMock
                         setattr(self, f"_{name}", MagicMock(is_open=True))
@@ -144,7 +150,7 @@ class FlatSatDevice:
                     try:
                         ser.dtr = False
                         ser.rts = False
-                    except (OSError, IOError, serial.SerialException):
+                    except (OSError, serial.SerialException):
                         pass
 
                     if sys.platform == "win32":
@@ -230,8 +236,8 @@ class FlatSatDevice:
 
     def disconnect(self):
         """Close all serial ports, locking individually to prevent races and deadlocks."""
-        for attr, lock in [("_radio0", self._radio0_lock), 
-                           ("_radio1", self._radio1_lock), 
+        for attr, lock in [("_radio0", self._radio0_lock),
+                           ("_radio1", self._radio1_lock),
                            ("_shell", self._shell_lock)]:
             with lock:
                 ser = getattr(self, attr, None)

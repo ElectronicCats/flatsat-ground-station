@@ -1,14 +1,18 @@
+
+import os
+
 import requests
-import base64
-import hmac
-import hashlib
-import time
 
-BASE = "http://localhost:5000"
+BASE = os.environ.get("FLATSAT_BASE_URL", "http://localhost:5000")
 
-# Decoded token from admin_cookies.txt
-# admin:admin:1779220174|7b0a77ae6dfe58df196fa318f36144dc9f9512eafdca1cc91c7972c5f1f9e354
-token = "YWRtaW46YWRtaW46MTc3OTIyMDE3NHw3YjBhNzdhZTZkZmU1OGRmMTk2ZmEzMThmMzYxNDRkYzlmOTUxMmVhZmRjYTFjYzkxYzc5NzJjNWYxZjllMzU0"
+# Admin session token. Prefer FLATSAT_SESSION_TOKEN or a cookies file; the
+# literal below is a local-CTF convenience default and expires, so it is only a
+# last resort. Decode with: base64 -d
+_DEFAULT_TOKEN = (
+    "YWRtaW46YWRtaW46MTc3OTIyMDE3NHw3"
+    "YjBhNzdhZTZkZmU1OGRmMTk2ZmEzMThmMzYxNDRkYzlmOTUxMmVhZmRjYTFjYzkxYzc5NzJjNWYxZjllMzU0"
+)
+token = os.environ.get("FLATSAT_SESSION_TOKEN") or _DEFAULT_TOKEN
 
 session = requests.Session()
 session.cookies.set("session_token", token)

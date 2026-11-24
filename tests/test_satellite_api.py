@@ -245,7 +245,7 @@ def test_satellite_duplicate_mode_ignored(app, auth_client):
     mock_dev = _setup_hardware(app)
     gs = app.config["GS_STATE"]
     gs.local_device_info["mode"] = "mission"
-    
+
     resp = auth_client.post("/api/satellite/mode", json={"mode": "mission"}, content_type="application/json")
     assert resp.status_code == 200
     assert resp.get_json().get("no_change") is True
@@ -257,7 +257,7 @@ def test_satellite_duplicate_flight_ignored(app, auth_client):
     gs = app.config["GS_STATE"]
     gs.local_device_info["role"] = "satellite"
     gs.local_device_info["flight"] = "NOMINAL"
-    
+
     resp = auth_client.post("/api/satellite/flight", json={"flight": "nominal"}, content_type="application/json")
     assert resp.status_code == 200
     assert resp.get_json().get("no_change") is True
@@ -268,7 +268,7 @@ def test_satellite_duplicate_difficulty_ignored(app, auth_client):
     mock_dev = _setup_hardware(app)
     gs = app.config["GS_STATE"]
     gs.difficulty = 2
-    
+
     resp = auth_client.post("/api/satellite/difficulty", json={"level": 2}, content_type="application/json")
     assert resp.status_code == 200
     assert resp.get_json().get("no_change") is True
@@ -280,8 +280,12 @@ def test_satellite_duplicate_tinygs_ignored(app, auth_client):
     gs = app.config["GS_STATE"]
     gs.local_device_info["mode"] = "tinygs"
     gs.local_device_info["tinygs_profile"] = "norbi"
-    
-    resp = auth_client.post("/api/satellite/tinygs", json={"action": "spoof", "profile": "norbi"}, content_type="application/json")
+
+    resp = auth_client.post(
+        "/api/satellite/tinygs",
+        json={"action": "spoof", "profile": "norbi"},
+        content_type="application/json",
+    )
     assert resp.status_code == 200
     assert resp.get_json().get("no_change") is True
     mock_dev.send_shell_command_full.assert_not_called()
@@ -291,7 +295,7 @@ def test_active_radio_duplicate_ignored(app, auth_client):
     mock_dev = _setup_hardware(app)
     gs = app.config["GS_STATE"]
     gs.active_radio = 2
-    
+
     resp = auth_client.post("/api/hardware/active_radio", json={"active_radio": 2}, content_type="application/json")
     assert resp.status_code == 200
     assert resp.get_json().get("no_change") is True
@@ -300,7 +304,11 @@ def test_active_radio_duplicate_ignored(app, auth_client):
 
 def test_satellite_config_operator_denied(app, operator_client):
     _setup_hardware(app)
-    resp = operator_client.post("/api/satellite/lora_config", json={"radio": "R0", "frequency": 915000000}, content_type="application/json")
+    resp = operator_client.post(
+        "/api/satellite/lora_config",
+        json={"radio": "R0", "frequency": 915000000},
+        content_type="application/json",
+    )
     assert resp.status_code == 403
 
     resp = operator_client.post("/api/satellite/mode", json={"mode": "mission"}, content_type="application/json")

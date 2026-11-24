@@ -1,6 +1,6 @@
 """Backward-compatibility shim for webapp -> modules.webapp."""
-import sys
 import importlib
+import sys
 
 _target = importlib.import_module("modules.webapp")
 __path__ = _target.__path__

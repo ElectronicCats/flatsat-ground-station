@@ -1,7 +1,6 @@
-import pytest
 import struct
 
-from core.ccsds import build_tc, sdls_protect_frame, ccsds_crc16, parse_frame
+from core.ccsds import build_tc, ccsds_crc16, sdls_protect_frame
 from core.constants import APID_TC_COMMAND, TC_OP_SET_NOMINAL
 from core.radio_bridge import RadioBridge
 from core.state import GroundStationState
@@ -15,7 +14,7 @@ def test_sdls_protect_frame_crc_recalculated():
     # Difficulty 0 and 1: plaintext, CRC unchanged
     f0 = sdls_protect_frame(plain_frame, 0)
     assert f0 == plain_frame
-    
+
     f1 = sdls_protect_frame(plain_frame, 1)
     assert f1 == plain_frame
 
