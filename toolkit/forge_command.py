@@ -38,6 +38,35 @@ def _normalize_port(port: str) -> str:
     return port
 
 
+def _read_response(ser, markers=(), timeout=4.0, silence=0.15):
+    """Read from the serial port until a completion marker appears or timeout.
+
+    The firmware answers a line or two after a short delay (e.g. ``inject_tc
+    done`` or ``TX Result: ...``). Breaking on the marker avoids cutting the
+    read off before the reply arrives; the silence window is kept only as a
+    fallback for responses that carry no known marker (e.g. stream mode).
+    """
+    import time
+
+    marker_bytes = [m.encode() if isinstance(m, str) else m for m in markers]
+    buf = b""
+    deadline = time.monotonic() + timeout
+    last_rx = None
+    while time.monotonic() < deadline:
+        waiting = ser.in_waiting
+        if waiting:
+            buf += ser.read(waiting)
+            last_rx = time.monotonic()
+            if marker_bytes and any(m in buf for m in marker_bytes):
+                break
+            time.sleep(0.02)
+        else:
+            if last_rx is not None and (time.monotonic() - last_rx) >= silence:
+                break
+            time.sleep(0.02)
+    return buf
+
+
 def send_raw(port: str, data: bytes):
     """Send frame via CDC Radio port using LoRa command-mode TX."""
     import sys
@@ -53,12 +82,16 @@ def send_raw(port: str, data: bytes):
     ser.baudrate = 115200
     ser.timeout = 1.0
     ser.write_timeout = 1.0
-    ser.dtr = False
+    # DTR must be asserted: the firmware's CDC IRQ handler is DTR-gated and
+    # silently drops host input when DTR is low (see FW commit 30efdf9). This
+    # is harmless on older builds that ignore DTR.
+    ser.dtr = True
     ser.rts = False
     ser.open()
 
-    if sys.platform == "win32":
-        time.sleep(0.15)
+    # Let the CDC-ACM port settle before writing. Without this the first bytes
+    # can be dropped and the device looks unresponsive (not just on Windows).
+    time.sleep(0.3)
 
     ser.reset_input_buffer()
     ser.reset_output_buffer()
@@ -67,20 +100,10 @@ def send_raw(port: str, data: bytes):
     ser.write(cmd.encode("ascii"))
     ser.flush()
 
-    # Read response with catnip 150ms silence window
-    buf = b""
-    deadline = time.monotonic() + 3.0
-    last_rx = None
-    while time.monotonic() < deadline:
-        waiting = ser.in_waiting
-        if waiting:
-            buf += ser.read(waiting)
-            last_rx = time.monotonic()
-            time.sleep(0.02)
-        else:
-            if last_rx is not None and (time.monotonic() - last_rx) >= _SILENCE_S:
-                break
-            time.sleep(0.02)
+    buf = _read_response(
+        ser, markers=("TX Result", "ERROR", "Unknown command"),
+        timeout=4.0, silence=_SILENCE_S,
+    )
 
     if buf:
         print(f"[<] Response: {buf.decode(errors='replace').strip()}")
@@ -104,12 +127,13 @@ def inject_via_shell(port: str, data: bytes):
     ser.baudrate = 115200
     ser.timeout = 1.0
     ser.write_timeout = 1.0
-    ser.dtr = False
+    # DTR must be asserted (DTR-gated CDC handler, see send_raw).
+    ser.dtr = True
     ser.rts = False
     ser.open()
 
-    if sys.platform == "win32":
-        time.sleep(0.15)
+    # Let the CDC-ACM shell settle before writing (see send_raw).
+    time.sleep(0.3)
 
     ser.reset_input_buffer()
     ser.reset_output_buffer()
@@ -118,19 +142,10 @@ def inject_via_shell(port: str, data: bytes):
     ser.write(cmd.encode())
     ser.flush()
 
-    buf = b""
-    deadline = time.monotonic() + 2.0
-    last_rx = None
-    while time.monotonic() < deadline:
-        waiting = ser.in_waiting
-        if waiting:
-            buf += ser.read(waiting)
-            last_rx = time.monotonic()
-            time.sleep(0.02)
-        else:
-            if last_rx is not None and (time.monotonic() - last_rx) >= _SILENCE_S:
-                break
-            time.sleep(0.02)
+    buf = _read_response(
+        ser, markers=("inject_tc done", "ERROR", "Unknown command", "Usage:"),
+        timeout=4.0, silence=_SILENCE_S,
+    )
 
     print(f"[<] Shell response:\n{buf.decode(errors='replace')}")
     ser.close()

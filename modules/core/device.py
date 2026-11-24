@@ -148,13 +148,18 @@ class FlatSatDevice:
                     ser.open()
 
                     try:
-                        ser.dtr = False
+                        # DTR must be asserted: the cat-version firmware gates
+                        # its CDC RX on DTR and silently drops host input while
+                        # DTR is low (FW commit 30efdf9). Harmless on older
+                        # builds that ignore the line state.
+                        ser.dtr = True
                         ser.rts = False
                     except (OSError, serial.SerialException):
                         pass
 
-                    if sys.platform == "win32":
-                        time.sleep(0.15)
+                    # Let the CDC-ACM port settle before the first write so the
+                    # opening command is not dropped (not only on Windows).
+                    time.sleep(0.2)
 
                     ser.reset_input_buffer()
                     ser.reset_output_buffer()
