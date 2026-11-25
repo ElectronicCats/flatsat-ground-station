@@ -82,12 +82,17 @@ def test_tx_sets_uplink_frequency_and_command_mode():
 
 
 def test_tx_restores_previous_sync_word_afterwards():
-    dev, bridge = _bridge_device()
+    dev, bridge = _bridge_device(
+        "LoRa Configuration [Radio 1]:\n"
+        "  Frequency: 916000000 Hz\n"
+        "  Sync Word: Public (0x34)\n"
+    )
     bridge.send_raw(b"\xaa\xbb")
 
     calls = _shell_calls(dev)
     # Operator's setting is put back, so we do not leave the radio reconfigured.
-    assert calls.index("lora_syncword R1 private") > calls.index("lora_apply R1")
+    after_apply = calls[calls.index("lora_apply R1") + 1:]
+    assert "lora_syncword R1 public" in after_apply
 
 
 def test_result_reports_the_sync_word_used():

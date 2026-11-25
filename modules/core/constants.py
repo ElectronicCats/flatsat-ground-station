@@ -85,9 +85,9 @@ APID_TC_GS_AUTH_XOR = 0x012    # 05_gs_auth_spoofing
 # the frame: a mismatched sync word in particular looks like a dead TX, because
 # the SX126x still reports "Success" after queueing the packet into its FIFO.
 LORA_UPLINK_HZ = 916_000_000
-LORA_DOWNLINK_HZ = 915_000_000
-#: Both FlatSat boards ship their radios on the public LoRaWAN sync word (0x34).
-LORA_SYNCWORD_TX = "public"
+LORA_DOWNLINK_HZ = 916_000_000
+#: Both FlatSat boards ship their radios on the private sync word (0x12).
+LORA_SYNCWORD_TX = "private"
 LORA_SYNCWORD_RX = "private"
 #: Rest frequency for the TX radio between transmissions.
 LORA_TX_SETTLE_S = 0.3
